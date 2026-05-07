@@ -1,0 +1,28 @@
+# Living Room — Wall Display dashboard
+#
+# Drop this file into <ha-config>/dashboards/walldisplay-living.yaml and
+# register it in configuration.yaml (see examples/configuration-snippet.yaml).
+#
+# Open URL on the Shelly Wall Display:
+#   https://<ha-host>/walldisplay-living/0?kiosk&block_context_menu&cache
+#
+# `?kiosk`              hides the HA header + sidebar
+# `?block_context_menu` disables long-press context menu (touch screens)
+# `?cache`              persists the kiosk-mode flags in localStorage so the
+#                       Wall Display stays kiosk after refresh / reboot
+
+title: Living Wall Display
+views:
+  - title: Room
+    path: 0
+    type: panel
+    cards:
+      - type: custom:cow-thermostat-card
+        room: "Living Room"
+        climate: climate.living_thermostat
+        light: light.living_main
+        cover: cover.living_blinds
+        outdoor_temp: sensor.weather_temperature
+        local_temp: sensor.shelly_walldisplay_living_temperature
+        local_humidity: sensor.shelly_walldisplay_living_humidity
+        initial_view: thermostat

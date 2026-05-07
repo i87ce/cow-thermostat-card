@@ -1,0 +1,35 @@
+# Add the following to your Home Assistant configuration.yaml.
+# After editing, restart Home Assistant (or "Reload Lovelace resources"
+# under Settings -> Server controls if only the Lovelace block changed).
+
+# 1. Register the custom card resource (HACS does this for you in storage
+#    mode; only needed if you are in YAML-only mode).
+frontend:
+  extra_module_url:
+    - /hacsfiles/cow-thermostat-card/cow-thermostat-card.js
+    # Required for the ?kiosk URL parameter to hide HA header + sidebar
+    - /hacsfiles/kiosk-mode/kiosk-mode.js
+
+# 2. Register one dashboard per Wall Display.
+#    These do NOT show up in the sidebar — they exist only at their direct URL.
+lovelace:
+  mode: storage  # leave default; per-dashboard "mode: yaml" lets us version the YAML
+  dashboards:
+    walldisplay-living:
+      mode: yaml
+      filename: dashboards/walldisplay-living.yaml
+      title: Living Wall Display
+      show_in_sidebar: false
+      require_admin: false
+    walldisplay-bedroom:
+      mode: yaml
+      filename: dashboards/walldisplay-bedroom.yaml
+      title: Bedroom Wall Display
+      show_in_sidebar: false
+      require_admin: false
+    walldisplay-kitchen:
+      mode: yaml
+      filename: dashboards/walldisplay-kitchen.yaml
+      title: Kitchen Wall Display
+      show_in_sidebar: false
+      require_admin: false

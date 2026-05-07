@@ -1,0 +1,6 @@
+{
+  "name": "Cave of Wonders Room Card",
+  "render_readme": true,
+  "filename": "cow-thermostat-card.js",
+  "homeassistant": "2025.2.0"
+}

@@ -1,0 +1,37 @@
+{
+  "name": "cow-thermostat-card",
+  "version": "0.1.0",
+  "description": "Cave of Wonders room card — Thermostat, Lights, Blinds for Home Assistant on Shelly Wall Display",
+  "main": "dist/cow-thermostat-card.js",
+  "type": "module",
+  "scripts": {
+    "build": "rollup -c",
+    "watch": "rollup -c --watch",
+    "lint": "tsc --noEmit",
+    "clean": "rm -rf dist"
+  },
+  "keywords": [
+    "home-assistant",
+    "lovelace",
+    "custom-card",
+    "shelly",
+    "wall-display",
+    "thermostat",
+    "lights",
+    "blinds"
+  ],
+  "author": "Alessio Vigilante",
+  "license": "MIT",
+  "devDependencies": {
+    "@rollup/plugin-node-resolve": "^15.3.0",
+    "@rollup/plugin-typescript": "^12.1.0",
+    "@types/node": "^22.0.0",
+    "rollup": "^4.21.0",
+    "rollup-plugin-esbuild": "^6.1.1",
+    "tslib": "^2.8.0",
+    "typescript": "^5.6.0"
+  },
+  "dependencies": {
+    "lit": "^3.2.0"
+  }
+}
