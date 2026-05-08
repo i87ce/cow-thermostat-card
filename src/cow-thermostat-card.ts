@@ -29,7 +29,7 @@ import { deriveThermostatView } from "./state/thermostat-state.js";
 import { deriveBlindsView } from "./state/blinds-state.js";
 import { deriveLightsView } from "./state/lights-state.js";
 
-const VERSION = "0.2.1";
+const VERSION = "0.2.2";
 
 type DeviceKind = "thermostat" | "blinds" | "lights";
 

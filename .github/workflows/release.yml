@@ -25,10 +25,12 @@ jobs:
         run: npm run build
 
       - name: Package for HACS
-        # HACS in zip_release mode downloads this single asset and unzips it
-        # into /hacsfiles/cow-thermostat-card/, so cow-thermostat-card.js sits
-        # next to the inter-*.woff2 files and the @font-face url("./...")
-        # references resolve correctly.
+        # HACS in zip_release mode looks for ANY .zip asset attached to the
+        # release, downloads it, and unzips it into /hacsfiles/<repo>/.
+        # The hacs.json `filename` field then points at the entry file
+        # WITHIN the unzipped folder (cow-thermostat-card.js), which HACS
+        # registers as the Lovelace module resource. So our zip contains
+        # the js + 5 woff2, all served from /hacsfiles/cow-thermostat-card/.
         run: |
           cd dist
           zip ../cow-thermostat-card.zip cow-thermostat-card.js inter-*.woff2
