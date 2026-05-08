@@ -24,8 +24,21 @@ jobs:
       - name: Build
         run: npm run build
 
+      - name: Package for HACS
+        # HACS in zip_release mode downloads this single asset and unzips it
+        # into /hacsfiles/cow-thermostat-card/, so cow-thermostat-card.js sits
+        # next to the inter-*.woff2 files and the @font-face url("./...")
+        # references resolve correctly.
+        run: |
+          cd dist
+          zip ../cow-thermostat-card.zip cow-thermostat-card.js inter-*.woff2
+          cd ..
+          unzip -l cow-thermostat-card.zip
+
       - name: Create GitHub release
         uses: softprops/action-gh-release@v2
         with:
-          files: dist/cow-thermostat-card.js
+          files: |
+            cow-thermostat-card.zip
+            dist/cow-thermostat-card.js
           generate_release_notes: true

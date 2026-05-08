@@ -4,6 +4,15 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and
 this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.1] — 2026-05-08
+
+### Fixed
+- HACS install was missing the Inter woff2 fonts because v0.2.0 release only
+  shipped `cow-thermostat-card.js`. Switched `hacs.json` to `zip_release: true`
+  and the release workflow now packages js + 5 woff2 into
+  `cow-thermostat-card.zip` so HACS unpacks all assets into
+  `/hacsfiles/cow-thermostat-card/`.
+
 ## [0.2.0] — 2026-05-08
 
 ### Changed

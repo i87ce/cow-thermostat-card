@@ -1,6 +1,8 @@
 {
   "name": "Cave of Wonders Room Card",
   "render_readme": true,
-  "filename": "cow-thermostat-card.js",
+  "zip_release": true,
+  "filename": "cow-thermostat-card.zip",
   "homeassistant": "2025.2.0"
 }
+
