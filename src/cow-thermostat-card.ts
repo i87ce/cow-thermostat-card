@@ -29,13 +29,9 @@ import { deriveThermostatView } from "./state/thermostat-state.js";
 import { deriveBlindsView } from "./state/blinds-state.js";
 import { deriveLightsView } from "./state/lights-state.js";
 
-const VERSION = "0.1.0";
+const VERSION = "0.2.0";
 
-const VIEW_INDEX: Record<InitialView, number> = {
-  thermostat: 0,
-  blinds: 1,
-  lights: 2,
-};
+type DeviceKind = "thermostat" | "blinds" | "lights";
 
 @customElement("cow-thermostat-card")
 export class CowThermostatCard extends LitElement implements LovelaceCard {
@@ -73,38 +69,69 @@ export class CowThermostatCard extends LitElement implements LovelaceCard {
   setConfig(input: LovelaceCardConfig): void {
     try {
       this.config = validateConfig(input);
-      this.index = VIEW_INDEX[this.config.initial_view ?? "thermostat"];
+      this.index = this.indexForView(this.config.initial_view);
     } catch (e) {
       this.config = undefined;
       throw e;
     }
   }
 
+  /** Ordered list of panels actually rendered, given the current config. */
+  private activeKinds(): DeviceKind[] {
+    const kinds: DeviceKind[] = [];
+    if (this.config?.climate) kinds.push("thermostat");
+    if (this.config?.cover) kinds.push("blinds");
+    if (this.config?.light) kinds.push("lights");
+    return kinds;
+  }
+
+  private indexForView(view: InitialView | undefined): number {
+    const kinds = this.activeKinds();
+    if (kinds.length === 0) return 0;
+    const target: DeviceKind =
+      view === "thermostat"
+        ? "thermostat"
+        : view === "blinds"
+          ? "blinds"
+          : view === "lights"
+            ? "lights"
+            : kinds[0];
+    const i = kinds.indexOf(target);
+    return i >= 0 ? i : 0;
+  }
+
   /** HA needs this to size the card in masonry view */
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   getCardSize(): number {
     return 8; // ≈ 384/50
   }
 
+  /** Accent colour for each active kind, in the same order as activeKinds() */
   private accents(): string[] {
+    const kinds = this.activeKinds();
     if (!this.config || !this.hass) {
-      return [
-        "var(--cow-heating-primary)",
-        "var(--cow-blinds-sky)",
-        "var(--cow-lights-bright)",
-      ];
+      return kinds.map((k) =>
+        k === "thermostat"
+          ? "var(--cow-heating-primary)"
+          : k === "blinds"
+            ? "var(--cow-blinds-sky)"
+            : "var(--cow-lights-bright)",
+      );
     }
-    return [
-      accentForThermostat(
-        deriveThermostatView(this.hass.states[this.config.climate]).variant,
-      ).primary,
-      accentForBlinds(
-        deriveBlindsView(this.hass.states[this.config.cover]).variant,
-      ).primary,
-      accentForLights(
-        deriveLightsView(this.hass.states[this.config.light]).variant,
-      ).primary,
-    ];
+    return kinds.map((k) => {
+      if (k === "thermostat" && this.config!.climate) {
+        return accentForThermostat(
+          deriveThermostatView(this.hass!.states[this.config!.climate]).variant,
+        ).primary;
+      }
+      if (k === "blinds" && this.config!.cover) {
+        return accentForBlinds(
+          deriveBlindsView(this.hass!.states[this.config!.cover]).variant,
+        ).primary;
+      }
+      return accentForLights(
+        deriveLightsView(this.hass!.states[this.config!.light!]).variant,
+      ).primary;
+    });
   }
 
   override render() {
@@ -112,34 +139,49 @@ export class CowThermostatCard extends LitElement implements LovelaceCard {
       return html`<div class="error">cow-thermostat-card: invalid config</div>`;
     }
     const cfg = this.config;
+    const kinds = this.activeKinds();
+
+    if (kinds.length === 0) {
+      return html`<div class="error">
+        cow-thermostat-card: at least one of climate, light, cover must be configured
+      </div>`;
+    }
+
     return html`
       <div class="frame">
         <cow-device-swiper
           .index=${this.index}
+          .count=${kinds.length}
           .accents=${this.accents()}
           @cow-index-change=${(e: CustomEvent<{ index: number }>) =>
             (this.index = e.detail.index)}
         >
-          <cow-thermostat-panel
-            slot="slide-0"
-            .hass=${this.hass}
-            entity=${cfg.climate}
-            roomName=${cfg.room}
-            outdoorEntity=${cfg.outdoor_temp ?? ""}
-            localHumidityEntity=${cfg.local_humidity ?? ""}
-          ></cow-thermostat-panel>
-          <cow-blinds-panel
-            slot="slide-1"
-            .hass=${this.hass}
-            entity=${cfg.cover}
-            roomName=${cfg.room}
-          ></cow-blinds-panel>
-          <cow-lights-panel
-            slot="slide-2"
-            .hass=${this.hass}
-            entity=${cfg.light}
-            roomName=${cfg.room}
-          ></cow-lights-panel>
+          ${kinds.map((kind, i) => {
+            if (kind === "thermostat") {
+              return html`<cow-thermostat-panel
+                slot="slide-${i}"
+                .hass=${this.hass}
+                entity=${cfg.climate!}
+                roomName=${cfg.room}
+                outdoorEntity=${cfg.outdoor_temp ?? ""}
+                localHumidityEntity=${cfg.local_humidity ?? ""}
+              ></cow-thermostat-panel>`;
+            }
+            if (kind === "blinds") {
+              return html`<cow-blinds-panel
+                slot="slide-${i}"
+                .hass=${this.hass}
+                entity=${cfg.cover!}
+                roomName=${cfg.room}
+              ></cow-blinds-panel>`;
+            }
+            return html`<cow-lights-panel
+              slot="slide-${i}"
+              .hass=${this.hass}
+              entity=${cfg.light!}
+              roomName=${cfg.room}
+            ></cow-lights-panel>`;
+          })}
         </cow-device-swiper>
       </div>
     `;

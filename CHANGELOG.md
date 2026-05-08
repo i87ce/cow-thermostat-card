@@ -4,6 +4,22 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and
 this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.0] — 2026-05-08
+
+### Changed
+- `climate`, `light` and `cover` are now **all optional** (was: all required).
+  At least one must be configured. The swiper renders only the panels you
+  configure: drop `climate` and you get a 2-panel card (lights + blinds);
+  drop two of them and you get a single-panel card with no swipe.
+- `initial_view` defaults to the first available panel in order
+  thermostat → lights → blinds (was: always thermostat).
+- `initial_view` now validates against the actually configured entities
+  (e.g. `initial_view: thermostat` without `climate` errors clearly).
+
+### Added
+- Per-room dashboard examples for Sala, Cucina, Camera Padronale, Camera 1, Studio.
+- Preview harness gains a "Panels" selector to test 1/2/3-panel configurations.
+
 ## [0.1.0] — 2026-05-08
 
 ### Added

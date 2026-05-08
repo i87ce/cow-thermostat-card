@@ -18,18 +18,30 @@ lovelace:
     walldisplay-living:
       mode: yaml
       filename: dashboards/walldisplay-living.yaml
-      title: Living Wall Display
+      title: Sala
       show_in_sidebar: false
       require_admin: false
-    walldisplay-bedroom:
+    walldisplay-cucina:
       mode: yaml
-      filename: dashboards/walldisplay-bedroom.yaml
-      title: Bedroom Wall Display
+      filename: dashboards/walldisplay-cucina.yaml
+      title: Cucina
       show_in_sidebar: false
       require_admin: false
-    walldisplay-kitchen:
+    walldisplay-camera-padronale:
       mode: yaml
-      filename: dashboards/walldisplay-kitchen.yaml
-      title: Kitchen Wall Display
+      filename: dashboards/walldisplay-camera-padronale.yaml
+      title: Camera Padronale
+      show_in_sidebar: false
+      require_admin: false
+    walldisplay-camera-1:
+      mode: yaml
+      filename: dashboards/walldisplay-camera-1.yaml
+      title: Camera 1
+      show_in_sidebar: false
+      require_admin: false
+    walldisplay-studio:
+      mode: yaml
+      filename: dashboards/walldisplay-studio.yaml
+      title: Studio
       show_in_sidebar: false
       require_admin: false

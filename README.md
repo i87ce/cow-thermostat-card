@@ -56,14 +56,16 @@ Per-room YAML:
 ```yaml
 type: custom:cow-thermostat-card
 room: "Living Room"
-climate: climate.living_thermostat        # required
-light: light.living_main                  # required
-cover: cover.living_blinds                # required
+climate: climate.living_thermostat        # optional
+light: light.living_main                  # optional
+cover: cover.living_blinds                # optional
 outdoor_temp: sensor.weather_temperature  # optional
 local_temp: sensor.shelly_walldisplay_living_temperature   # optional
 local_humidity: sensor.shelly_walldisplay_living_humidity  # optional
-initial_view: thermostat                  # thermostat | lights | blinds (default: thermostat)
+initial_view: thermostat                  # thermostat | lights | blinds (default: first available panel)
 ```
+
+At least one of `climate`, `light`, or `cover` must be set. The swiper renders only the panels you configure — drop `climate` and you get a 2-panel card (lights + blinds), drop two of them and you get a single-panel card with no swipe.
 
 Full per-room dashboards examples are in [`examples/dashboards/`](./examples/dashboards/).
 

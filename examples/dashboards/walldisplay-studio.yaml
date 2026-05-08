@@ -1,0 +1,15 @@
+title: Studio Wall Display
+views:
+  - title: Studio
+    path: 0
+    type: panel
+    cards:
+      - type: custom:cow-thermostat-card
+        room: "Studio"
+        # climate: climate.studio_termostato
+        # Studio has 2 lights — pick or group:
+        light: light.luce_calda_studio
+        cover: cover.tapparella_studio
+        # local_temp:     sensor.shellywalldisplay_<MAC>_temperature
+        # local_humidity: sensor.shellywalldisplay_<MAC>_humidity
+        initial_view: lights

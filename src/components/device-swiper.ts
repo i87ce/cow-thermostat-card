@@ -2,22 +2,25 @@ import { LitElement, html, css } from "lit";
 import { customElement, property, state } from "lit/decorators.js";
 
 /**
- * Horizontal pointer-driven swiper between three children panels (slot).
+ * Horizontal pointer-driven swiper between 1..N children panels (slot).
  *
  * - Pure pointer events; no library
  * - Snap to nearest index on release, animated 240ms
  * - Threshold: 25% of the panel width (≈ 6rem = 96 design-px)
- * - Indicator dots in bottom-center; tap = jump
+ * - Indicator dots in bottom-center; tap = jump (hidden when count == 1)
  * - Vertical pan inside children (e.g. light brightness slider) is preserved:
  *   we only "claim" the pointer once horizontal delta exceeds 8 px AND is
  *   greater than vertical delta.
  */
 @customElement("cow-device-swiper")
 export class CowDeviceSwiper extends LitElement {
-  /** Active index 0..2 */
+  /** Active index 0..count-1 */
   @property({ type: Number }) index = 0;
 
-  /** RGB-ish values for the 3 dots (forwarded by parent) */
+  /** Number of panels actually rendered (one slide-N slot per panel) */
+  @property({ type: Number }) count = 3;
+
+  /** Accent color per slide; length should be >= count */
   @property({ type: Array }) accents: string[] = [
     "var(--cow-heating-primary)",
     "var(--cow-blinds-sky)",
@@ -47,7 +50,7 @@ export class CowDeviceSwiper extends LitElement {
     }
     .track {
       display: flex;
-      width: 300%;
+      width: calc(100% * var(--count, 3));
       height: 100%;
       transform: translate3d(var(--tx, 0), 0, 0);
       transition: transform 240ms cubic-bezier(0.22, 1, 0.36, 1);
@@ -56,8 +59,8 @@ export class CowDeviceSwiper extends LitElement {
       transition: none;
     }
     .slide {
-      flex: 0 0 33.3333%;
-      width: 33.3333%;
+      flex: 0 0 calc(100% / var(--count, 3));
+      width: calc(100% / var(--count, 3));
       height: 100%;
       display: flex;
       align-items: center;
@@ -93,7 +96,8 @@ export class CowDeviceSwiper extends LitElement {
   }
 
   private setIndex(i: number): void {
-    const next = Math.max(0, Math.min(2, i));
+    const max = Math.max(0, this.count - 1);
+    const next = Math.max(0, Math.min(max, i));
     if (next !== this.index) {
       this.index = next;
       this.dispatchEvent(
@@ -165,10 +169,13 @@ export class CowDeviceSwiper extends LitElement {
   }
 
   override render() {
-    const baseTx = -this.index * (100 / 3);
+    const count = Math.max(1, this.count);
+    const slidePct = 100 / count;
+    const baseTx = -this.index * slidePct;
     const w = this.viewportWidth || 1;
-    const dragPct = (this.dragX / w) * (100 / 3);
+    const dragPct = (this.dragX / w) * slidePct;
     const tx = `${baseTx + dragPct}%`;
+    const slides = Array.from({ length: count }, (_, i) => i);
 
     return html`
       <div
@@ -177,28 +184,33 @@ export class CowDeviceSwiper extends LitElement {
         @pointermove=${this.onPointerMove}
         @pointerup=${this.onPointerUp}
         @pointercancel=${this.onPointerUp}
+        style="--count:${count}"
       >
-        <div class="track" style="--tx:${tx}">
-          <div class="slide"><slot name="slide-0"></slot></div>
-          <div class="slide"><slot name="slide-1"></slot></div>
-          <div class="slide"><slot name="slide-2"></slot></div>
+        <div class="track" style="--tx:${tx}; --count:${count}">
+          ${slides.map(
+            (i) => html`<div class="slide" style="--count:${count}">
+              <slot name="slide-${i}"></slot>
+            </div>`,
+          )}
         </div>
       </div>
-      <div class="dots">
-        ${[0, 1, 2].map(
-          (i) => html`
-            <div
-              class="dot ${i === this.index ? "active" : ""}"
-              style=${i === this.index
-                ? `--active-color: ${this.accents[i]}`
-                : ""}
-              @click=${() => this.goTo(i)}
-              role="button"
-              aria-label="Go to view ${i + 1}"
-            ></div>
-          `,
-        )}
-      </div>
+      ${count > 1
+        ? html`<div class="dots">
+            ${slides.map(
+              (i) => html`
+                <div
+                  class="dot ${i === this.index ? "active" : ""}"
+                  style=${i === this.index
+                    ? `--active-color: ${this.accents[i]}`
+                    : ""}
+                  @click=${() => this.goTo(i)}
+                  role="button"
+                  aria-label="Go to view ${i + 1}"
+                ></div>
+              `,
+            )}
+          </div>`
+        : ""}
     `;
   }
 }
