@@ -1,8 +1,7 @@
 {
   "mcpServers": {
     "home-assistant": {
-      "url": "https://YOUR-HA-HOST/mcp_server/sse",
-      "transport": "sse",
+      "url": "https://YOUR-HA-HOST/api/mcp",
       "headers": {
         "Authorization": "Bearer YOUR-LONG-LIVED-TOKEN"
       }

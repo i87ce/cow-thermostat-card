@@ -23,9 +23,9 @@ The `mcp_server` integration exposes **only** the entities you have explicitly e
 1. **Settings → Devices & Services → + Add Integration**
 2. Search for `Model Context Protocol Server` and add it
 3. Confirm the default options
-4. Done — the integration exposes the SSE endpoint at:
+4. Done — the integration exposes a **Streamable HTTP** endpoint at:
    ```
-   https://<ha-host>/mcp_server/sse
+   https://<ha-host>/api/mcp
    ```
 
 ### 3. Create a long-lived access token
@@ -45,8 +45,7 @@ Edit `~/.cursor/mcp.json` (create the file if it doesn't exist) and add the `hom
 {
   "mcpServers": {
     "home-assistant": {
-      "url": "https://YOUR-HA-HOST/mcp_server/sse",
-      "transport": "sse",
+      "url": "https://YOUR-HA-HOST/api/mcp",
       "headers": {
         "Authorization": "Bearer YOUR-LONG-LIVED-TOKEN"
       }
@@ -55,24 +54,39 @@ Edit `~/.cursor/mcp.json` (create the file if it doesn't exist) and add the `hom
 }
 ```
 
-> If your HA is on a `.local` mDNS hostname (e.g. `homeassistant.local:8123`) and Cursor can't resolve it, use the LAN IP instead.
+> If you use **Nabu Casa Cloud**, your URL is the one shown under Settings → Home Assistant Cloud → Remote control (e.g. `https://<random>.ui.nabu.casa`). No port, public over the internet, TLS handled by Nabu Casa.
+> If you use a local LAN URL (e.g. `http://homeassistant.local:8123`) and Cursor can't resolve `.local`, use the LAN IP instead.
 
-Restart Cursor after editing the file.
+Restart Cursor after editing the file (or open a new chat).
 
 ## C. Smoke test
+
+In your shell:
+
+```bash
+curl -sS -X POST "https://YOUR-HA-HOST/api/mcp" \
+  -H "Authorization: Bearer YOUR-TOKEN" \
+  -H "Content-Type: application/json" \
+  -H "Accept: application/json, text/event-stream" \
+  -d '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18","capabilities":{},"clientInfo":{"name":"test","version":"0.1"}}}'
+```
+
+You should see a JSON response with `serverInfo: {"name": "home-assistant", "version": "..."}`. If you do, the token works.
 
 In a new Cursor chat, ask:
 
 > Use the Home Assistant MCP to list my exposed climate entities.
 
-The agent should call `GetLiveContext` and return your exposed `climate.*` entities. If it returns an empty list, you missed step A1 (expose entities).
+The agent should return your exposed `climate.*` entities. If it returns an empty list, you missed step A1 (expose entities).
 
 ## Troubleshooting
 
 | Symptom | Fix |
 |---|---|
-| `401 Unauthorized` from MCP | Token wrong or expired. Recreate. |
+| `401 Unauthorized` | Token wrong or expired. Recreate. |
 | Empty entity list | Entities not exposed to Assist. See A1. |
 | `connect ECONNREFUSED` | HA URL wrong or HA not reachable from your machine. |
-| `Unsupported transport` in Cursor logs | Cursor version too old for SSE; update Cursor. |
-| Self-signed cert errors | Use plain `http://` for LAN, or install your CA. |
+| `404 Not Found` | Wrong endpoint — must be `/api/mcp`, not `/mcp_server/sse`. |
+| `406 Not Acceptable` | Missing `Accept: application/json, text/event-stream` header on direct curl tests. |
+| Cursor doesn't see the MCP | Restart Cursor after editing `~/.cursor/mcp.json`. |
+| Self-signed cert errors (LAN) | Use plain `http://` for LAN, or install your CA. |
