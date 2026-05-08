@@ -1,5 +1,6 @@
 import { LitElement, html, css } from "lit";
 import { customElement, property } from "lit/decorators.js";
+import { buttonReset } from "../styles/button-reset.js";
 
 /**
  * Power toggle — replica Figma "2. Molecules / Power Toggle" (66:72, 66:74).
@@ -11,7 +12,9 @@ export class CowPowerToggle extends LitElement {
   @property({ type: Boolean, reflect: true }) on = false;
   @property({ type: Boolean }) disabled = false;
 
-  static override styles = css`
+  static override styles = [
+    buttonReset,
+    css`
     :host {
       display: inline-block;
       width: 3.5rem;
@@ -50,7 +53,8 @@ export class CowPowerToggle extends LitElement {
       height: 100%;
       background: transparent;
     }
-  `;
+  `,
+  ];
 
   private onClick = () => {
     if (this.disabled) return;

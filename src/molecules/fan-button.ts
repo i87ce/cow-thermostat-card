@@ -1,5 +1,6 @@
 import { LitElement, html, css, nothing } from "lit";
 import { customElement, property } from "lit/decorators.js";
+import { buttonReset } from "../styles/button-reset.js";
 
 /**
  * Fan speed button — replica Figma "2. Molecules / Fan Speed Buttons" (66:18..66:26).
@@ -11,7 +12,9 @@ export class CowFanButton extends LitElement {
   @property({ type: Boolean, reflect: true }) active = false;
   @property({ type: Boolean, reflect: true }) disabled = false;
 
-  static override styles = css`
+  static override styles = [
+    buttonReset,
+    css`
     :host {
       display: inline-flex;
       width: 2.125rem;
@@ -40,7 +43,8 @@ export class CowFanButton extends LitElement {
     :host([active]) button {
       color: var(--cow-surface-white);
     }
-  `;
+  `,
+  ];
 
   override render() {
     return html`

@@ -1,5 +1,6 @@
 import { LitElement, html, css, nothing } from "lit";
 import { customElement, property } from "lit/decorators.js";
+import { buttonReset } from "../styles/button-reset.js";
 
 /**
  * Control button — replica Figma "2. Molecules / Control Buttons" (66:34..66:38).
@@ -12,7 +13,9 @@ export class CowControlButton extends LitElement {
   @property({ type: String }) variant: "default" | "stop" = "default";
   @property({ type: Boolean }) disabled = false;
 
-  static override styles = css`
+  static override styles = [
+    buttonReset,
+    css`
     :host {
       display: inline-flex;
       flex: 1;
@@ -45,7 +48,8 @@ export class CowControlButton extends LitElement {
       opacity: 0.5;
       cursor: not-allowed;
     }
-  `;
+  `,
+  ];
 
   override render() {
     return html`

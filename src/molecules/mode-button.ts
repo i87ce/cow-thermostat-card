@@ -1,5 +1,6 @@
 import { LitElement, html, css, nothing } from "lit";
 import { customElement, property } from "lit/decorators.js";
+import { buttonReset } from "../styles/button-reset.js";
 
 /**
  * Mode pill button — replica Figma "2. Molecules / Mode Buttons" (66:5..66:13).
@@ -14,7 +15,9 @@ export class CowModeButton extends LitElement {
   @property({ type: Boolean, reflect: true }) active = false;
   @property({ type: Boolean, reflect: true }) disabled = false;
 
-  static override styles = css`
+  static override styles = [
+    buttonReset,
+    css`
     :host {
       display: inline-flex;
       width: 2.917rem;
@@ -44,7 +47,8 @@ export class CowModeButton extends LitElement {
     :host([active]) button {
       color: var(--cow-surface-white);
     }
-  `;
+  `,
+  ];
 
   override render() {
     return html`

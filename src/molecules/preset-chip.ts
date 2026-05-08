@@ -1,5 +1,6 @@
 import { LitElement, html, css, nothing } from "lit";
 import { customElement, property } from "lit/decorators.js";
+import { buttonReset } from "../styles/button-reset.js";
 
 /**
  * Preset chip — replica Figma "2. Molecules / Preset Chips" (66:41..66:49).
@@ -10,7 +11,9 @@ export class CowPresetChip extends LitElement {
   @property({ type: String }) label = "";
   @property({ type: Boolean, reflect: true }) active = false;
 
-  static override styles = css`
+  static override styles = [
+    buttonReset,
+    css`
     :host {
       display: inline-flex;
       height: 1.75rem;
@@ -33,7 +36,8 @@ export class CowPresetChip extends LitElement {
     :host([active]) button {
       color: var(--cow-surface-white);
     }
-  `;
+  `,
+  ];
 
   override render() {
     return html`

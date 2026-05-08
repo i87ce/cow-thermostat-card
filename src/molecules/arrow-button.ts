@@ -1,5 +1,6 @@
 import { LitElement, html, css } from "lit";
 import { customElement, property } from "lit/decorators.js";
+import { buttonReset } from "../styles/button-reset.js";
 
 /**
  * Arrow Up / Down button — replica Figma "2. Molecules / Arrow Buttons" (66:29, 66:31).
@@ -12,7 +13,9 @@ export class CowArrowButton extends LitElement {
   @property({ type: String }) direction: "up" | "down" = "up";
   @property({ type: Boolean }) disabled = false;
 
-  static override styles = css`
+  static override styles = [
+    buttonReset,
+    css`
     :host {
       display: block;
       width: 9.25rem;
@@ -41,7 +44,8 @@ export class CowArrowButton extends LitElement {
       opacity: 0.5;
       cursor: not-allowed;
     }
-  `;
+  `,
+  ];
 
   override render() {
     return html`
