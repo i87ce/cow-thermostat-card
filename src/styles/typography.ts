@@ -1,53 +1,21 @@
-import { css } from "lit";
+import { css, unsafeCSS } from "lit";
+import { INTER_FONTS_CSS } from "./font-data.js";
 
 /**
- * Inter font face declarations.
+ * Inter font faces.
  *
- * The Shelly Wall Display SAWD1 has a constrained WebView (MTK6580) and is on a
- * LAN-only network in many setups, so we deliberately do NOT pull from Google
- * Fonts. The five woff2 files live next to cow-thermostat-card.js inside the
- * HACS plugin folder (HACS serves the whole repo under /hacsfiles/).
+ * The 5 weights are inlined as base64 `data:` URLs (generated at build time
+ * by `scripts/embed-fonts.mjs` into `font-data.ts`). This is the only
+ * reliable way to ship the fonts via HACS without a `zip_release` setup,
+ * which misregisters the Lovelace resource. Trade-off: bundle is ~830KB,
+ * cached by the browser after first load.
  *
- * The relative URL works regardless of the dashboard URL because Lovelace
- * loads the script from /hacsfiles/cow-thermostat-card/cow-thermostat-card.js
- * and `url(./inter-light.woff2)` resolves against that same folder.
+ * `unsafeCSS` is required because `INTER_FONTS_CSS` is a generated string;
+ * its content is fully under our control (woff2 base64 + literal CSS) so
+ * the "unsafe" name doesn't apply here.
  */
 export const fontFaces = css`
-  @font-face {
-    font-family: "Inter";
-    font-style: normal;
-    font-weight: 300;
-    font-display: block;
-    src: url("./inter-light.woff2") format("woff2");
-  }
-  @font-face {
-    font-family: "Inter";
-    font-style: normal;
-    font-weight: 400;
-    font-display: block;
-    src: url("./inter-regular.woff2") format("woff2");
-  }
-  @font-face {
-    font-family: "Inter";
-    font-style: normal;
-    font-weight: 500;
-    font-display: block;
-    src: url("./inter-medium.woff2") format("woff2");
-  }
-  @font-face {
-    font-family: "Inter";
-    font-style: normal;
-    font-weight: 600;
-    font-display: block;
-    src: url("./inter-semibold.woff2") format("woff2");
-  }
-  @font-face {
-    font-family: "Inter";
-    font-style: normal;
-    font-weight: 700;
-    font-display: block;
-    src: url("./inter-bold.woff2") format("woff2");
-  }
+  ${unsafeCSS(INTER_FONTS_CSS)}
 `;
 
 /**

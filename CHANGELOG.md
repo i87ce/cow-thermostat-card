@@ -4,6 +4,33 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and
 this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.4] — 2026-05-11
+
+### Fixed
+- HACS download failed silently with "Could not download" since v0.2.2.
+  Root cause: HACS only downloads from a release when `hacs.json.filename`
+  ends with `.zip`. v0.2.1 (filename: `*.zip`) did download, but HACS
+  then registered the `.zip` itself as the Lovelace JS module — broken.
+  v0.2.2/v0.2.3 (filename: `*.js`) made HACS skip the release entirely.
+
+  Fix: switch to single-file distribution. The 5 Inter woff2 fonts are
+  inlined as base64 `data:` URLs at build time
+  (`scripts/embed-fonts.mjs` → `src/styles/font-data.ts` →
+  `src/styles/typography.ts`), so the bundle ships as a single
+  `cow-thermostat-card.js` (~820KB). HACS now downloads that one file
+  cleanly and registers it as the Lovelace module. Trade-off: bigger
+  bundle, but cached by the browser after first load.
+- Repo is now public. The `make_public` switch was the trigger for this
+  investigation (HACS error persisted after going public, surfacing the
+  real bug above).
+
+### Internal
+- `hacs.json`: removed `zip_release: true`.
+- `release.yml`: workflow now ships a single `cow-thermostat-card.js` asset.
+- `rollup.config.mjs`: removed the woff2 copy plugin and dropped the
+  source map from the release bundle.
+- `.gitignore`: ignore the generated `src/styles/font-data.ts`.
+
 ## [0.2.3] — 2026-05-08
 
 ### Fixed
