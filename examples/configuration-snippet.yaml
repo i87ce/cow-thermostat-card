@@ -39,6 +39,12 @@ lovelace:
       title: Camera 1
       show_in_sidebar: false
       require_admin: false
+    walldisplay-camera-2:
+      mode: yaml
+      filename: dashboards/walldisplay-camera-2.yaml
+      title: Camera 2
+      show_in_sidebar: false
+      require_admin: false
     walldisplay-studio:
       mode: yaml
       filename: dashboards/walldisplay-studio.yaml

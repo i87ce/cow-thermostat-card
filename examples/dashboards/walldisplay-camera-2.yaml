@@ -1,0 +1,11 @@
+title: Camera 2
+views:
+  - title: Camera 2
+    path: "0"
+    type: panel
+    cards:
+      - type: custom:cow-thermostat-card
+        room: "Camera 2"
+        light: light.led_camera_2_2
+        cover: cover.tapparella_camera_2
+        initial_view: lights
