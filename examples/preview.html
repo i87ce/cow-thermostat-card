@@ -133,6 +133,21 @@
           state: "on",
           attributes: { brightness: 220 },
         };
+        const lightLamp = {
+          entity_id: "light.living_lamp",
+          state: "off",
+          attributes: { brightness: 0 },
+        };
+        const lightTable = {
+          entity_id: "light.living_table",
+          state: "off",
+          attributes: { brightness: 0 },
+        };
+        const coverTerrace = {
+          entity_id: "cover.living_terrace",
+          state: "open",
+          attributes: { current_position: 100 },
+        };
         const outdoor = {
           entity_id: "sensor.weather_temperature",
           state: "12",
@@ -162,7 +177,10 @@
           states: {
             "climate.living_thermostat": climate,
             "cover.living_blinds": cover,
+            "cover.living_terrace": coverTerrace,
             "light.living_main": light,
+            "light.living_lamp": lightLamp,
+            "light.living_table": lightTable,
             "sensor.weather_temperature": outdoor,
           },
           callService: async (...args) => console.log("callService", ...args),
@@ -193,10 +211,12 @@
         };
         const panels = panelsSel.value;
         if (panels === "all" || panels === "no-climate" || panels === "light-only") {
-          base.light = "light.living_main";
+          base.light = ["light.living_main", "light.living_lamp", "light.living_table"];
+          base.light_labels = ["Calda", "Fredda", "Tavolo"];
         }
         if (panels === "all" || panels === "no-climate" || panels === "cover-only") {
-          base.cover = "cover.living_blinds";
+          base.cover = ["cover.living_blinds", "cover.living_terrace"];
+          base.cover_labels = ["Sala", "Terrazza"];
         }
         if (panels === "all") {
           base.climate = "climate.living_thermostat";

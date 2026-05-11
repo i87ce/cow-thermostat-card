@@ -4,6 +4,31 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and
 this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.0] — 2026-05-11
+
+### Added
+- Multi-entity support: `light` and `cover` config keys now accept either
+  a single entity_id (string) or an array of entity_ids. The Lights and
+  Blinds panels gain a horizontal chip selector at the bottom right
+  showing one chip per entity plus an "All" chip.
+- New `light_labels` and `cover_labels` optional arrays for friendly chip
+  names. If omitted, labels are auto-derived from each entity_id by
+  stripping common prefixes (`led_`, `luce_`, `light_`, `cover_`,
+  `tapparella_`) and the room slug.
+- Aggregated views: when "All" is selected, the master controls act on
+  every entity at once — bulb and slider show the AVERAGE brightness of
+  ON lights, blinds visual shows the AVERAGE position of all covers
+  ("MOVING" if any one is moving). Service calls (turn_on/off,
+  set_brightness, open/close/stop, set_position) are batched to all
+  selected entity_ids in a single call.
+- New `cow-entity-selector` molecule (chip row, hidden when only 1 entity).
+
+### Internal
+- `CowConfig` now has `lights: string[]`, `lightLabels: string[]`,
+  `covers: string[]`, `coverLabels: string[]` (always normalized arrays).
+  Old single-string YAML still works (auto-wrapped to a 1-item array).
+- `aggregateLightsView` and `aggregateBlindsView` in the state machines.
+
 ## [0.2.4] — 2026-05-11
 
 ### Fixed

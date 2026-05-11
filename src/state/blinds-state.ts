@@ -16,29 +16,47 @@ export interface BlindsView {
   raw: string;
 }
 
+function variantFor(pos: number, state: string): BlindsVariant {
+  if (state === "opening" || state === "closing") return "moving";
+  if (pos >= 80) return "open";
+  if (pos <= 20) return "closed";
+  return "half";
+}
+
+function positionOf(cover: HassEntity): number {
+  const attrs = cover.attributes as HassCoverAttributes;
+  if (typeof attrs.current_position === "number") return attrs.current_position;
+  if (cover.state === "open") return 100;
+  if (cover.state === "closed") return 0;
+  return 50;
+}
+
 export function deriveBlindsView(cover: HassEntity | undefined): BlindsView {
   if (!cover) {
     return { variant: "closed", position: 0, raw: "unavailable" };
   }
-  const attrs = cover.attributes as HassCoverAttributes;
-  const pos = typeof attrs.current_position === "number"
-    ? attrs.current_position
-    : cover.state === "open"
-      ? 100
-      : cover.state === "closed"
-        ? 0
-        : 50;
+  const pos = positionOf(cover);
+  return { variant: variantFor(pos, cover.state), position: pos, raw: cover.state };
+}
 
-  let variant: BlindsVariant;
-  if (cover.state === "opening" || cover.state === "closing") {
-    variant = "moving";
-  } else if (pos >= 80) {
-    variant = "open";
-  } else if (pos <= 20) {
-    variant = "closed";
-  } else {
-    variant = "half";
+/**
+ * Aggregated view across N covers: average position, "moving" if any is moving.
+ */
+export function aggregateBlindsView(
+  covers: (HassEntity | undefined)[],
+): BlindsView {
+  const valid = covers.filter((c): c is HassEntity => c != null);
+  if (valid.length === 0) {
+    return { variant: "closed", position: 0, raw: "unavailable" };
   }
-
-  return { variant, position: pos, raw: cover.state };
+  const anyMoving = valid.some(
+    (c) => c.state === "opening" || c.state === "closing",
+  );
+  const avg = Math.round(
+    valid.reduce((s, c) => s + positionOf(c), 0) / valid.length,
+  );
+  if (anyMoving) {
+    return { variant: "moving", position: avg, raw: "moving" };
+  }
+  return { variant: variantFor(avg, "open"), position: avg, raw: "on" };
 }

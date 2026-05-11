@@ -2,36 +2,44 @@ import { LitElement, html, css } from "lit";
 import { customElement, property, state } from "lit/decorators.js";
 import type { HomeAssistant, HassEntity } from "../types/hass.js";
 import {
+  aggregateLightsView,
   brightnessFromPct,
   deriveLightsView,
   type LightsVariant,
+  type LightsView,
 } from "../state/lights-state.js";
-/* `accentForLights` is referenced indirectly in willUpdate */
 import { accentForLights } from "../styles/tokens.js";
 import { formatTime } from "../utils/format.js";
 
 import "../components/split-panel.js";
 import "../molecules/vertical-slider.js";
 import "../molecules/power-toggle.js";
+import "../molecules/entity-selector.js";
 import "../visuals/bulb-visual.js";
 
 /**
- * Lights panel — replica Figma "Split Panel — All States / Lights":
- *   On — Bright (50:23)
- *   On — Dim    (50:25)
- *   Off         (50:27)
- *   Night (5%)  (50:29)
+ * Lights panel — replica Figma "Split Panel — All States / Lights" with
+ * multi-entity support. Master controls (bulb visual, slider, power
+ * toggle) act on either:
+ *  - all configured lights at once (activeIndex === -1, default), or
+ *  - a single selected light (activeIndex === 0..N-1, picked via the
+ *    chip row at the bottom of the right pane).
  *
- * Left:  bulb-visual + brightness % + status label
- * Right: vertical slider + power toggle
+ * Variants when "all":
+ *   bright/dim/off/night based on AVERAGE brightness of ON lights
+ * Variants when single: standard per-entity derivation.
  */
 @customElement("cow-lights-panel")
 export class CowLightsPanel extends LitElement {
   @property({ attribute: false }) hass?: HomeAssistant;
-  @property({ type: String }) entity = "";
+  @property({ type: Array }) entities: string[] = [];
+  @property({ type: Array }) labels: string[] = [];
   @property({ type: String }) roomName = "";
 
   @state() private now = new Date();
+  /** -1 = master/all; 0..N-1 = single entity */
+  @state() private activeIndex = -1;
+
   private timer?: number;
 
   static override styles = css`
@@ -99,22 +107,40 @@ export class CowLightsPanel extends LitElement {
     .brightness-label {
       position: absolute;
       left: 0.75rem;
-      top: 4.5rem;
+      top: 4.25rem;
       font-weight: 400;
       font-size: var(--cow-font-caption);
       color: var(--cow-text-secondary);
     }
+    .scope-label {
+      position: absolute;
+      left: 0.75rem;
+      top: 4.25rem;
+      right: 0.75rem;
+      text-align: right;
+      font-weight: 600;
+      font-size: 0.625rem;
+      color: var(--cow-accent-active, var(--cow-text-secondary));
+      text-transform: uppercase;
+      letter-spacing: 0.0625rem;
+    }
     .slider-wrap {
       position: absolute;
       left: 50%;
-      top: 6rem;
+      top: 5.75rem;
       transform: translateX(-50%);
     }
     .power-wrap {
       position: absolute;
       left: 50%;
-      top: 17rem;
+      top: 16.25rem;
       transform: translateX(-50%);
+    }
+    .selector-wrap {
+      position: absolute;
+      left: 0.75rem;
+      right: 0.75rem;
+      bottom: 0.75rem;
     }
     .left-content,
     .right-content {
@@ -134,8 +160,7 @@ export class CowLightsPanel extends LitElement {
 
   override willUpdate(): void {
     if (!this.hass) return;
-    const light = this.getEntity(this.entity);
-    const view = deriveLightsView(light);
+    const view = this.getActiveView();
     const a = accentForLights(view.variant);
     this.style.setProperty("--cow-accent", a.primary);
     this.style.setProperty("--cow-accent-light", a.light);
@@ -145,6 +170,22 @@ export class CowLightsPanel extends LitElement {
   private getEntity(id?: string): HassEntity | undefined {
     if (!id || !this.hass) return undefined;
     return this.hass.states[id];
+  }
+
+  private getActiveView(): LightsView {
+    if (this.entities.length === 0) {
+      return { variant: "off", brightnessPct: 0, raw: "unavailable" };
+    }
+    if (this.activeIndex === -1) {
+      return aggregateLightsView(this.entities.map((id) => this.getEntity(id)));
+    }
+    return deriveLightsView(this.getEntity(this.entities[this.activeIndex]));
+  }
+
+  private targetEntities(): string[] {
+    if (this.activeIndex === -1) return this.entities;
+    const e = this.entities[this.activeIndex];
+    return e ? [e] : [];
   }
 
   private statusLabelFor(v: LightsVariant): string {
@@ -162,36 +203,49 @@ export class CowLightsPanel extends LitElement {
 
   private async setBrightness(pct: number): Promise<void> {
     if (!this.hass) return;
+    const targets = this.targetEntities();
+    if (targets.length === 0) return;
     if (pct === 0) {
       await this.hass.callService(
         "light",
         "turn_off",
         {},
-        { entity_id: this.entity },
+        { entity_id: targets },
       );
     } else {
       await this.hass.callService(
         "light",
         "turn_on",
         { brightness: brightnessFromPct(pct) },
-        { entity_id: this.entity },
+        { entity_id: targets },
       );
     }
   }
 
   private async togglePower(on: boolean): Promise<void> {
     if (!this.hass) return;
+    const targets = this.targetEntities();
+    if (targets.length === 0) return;
     await this.hass.callService(
       "light",
       on ? "turn_on" : "turn_off",
       {},
-      { entity_id: this.entity },
+      { entity_id: targets },
     );
   }
 
+  private onSelect = (e: CustomEvent<{ index: number }>) => {
+    this.activeIndex = e.detail.index;
+  };
+
   override render() {
-    const light = this.getEntity(this.entity);
-    const view = deriveLightsView(light);
+    const view = this.getActiveView();
+    const scopeText =
+      this.activeIndex === -1
+        ? this.entities.length > 1
+          ? "Tutte"
+          : ""
+        : this.labels[this.activeIndex] ?? "";
     return html`
       <cow-split-panel>
         <div slot="left" class="left-content">
@@ -210,19 +264,29 @@ export class CowLightsPanel extends LitElement {
           <div class="room">${this.roomName}</div>
           <div class="time">${formatTime(this.now, this.hass?.locale?.language)}</div>
           <div class="brightness-label">Brightness</div>
+          ${scopeText
+            ? html`<div class="scope-label">${scopeText}</div>`
+            : ""}
           <div class="slider-wrap">
             <cow-vertical-slider
               .value=${view.brightnessPct}
-              @cow-slider-change=${(e: CustomEvent<{ value: number }>) =>
-                this.setBrightness(e.detail.value)}
+              @cow-slider-change=${(ev: CustomEvent<{ value: number }>) =>
+                this.setBrightness(ev.detail.value)}
             ></cow-vertical-slider>
           </div>
           <div class="power-wrap">
             <cow-power-toggle
               ?on=${view.variant !== "off"}
-              @cow-power-change=${(e: CustomEvent<{ on: boolean }>) =>
-                this.togglePower(e.detail.on)}
+              @cow-power-change=${(ev: CustomEvent<{ on: boolean }>) =>
+                this.togglePower(ev.detail.on)}
             ></cow-power-toggle>
+          </div>
+          <div class="selector-wrap">
+            <cow-entity-selector
+              .labels=${this.labels}
+              .activeIndex=${this.activeIndex}
+              @cow-select=${this.onSelect}
+            ></cow-entity-selector>
           </div>
         </div>
       </cow-split-panel>

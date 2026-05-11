@@ -29,9 +29,9 @@ import { deriveThermostatView } from "./state/thermostat-state.js";
 import { deriveBlindsView } from "./state/blinds-state.js";
 import { deriveLightsView } from "./state/lights-state.js";
 
-const VERSION = "0.2.4";
-
 type DeviceKind = "thermostat" | "blinds" | "lights";
+
+const VERSION = "0.3.0";
 
 @customElement("cow-thermostat-card")
 export class CowThermostatCard extends LitElement implements LovelaceCard {
@@ -80,8 +80,8 @@ export class CowThermostatCard extends LitElement implements LovelaceCard {
   private activeKinds(): DeviceKind[] {
     const kinds: DeviceKind[] = [];
     if (this.config?.climate) kinds.push("thermostat");
-    if (this.config?.cover) kinds.push("blinds");
-    if (this.config?.light) kinds.push("lights");
+    if (this.config && this.config.covers.length > 0) kinds.push("blinds");
+    if (this.config && this.config.lights.length > 0) kinds.push("lights");
     return kinds;
   }
 
@@ -117,19 +117,22 @@ export class CowThermostatCard extends LitElement implements LovelaceCard {
             : "var(--cow-lights-bright)",
       );
     }
+    const cfg = this.config;
+    const hass = this.hass;
     return kinds.map((k) => {
-      if (k === "thermostat" && this.config!.climate) {
+      if (k === "thermostat" && cfg.climate) {
         return accentForThermostat(
-          deriveThermostatView(this.hass!.states[this.config!.climate]).variant,
+          deriveThermostatView(hass.states[cfg.climate]).variant,
         ).primary;
       }
-      if (k === "blinds" && this.config!.cover) {
+      if (k === "blinds") {
+        // Use first cover for the dot; aggregated visuals live inside the panel.
         return accentForBlinds(
-          deriveBlindsView(this.hass!.states[this.config!.cover]).variant,
+          deriveBlindsView(hass.states[cfg.covers[0]]).variant,
         ).primary;
       }
       return accentForLights(
-        deriveLightsView(this.hass!.states[this.config!.light!]).variant,
+        deriveLightsView(hass.states[cfg.lights[0]]).variant,
       ).primary;
     });
   }
@@ -171,14 +174,16 @@ export class CowThermostatCard extends LitElement implements LovelaceCard {
               return html`<cow-blinds-panel
                 slot="slide-${i}"
                 .hass=${this.hass}
-                entity=${cfg.cover!}
+                .entities=${cfg.covers}
+                .labels=${cfg.coverLabels}
                 roomName=${cfg.room}
               ></cow-blinds-panel>`;
             }
             return html`<cow-lights-panel
               slot="slide-${i}"
               .hass=${this.hass}
-              entity=${cfg.light!}
+              .entities=${cfg.lights}
+              .labels=${cfg.lightLabels}
               roomName=${cfg.room}
             ></cow-lights-panel>`;
           })}
