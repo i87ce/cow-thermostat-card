@@ -18,9 +18,9 @@ export class CowXLScenes extends LitElement {
       :host {
         display: block;
         position: absolute;
-        left: 1.75rem;
-        right: 1.75rem;
-        top: 36.25rem;
+        left: 1.5rem;
+        right: 1.5rem;
+        top: 36.5rem;
       }
       .row {
         display: flex;

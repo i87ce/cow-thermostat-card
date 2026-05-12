@@ -33,14 +33,33 @@
     </main>
 
     <script type="module">
+      // EXACT same config as the HA dashboard /walldisplay-sala-cucina/0
+      // so we can reproduce the runtime error locally.
       const ROOMS = [
-        { name: "Sala", icon: "🏠", climate: null, light: ["light.calda_sala","light.fredda_sala","light.tavolo_sala"], cover: ["cover.tapparella_sala","cover.tapparella_sala_terrazza"] },
-        { name: "Cucina", icon: "🍳", light: ["light.luce_cucina"], cover: ["cover.tapparella_cucina","cover.tapparella_cucina_terrazza"] },
-        { name: "Camera", icon: "🛏", light: ["light.comodino_1"], cover: ["cover.tapparella_camera_padronale"] },
-        { name: "Studio C.", icon: "🛌", light: ["light.led_camera_2"], cover: ["cover.tapparella_camera_2"] },
-        { name: "Camera 1", icon: "🛌", light: ["light.led_camera_1"], cover: ["cover.tapparella_camera_1"] },
-        { name: "Studio", icon: "💻", light: ["light.calda_studio","light.fredda_studio"], cover: ["cover.tapparella_studio"] },
-        { name: "Bagni", icon: "🚿", light: ["light.bagno_padronale"], cover: ["cover.tapparella_bagno_padronale"] },
+        {
+          name: "Sala",
+          icon: "🏠",
+          light: ["light.led_calda_sala", "light.led_sala_fredda", "light.luce_tavolo_sala"],
+          light_labels: ["Calda", "Fredda", "Tavolo"],
+          cover: ["cover.tapparella_sala", "cover.tapparella_sala_terrazza"],
+          cover_labels: ["Sala", "Terrazza"],
+        },
+        { name: "Cucina", icon: "🍳", light: "light.luce_cucina",
+          cover: ["cover.tapparella_cucina","cover.tapparella_cucina_terrazza"], cover_labels: ["Cucina","Terrazza"] },
+        { name: "Camera", icon: "🛏",
+          light: ["light.luce_comodino_1","light.led_cabina_armadio"], light_labels: ["Comodino","Cabina"],
+          cover: "cover.tapparella_camera_padronale" },
+        { name: "Studio Chiara", icon: "🛌", light: "light.led_camera_2_2", cover: "cover.tapparella_camera_2" },
+        { name: "Camera 1", icon: "🛌", light: "light.led_camera_1", cover: "cover.tapparella_camera_1" },
+        { name: "Studio", icon: "💻",
+          light: ["light.luce_calda_studio","light.luce_fredda_studio"], light_labels: ["Calda","Fredda"],
+          cover: "cover.tapparella_studio" },
+        { name: "Bagno P.", icon: "🚿",
+          light: ["light.luce_bagno_padronale","light.luce_specchio_bagno_padronale"], light_labels: ["Soffitto","Specchio"],
+          cover: "cover.tapparella_bagno_padronale" },
+        { name: "Bagno O.", icon: "🚿",
+          light: ["light.led_bagno_piccolo","light.luce_specchio_bagno_piccolo"], light_labels: ["Soffitto","Specchio"],
+          cover: "cover.tapparella_bagno_piccola" },
       ];
 
       function buildHass() {

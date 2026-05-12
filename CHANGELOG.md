@@ -4,6 +4,26 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and
 this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.4.1] — 2026-05-12
+
+### Fixed (XL card UI polish)
+- Hero card now stretches edge-to-edge in the available width (was 77rem
+  fixed → now 100% of `.hero-wrap`). Looks correctly proportioned on a
+  full-width Wall Display XL.
+- Sun glow + sun core resized & repositioned so the central temperature
+  text no longer sits on top of the sun.
+- Clock pushed up 1.5rem to leave more room for the date underneath.
+- Room chips: bigger (5rem instead of 4rem), bigger icon (1.375rem),
+  bigger label font (0.875rem), and a coloured pill badge for the active-
+  device count (orange when > 0, gray when 0, white-on-dark when chip is
+  active). Icon now sits center-left under the badge.
+- Drawer peek: switched from a 2-line vertical layout (handle + hint
+  underneath, often clipped by the parent container's bottom edge) to a
+  single-line horizontal layout (handle ‖ hint side-by-side), height
+  reduced from 3rem to 2.5rem so it always fits.
+- Layout y-offsets readjusted so chip-row → divider → hero → scenes →
+  drawer-peek stack visually with consistent spacing.
+
 ## [0.4.0] — 2026-05-12
 
 ### Added

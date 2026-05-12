@@ -60,7 +60,8 @@ export class CowRoomDashboardCard
       .hero-wrap {
         position: absolute;
         left: 1.5rem;
-        top: 10.625rem;
+        right: 1.5rem;
+        top: 11.75rem;
       }
       cow-xl-scenes {
         /* positioned by its own styles (top: 36.25rem) */
@@ -70,26 +71,27 @@ export class CowRoomDashboardCard
         left: 0;
         right: 0;
         bottom: 0;
-        height: 3rem;
+        height: 2.5rem;
         background: var(--cow-surface-white);
-        border: 0.0625rem solid var(--cow-surface-border);
+        border-top: 0.0625rem solid var(--cow-surface-border);
         border-top-left-radius: 1.5rem;
         border-top-right-radius: 1.5rem;
         display: flex;
-        flex-direction: column;
+        flex-direction: row;
         align-items: center;
         justify-content: center;
-        gap: 0.5rem;
+        gap: 0.875rem;
       }
       .handle {
-        width: 3rem;
-        height: 0.3125rem;
-        border-radius: 0.15625rem;
+        width: 2.5rem;
+        height: 0.25rem;
+        border-radius: 0.125rem;
         background: var(--cow-text-disabled);
+        flex: 0 0 auto;
       }
       .hint {
         font-weight: 500;
-        font-size: 0.6875rem;
+        font-size: 0.75rem;
         color: var(--cow-text-secondary);
       }
       .error {

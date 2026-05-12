@@ -69,11 +69,11 @@ export class CowXLHeader extends LitElement {
     }
     .chips {
       position: absolute;
-      left: 1.75rem;
-      right: 1.75rem;
-      top: 4.5rem;
+      left: 1.5rem;
+      right: 1.5rem;
+      top: 4.25rem;
       display: flex;
-      gap: 0.375rem;
+      gap: 0.5rem;
       overflow-x: auto;
       scrollbar-width: none;
     }
@@ -81,56 +81,73 @@ export class CowXLHeader extends LitElement {
     .chip {
       flex: 1 1 0;
       min-width: 0;
-      height: 4rem;
-      padding: 0.75rem;
+      height: 5rem;
+      padding: 0.75rem 0.875rem;
       background: var(--cow-surface-white);
       border: 0.0625rem solid var(--cow-surface-border);
-      border-radius: 0.75rem;
+      border-radius: 1rem;
       display: flex;
       flex-direction: column;
       justify-content: space-between;
+      align-items: flex-start;
       cursor: pointer;
       transition:
         background-color 160ms ease,
         color 160ms ease,
-        border-color 160ms ease;
+        border-color 160ms ease,
+        box-shadow 160ms ease;
+      position: relative;
+    }
+    .chip:hover {
+      box-shadow: 0 0.125rem 0.5rem rgba(31, 31, 46, 0.06);
     }
     .chip[data-active] {
       background: var(--cow-text-primary);
       border-color: var(--cow-text-primary);
       color: var(--cow-surface-white);
     }
-    .chip-row {
-      display: flex;
-      align-items: flex-start;
-      justify-content: space-between;
-      gap: 0.25rem;
-    }
     .chip-icon {
-      font-size: 0.875rem;
+      font-size: 1.375rem;
       line-height: 1;
     }
     .chip-count {
-      font-size: 0.6875rem;
-      font-weight: 400;
-      color: var(--cow-text-secondary);
+      position: absolute;
+      top: 0.625rem;
+      right: 0.625rem;
+      min-width: 1.125rem;
+      height: 1.125rem;
+      padding: 0 0.3125rem;
+      border-radius: 0.5625rem;
+      background: var(--cow-accent-active, #fa6b2e);
+      color: var(--cow-surface-white);
+      font-size: 0.625rem;
+      font-weight: 700;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      line-height: 1;
+    }
+    .chip[data-zero] .chip-count {
+      background: var(--cow-surface-button-bg);
+      color: var(--cow-text-disabled);
     }
     .chip[data-active] .chip-count {
-      color: var(--cow-surface-white);
-      opacity: 0.6;
+      background: var(--cow-surface-white);
+      color: var(--cow-text-primary);
     }
     .chip-name {
       font-weight: 600;
-      font-size: 0.75rem;
+      font-size: 0.875rem;
       white-space: nowrap;
       overflow: hidden;
       text-overflow: ellipsis;
+      width: 100%;
     }
     .divider {
       position: absolute;
       left: 0;
       right: 0;
-      top: 9.5rem;
+      top: 10.5rem;
       height: 0.0625rem;
       background: var(--cow-surface-border);
     }
@@ -191,21 +208,21 @@ export class CowXLHeader extends LitElement {
           : nothing}
       </div>
       <div class="chips">
-        ${this.rooms.map(
-          (r, i) => html`
+        ${this.rooms.map((r, i) => {
+          const count = countActiveDevices(r, states);
+          return html`
             <button
               class="chip"
               ?data-active=${i === this.activeIndex}
+              ?data-zero=${count === 0}
               @click=${() => this.onChipTap(i)}
             >
-              <div class="chip-row">
-                <span class="chip-icon">${r.icon ?? "•"}</span>
-                <span class="chip-count">${countActiveDevices(r, states)}</span>
-              </div>
+              <span class="chip-count">${count}</span>
+              <span class="chip-icon">${r.icon ?? "•"}</span>
               <div class="chip-name">${r.name}</div>
             </button>
-          `,
-        )}
+          `;
+        })}
       </div>
       <div class="divider"></div>
     `;
