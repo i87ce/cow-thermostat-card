@@ -19,6 +19,7 @@ import { globalShellXL } from "./styles/global-xl.js";
 import "./devices-xl/header-row.js";
 import "./devices-xl/hero-card.js";
 import "./devices-xl/scene-shortcuts.js";
+import "./devices-xl/drawer.js";
 
 /**
  * Cave of Wonders ROOM DASHBOARD card — for the Shelly Wall Display XL (10.1").
@@ -37,6 +38,7 @@ export class CowRoomDashboardCard
   @property({ attribute: false }) hass?: HomeAssistant;
   @state() private config?: CowRoomDashboardConfig;
   @state() private activeRoomIndex = -1;
+  @state() private drawerOpen = false;
 
   static override styles = [
     fontFaces,
@@ -121,9 +123,21 @@ export class CowRoomDashboardCard
   }
 
   private onRoomTap = (e: CustomEvent<{ index: number }>) => {
-    // Phase 1: just toggles a visual state. Phase 2: opens the drawer.
-    this.activeRoomIndex =
-      this.activeRoomIndex === e.detail.index ? -1 : e.detail.index;
+    const next = e.detail.index;
+    // Tap on the same chip while the drawer is open → close it.
+    if (this.drawerOpen && this.activeRoomIndex === next) {
+      this.drawerOpen = false;
+      this.activeRoomIndex = -1;
+      return;
+    }
+    // Otherwise: switch room and open the drawer.
+    this.activeRoomIndex = next;
+    this.drawerOpen = true;
+  };
+
+  private onDrawerClose = () => {
+    this.drawerOpen = false;
+    this.activeRoomIndex = -1;
   };
 
   private onSceneTap = async (
@@ -156,6 +170,11 @@ export class CowRoomDashboardCard
         { name: "Cinema", icon: "■", accent: "#FA6B2E" },
       ];
 
+    const activeRoom =
+      this.activeRoomIndex >= 0 && this.activeRoomIndex < cfg.rooms.length
+        ? cfg.rooms[this.activeRoomIndex]
+        : undefined;
+
     return html`
       <div class="root">
         <cow-xl-header
@@ -184,6 +203,13 @@ export class CowRoomDashboardCard
           <div class="handle"></div>
           <div class="hint">Tocca una stanza per aprire i controlli</div>
         </div>
+
+        <cow-xl-drawer
+          .hass=${this.hass}
+          .room=${activeRoom}
+          ?open=${this.drawerOpen}
+          @cow-drawer-close=${this.onDrawerClose}
+        ></cow-xl-drawer>
       </div>
     `;
   }

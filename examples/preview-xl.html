@@ -39,6 +39,7 @@
         {
           name: "Sala",
           icon: "🏠",
+          climate: "climate.termostato_sala",
           light: ["light.led_calda_sala", "light.led_sala_fredda", "light.luce_tavolo_sala"],
           light_labels: ["Calda", "Fredda", "Tavolo"],
           cover: ["cover.tapparella_sala", "cover.tapparella_sala_terrazza"],
@@ -64,17 +65,33 @@
 
       function buildHass() {
         const states = {};
-        // light entities (some on)
-        states["light.calda_sala"] = { entity_id: "light.calda_sala", state: "on", attributes: { brightness: 240 } };
-        states["light.fredda_sala"] = { entity_id: "light.fredda_sala", state: "off", attributes: {} };
-        states["light.tavolo_sala"] = { entity_id: "light.tavolo_sala", state: "off", attributes: {} };
+        // light entities (some on)  — matched to ROOMS config
+        states["light.led_calda_sala"]    = { entity_id: "light.led_calda_sala", state: "on",  attributes: { brightness: 240, friendly_name: "Sala calda" } };
+        states["light.led_sala_fredda"]   = { entity_id: "light.led_sala_fredda", state: "off", attributes: {} };
+        states["light.luce_tavolo_sala"]  = { entity_id: "light.luce_tavolo_sala", state: "on", attributes: { brightness: 130 } };
         states["light.luce_cucina"] = { entity_id: "light.luce_cucina", state: "off", attributes: {} };
-        states["light.comodino_1"] = { entity_id: "light.comodino_1", state: "off", attributes: {} };
-        states["light.led_camera_2"] = { entity_id: "light.led_camera_2", state: "on", attributes: { brightness: 100 } };
+        states["light.luce_comodino_1"] = { entity_id: "light.luce_comodino_1", state: "off", attributes: {} };
+        states["light.led_cabina_armadio"] = { entity_id: "light.led_cabina_armadio", state: "off", attributes: {} };
+        states["light.led_camera_2_2"] = { entity_id: "light.led_camera_2_2", state: "on", attributes: { brightness: 100 } };
         states["light.led_camera_1"] = { entity_id: "light.led_camera_1", state: "off", attributes: {} };
-        states["light.calda_studio"] = { entity_id: "light.calda_studio", state: "off", attributes: {} };
-        states["light.fredda_studio"] = { entity_id: "light.fredda_studio", state: "off", attributes: {} };
-        states["light.bagno_padronale"] = { entity_id: "light.bagno_padronale", state: "off", attributes: {} };
+        states["light.luce_calda_studio"] = { entity_id: "light.luce_calda_studio", state: "off", attributes: {} };
+        states["light.luce_fredda_studio"] = { entity_id: "light.luce_fredda_studio", state: "off", attributes: {} };
+        states["light.luce_bagno_padronale"] = { entity_id: "light.luce_bagno_padronale", state: "off", attributes: {} };
+        states["light.luce_specchio_bagno_padronale"] = { entity_id: "light.luce_specchio_bagno_padronale", state: "off", attributes: {} };
+        states["light.led_bagno_piccolo"] = { entity_id: "light.led_bagno_piccolo", state: "off", attributes: {} };
+        states["light.luce_specchio_bagno_piccolo"] = { entity_id: "light.luce_specchio_bagno_piccolo", state: "off", attributes: {} };
+        // climates
+        states["climate.termostato_sala"] = {
+          entity_id: "climate.termostato_sala", state: "heat",
+          attributes: {
+            current_temperature: 21, temperature: 22.5, current_humidity: 48,
+            hvac_action: "heating",
+            min_temp: 5, max_temp: 35, target_temp_step: 0.5,
+            fan_mode: "auto", fan_modes: ["auto","low","medium","high"],
+            friendly_name: "Termostato Sala",
+          },
+        };
+        states["cover.tapparella_bagno_piccola"] = { entity_id: "cover.tapparella_bagno_piccola", state: "open", attributes: { current_position: 75 } };
         // covers (some open)
         states["cover.tapparella_sala"] = { entity_id: "cover.tapparella_sala", state: "open", attributes: { current_position: 100 } };
         states["cover.tapparella_sala_terrazza"] = { entity_id: "cover.tapparella_sala_terrazza", state: "open", attributes: { current_position: 50 } };

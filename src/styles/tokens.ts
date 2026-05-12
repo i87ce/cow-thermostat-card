@@ -77,6 +77,14 @@ export const tokens = css`
     --cow-accent: var(--cow-heating-primary);
     --cow-accent-light: var(--cow-heating-light);
     --cow-accent-active: var(--cow-heating-active);
+
+    /* Aliases used by the XL drawer tabs (clearer naming for new code) */
+    --cow-thermostat-orange: var(--cow-heating-primary);
+    --cow-thermostat-orange-dark: #e55a1f;
+    --cow-blinds-blue: var(--cow-blinds-medium);
+    --cow-blinds-blue-dark: #2f6cb5;
+    --cow-lights-yellow: var(--cow-lights-bright);
+    --cow-lights-glow-bg: #fff8e0;
   }
 `;
 

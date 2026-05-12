@@ -4,6 +4,40 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and
 this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.5.0] — 2026-05-12
+
+### Added — Phase 2: Drawer slide-up (XL card)
+
+Tap on a room chip now opens a full slide-up drawer with per-room controls.
+Replicates Figma frames "11. Mix — Drawer Open / Blinds / Climate" pixel-by-pixel.
+
+- **`cow-xl-drawer`** — slide-up animation (220 ms ease-out), drag handle,
+  room title + auto-built subtitle ("3 luci · 2 tapparelle · termostato"),
+  contextual status pill (e.g. "Riscaldando 23°", "2/3 accese") and close ✕.
+- **Tab strip** with 4 tabs:
+  - 💡 **Lights** — climate-mini tile (always visible on the left so you
+    never lose sight of the thermostat), then one tile per light with
+    bulb visual, brightness %, − / slider / + and power toggle. Bottom
+    "Tutte ON" / "Tutte OFF" master action bar.
+  - ▤ **Blinds** — wide tile per cover with blind visual on the left and
+    position % + status + ▲ Apri / ■ Stop / ▼ Chiudi + 25/50/75/100 presets
+    on the right. Bottom "Apri tutte" / "Chiudi tutte" master bar.
+  - 🌡 **Climate** — full-width thermostat with HEATING/COOLING/IDLE
+    indicator, current temperature (huge), setpoint + ▼/▲, mode buttons
+    (Cool/Heat/Off), fan modes, humidity. Bottom presets:
+    🏠 Comfort 22° / 🌿 Eco 19° / ❄ Antigelo 8°.
+  - 🔒 **Sicurezza** — placeholder for Phase 3 (alarm, locks, sensors).
+- Tabs auto-disable when the room has no entity for that domain (e.g. a
+  room without `climate` shows Climate as faded/non-clickable).
+- Tap the same chip again, or the ✕ button, or the drag handle → drawer
+  closes (180 ms ease-in).
+- Tap a different chip while open → instant room switch, drawer stays open.
+
+### Token additions
+- `--cow-thermostat-orange[-dark]`, `--cow-blinds-blue[-dark]`,
+  `--cow-lights-yellow`, `--cow-lights-glow-bg` — semantic aliases for
+  the new XL drawer tiles.
+
 ## [0.4.1] — 2026-05-12
 
 ### Fixed (XL card UI polish)
