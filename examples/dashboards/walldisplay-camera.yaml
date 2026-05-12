@@ -1,0 +1,21 @@
+# Camera (Padronale / Cabina Armadio) — Wall Display 4"
+#
+# URL on the SAWD1:
+#   https://<ha-host>/walldisplay-camera/0?kiosk&block_context_menu&cache
+
+title: Camera
+views:
+  - title: Camera
+    path: "0"
+    type: panel
+    cards:
+      - type: custom:cow-thermostat-card
+        room: "Camera"
+        light:
+          - light.luce_comodino_1
+          - light.led_cabina_armadio
+        light_labels: ["Comodino", "Cabina"]
+        cover: cover.tapparella_camera_padronale
+        # local_temp:     sensor.shellywalldisplay_<MAC>_temperature
+        # local_humidity: sensor.shellywalldisplay_<MAC>_humidity
+        initial_view: lights

@@ -1,6 +1,5 @@
 # Add the following to your Home Assistant configuration.yaml.
-# After editing, restart Home Assistant (or "Reload Lovelace resources"
-# under Settings -> Server controls if only the Lovelace block changed).
+# After editing, restart Home Assistant.
 
 # 1. Register the custom card resource (HACS does this for you in storage
 #    mode; only needed if you are in YAML-only mode).
@@ -15,39 +14,46 @@ frontend:
 lovelace:
   mode: storage  # leave default; per-dashboard "mode: yaml" lets us version the YAML
   dashboards:
-    walldisplay-living:
+    walldisplay-camera:
       mode: yaml
-      filename: dashboards/walldisplay-living.yaml
-      title: Sala
-      show_in_sidebar: false
+      filename: dashboards/walldisplay-camera.yaml
+      title: Camera
+      icon: mdi:bed-king
+      show_in_sidebar: true
       require_admin: false
-    walldisplay-cucina:
+    walldisplay-studio-chiara:
       mode: yaml
-      filename: dashboards/walldisplay-cucina.yaml
-      title: Cucina
-      show_in_sidebar: false
-      require_admin: false
-    walldisplay-camera-padronale:
-      mode: yaml
-      filename: dashboards/walldisplay-camera-padronale.yaml
-      title: Camera Padronale
-      show_in_sidebar: false
+      filename: dashboards/walldisplay-studio-chiara.yaml
+      title: Studio Chiara
+      icon: mdi:bed
+      show_in_sidebar: true
       require_admin: false
     walldisplay-camera-1:
       mode: yaml
       filename: dashboards/walldisplay-camera-1.yaml
       title: Camera 1
-      show_in_sidebar: false
+      icon: mdi:bed
+      show_in_sidebar: true
       require_admin: false
-    walldisplay-camera-2:
+    walldisplay-bagno-ospiti:
       mode: yaml
-      filename: dashboards/walldisplay-camera-2.yaml
-      title: Camera 2
-      show_in_sidebar: false
+      filename: dashboards/walldisplay-bagno-ospiti.yaml
+      title: Bagno Ospiti
+      icon: mdi:shower
+      show_in_sidebar: true
       require_admin: false
-    walldisplay-studio:
+    walldisplay-bagno-camera:
       mode: yaml
-      filename: dashboards/walldisplay-studio.yaml
-      title: Studio
-      show_in_sidebar: false
+      filename: dashboards/walldisplay-bagno-camera.yaml
+      title: Bagno Camera
+      icon: mdi:shower-head
+      show_in_sidebar: true
       require_admin: false
+    # Enable this when the climate.ingresso_pt_termostato entity is configured:
+    # walldisplay-ingresso-pt:
+    #   mode: yaml
+    #   filename: dashboards/walldisplay-ingresso-pt.yaml
+    #   title: Ingresso PT
+    #   icon: mdi:thermostat
+    #   show_in_sidebar: true
+    #   require_admin: false

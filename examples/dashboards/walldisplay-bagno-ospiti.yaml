@@ -1,0 +1,14 @@
+title: Bagno Ospiti
+views:
+  - title: Bagno Ospiti
+    path: "0"
+    type: panel
+    cards:
+      - type: custom:cow-thermostat-card
+        room: "Bagno Ospiti"
+        light:
+          - light.led_bagno_piccolo
+          - light.luce_specchio_bagno_piccolo
+        light_labels: ["Soffitto", "Specchio"]
+        cover: cover.tapparella_bagno_piccola
+        initial_view: lights

@@ -1,0 +1,23 @@
+# Ingresso PT — Wall Display 4"
+#
+# Solo termostato. Da abilitare quando l'entità climate sarà esposta in HA.
+# Per ora la card mostrerà errore se applicata: l'entità non esiste.
+#
+# URL on the SAWD1 (when ready):
+#   https://<ha-host>/walldisplay-ingresso-pt/0?kiosk&block_context_menu&cache
+
+title: Ingresso PT
+views:
+  - title: Ingresso PT
+    path: "0"
+    type: panel
+    cards:
+      - type: custom:cow-thermostat-card
+        room: "Ingresso PT"
+        # climate: climate.ingresso_pt_termostato   # decommentare quando configurato in HA
+        # local_temp: sensor.shellywalldisplay_ingresso_pt_temperature
+        # local_humidity: sensor.shellywalldisplay_ingresso_pt_humidity
+        # initial_view: thermostat
+        # PLACEHOLDER: la card oggi richiede almeno una di climate/light/cover.
+        # Lasciare commentato finché il termostato non è esposto in HA.
+        light: light.placeholder_ingresso_pt
