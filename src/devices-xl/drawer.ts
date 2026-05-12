@@ -219,15 +219,17 @@ export class CowXLDrawer extends LitElement {
     return arr.length > 0;
   }
 
-  private get hasClimate(): boolean {
-    return !!this.room?.climate;
+  /** Climate-tab is also useful when only ambient sensors are wired. */
+  private get hasClimateOrSensors(): boolean {
+    return !!(this.room?.climate || this.room?.temperature || this.room?.humidity);
   }
 
-  /** Pick a sensible initial tab when room changes. Climate first if present. */
+  /** Pick a sensible initial tab when room changes. Lights first when
+   * available (most common use case), then blinds, then climate/sensors. */
   private pickInitialTab(): DrawerTab {
-    if (this.hasClimate) return "climate";
     if (this.hasLights) return "lights";
     if (this.hasBlinds) return "blinds";
+    if (this.hasClimateOrSensors) return "climate";
     return "security";
   }
 
@@ -238,7 +240,7 @@ export class CowXLDrawer extends LitElement {
         this.activeTab = this.pickInitialTab();
       else if (this.activeTab === "blinds" && !this.hasBlinds)
         this.activeTab = this.pickInitialTab();
-      else if (this.activeTab === "climate" && !this.hasClimate)
+      else if (this.activeTab === "climate" && !this.hasClimateOrSensors)
         this.activeTab = this.pickInitialTab();
     }
   }
@@ -266,29 +268,51 @@ export class CowXLDrawer extends LitElement {
     if (c.blinds > 0)
       parts.push(`${c.blinds} ${c.blinds === 1 ? "tapparella" : "tapparelle"}`);
     if (c.climate) parts.push("termostato");
+    else if (this.room?.temperature || this.room?.humidity)
+      parts.push("sensori ambiente");
     return parts.length === 0 ? "Nessun dispositivo" : parts.join(" · ");
   }
 
   /** Contextual status pill text based on the active tab. */
   private statusPill(): { text: string; show: boolean } {
     const states = this.hass?.states ?? {};
-    if (this.activeTab === "climate" && this.room?.climate) {
-      const s = states[this.room.climate];
-      if (!s) return { text: "—", show: true };
-      const setpointAttr = s.attributes?.temperature;
-      const setpoint =
-        typeof setpointAttr === "number" ? setpointAttr : null;
-      const mode = s.state;
-      const t = setpoint != null ? `${Math.round(setpoint)}°` : "";
-      const verb =
-        mode === "heat"
-          ? "Riscaldando"
-          : mode === "cool"
-            ? "Raffreddando"
-            : mode === "off"
-              ? "Spento"
-              : mode;
-      return { text: `${verb}${t ? " " + t : ""}`, show: true };
+    if (this.activeTab === "climate") {
+      if (this.room?.climate) {
+        const s = states[this.room.climate];
+        if (!s) return { text: "—", show: true };
+        const setpointAttr = s.attributes?.temperature;
+        const setpoint =
+          typeof setpointAttr === "number" ? setpointAttr : null;
+        const mode = s.state;
+        const t = setpoint != null ? `${Math.round(setpoint)}°` : "";
+        const verb =
+          mode === "heat"
+            ? "Riscaldando"
+            : mode === "cool"
+              ? "Raffreddando"
+              : mode === "off"
+                ? "Spento"
+                : mode;
+        return { text: `${verb}${t ? " " + t : ""}`, show: true };
+      }
+      // Sensors-only fallback
+      if (this.room?.temperature || this.room?.humidity) {
+        const tempEl = this.room.temperature
+          ? states[this.room.temperature]
+          : undefined;
+        const humEl = this.room.humidity
+          ? states[this.room.humidity]
+          : undefined;
+        const tempVal = tempEl ? parseFloat(tempEl.state) : NaN;
+        const humVal = humEl ? parseFloat(humEl.state) : NaN;
+        const parts: string[] = [];
+        if (Number.isFinite(tempVal)) parts.push(`${Math.round(tempVal)}°`);
+        if (Number.isFinite(humVal)) parts.push(`${Math.round(humVal)}%`);
+        return {
+          text: parts.length > 0 ? parts.join(" · ") : "—",
+          show: true,
+        };
+      }
     }
     if (this.activeTab === "lights" && this.hasLights) {
       const arr = Array.isArray(this.room!.light)
@@ -405,8 +429,8 @@ export class CowXLDrawer extends LitElement {
           <button
             class="tab"
             ?data-active=${this.activeTab === "climate"}
-            ?data-disabled=${!this.hasClimate}
-            @click=${() => this.hasClimate && this.onTab("climate")}
+            ?data-disabled=${!this.hasClimateOrSensors}
+            @click=${() => this.hasClimateOrSensors && this.onTab("climate")}
           >
             <span>🌡</span><span>Climate</span>
           </button>

@@ -12,6 +12,11 @@ export interface CowRoomConfig {
   icon?: string;
   /** Optional climate entity */
   climate?: string;
+  /** Optional ambient temperature sensor (used as fallback when no climate
+   * is configured, and as supplementary read-only display in any case). */
+  temperature?: string;
+  /** Optional ambient humidity sensor */
+  humidity?: string;
   /** Single light entity_id or list */
   light?: string | string[];
   /** Optional friendly labels per light entity (length must match) */
@@ -75,6 +80,10 @@ export function validateXLConfig(input: unknown): CowRoomDashboardConfig {
       name: room.name,
       icon: typeof room.icon === "string" ? room.icon : undefined,
       climate: typeof room.climate === "string" ? room.climate : undefined,
+      temperature:
+        typeof room.temperature === "string" ? room.temperature : undefined,
+      humidity:
+        typeof room.humidity === "string" ? room.humidity : undefined,
       light: room.light as string | string[] | undefined,
       light_labels: Array.isArray(room.light_labels)
         ? (room.light_labels as string[])

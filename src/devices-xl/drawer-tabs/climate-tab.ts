@@ -275,15 +275,22 @@ export class CowXLClimateTab extends LitElement {
 
   override render() {
     if (!this.room) return nothing;
+
+    // === SENSORS-ONLY MODE ===
+    // No climate entity but room has temperature/humidity sensors → show
+    // a "monitoring only" full-width card.
     if (!this.room.climate) {
-      return html`
-        <div class="caption">CLIMA</div>
-        <div
-          style="position:absolute;left:2rem;right:2rem;top:2.5rem;height:20rem;display:flex;align-items:center;justify-content:center;color:var(--cow-text-secondary);font-size:1rem;background:var(--cow-surface-white);border:0.0625rem dashed var(--cow-surface-border);border-radius:1.25rem;"
-        >
-          Nessun termostato configurato per questa stanza
-        </div>
-      `;
+      if (!this.room.temperature && !this.room.humidity) {
+        return html`
+          <div class="caption">CLIMA</div>
+          <div
+            style="position:absolute;left:2rem;right:2rem;top:2.5rem;height:20rem;display:flex;align-items:center;justify-content:center;color:var(--cow-text-secondary);font-size:1rem;background:var(--cow-surface-white);border:0.0625rem dashed var(--cow-surface-border);border-radius:1.25rem;"
+          >
+            Nessun termostato o sensore configurato per questa stanza
+          </div>
+        `;
+      }
+      return this.renderSensorsOnly();
     }
     const climate = this.hass?.states?.[this.room.climate];
     const view = deriveThermostatView(climate);
@@ -303,6 +310,111 @@ export class CowXLClimateTab extends LitElement {
 
     const fans = view.fanModes.length > 0 ? view.fanModes : ["auto"];
 
+    // continued below in the original branch
+    return this.renderClimate(view, variantLabel, cur, tgt, upTarget, downTarget, fans);
+  }
+
+  private renderSensorsOnly() {
+    const states = this.hass?.states ?? {};
+    const tempEntity = this.room?.temperature
+      ? states[this.room.temperature]
+      : undefined;
+    const humEntity = this.room?.humidity
+      ? states[this.room.humidity]
+      : undefined;
+    const tempVal = tempEntity ? parseFloat(tempEntity.state) : NaN;
+    const humVal = humEntity ? parseFloat(humEntity.state) : NaN;
+    const tempStr = Number.isFinite(tempVal)
+      ? `${Math.round(tempVal * 10) / 10}°`
+      : "—";
+    const humStr = Number.isFinite(humVal) ? `${Math.round(humVal)}%` : "—";
+
+    // Comfort hint based on temperature reading
+    let comfort = "—";
+    if (Number.isFinite(tempVal)) {
+      if (tempVal < 18) comfort = "Freddo";
+      else if (tempVal < 20) comfort = "Fresco";
+      else if (tempVal <= 23) comfort = "Confortevole";
+      else if (tempVal <= 26) comfort = "Caldo";
+      else comfort = "Molto caldo";
+    }
+
+    return html`
+      <div class="caption">CLIMA — SOLO MONITORAGGIO</div>
+      <div
+        class="full"
+        style="background: linear-gradient(120deg, #6da3d6 0%, #8fb9e0 60%, #cfe6ff 100%);"
+      >
+        <div class="col">
+          <div class="col-label">TEMPERATURA</div>
+          <div class="col-icon">🌡</div>
+          <div class="col-big">${tempStr}</div>
+          <div class="col-sub">${comfort} · ${this.room?.name ?? ""}</div>
+        </div>
+        <div class="col" style="align-items:flex-start;">
+          <div class="col-label">UMIDITÀ</div>
+          <div class="col-icon">💧</div>
+          <div class="setpoint-big">${humStr}</div>
+          <div class="col-sub" style="margin-top:auto;">
+            ${Number.isFinite(humVal)
+              ? humVal < 35
+                ? "Aria secca"
+                : humVal > 65
+                  ? "Aria umida"
+                  : "Umidità ottimale"
+              : "—"}
+          </div>
+        </div>
+        <div class="col right">
+          <div class="col-label">SUGGERIMENTO</div>
+          <div
+            style="margin-top:0.5rem;font-weight:500;font-size:0.9375rem;line-height:1.5;opacity:0.9;"
+          >
+            ${this.advisoryText(tempVal, humVal)}
+          </div>
+          <div class="schedule-label" style="margin-top:auto;">SENSORE</div>
+          <div class="schedule-text">
+            ${this.room?.temperature ?? "—"}
+          </div>
+        </div>
+      </div>
+      <div class="actions">
+        <div
+          class="act"
+          style="background:transparent;border:0.0625rem dashed var(--cow-surface-border);color:var(--cow-text-secondary);cursor:default;"
+        >
+          ℹ Stanza senza termostato — aggiungi un'entità climate.* per
+          poter regolare temperatura e modalità.
+        </div>
+      </div>
+    `;
+  }
+
+  private advisoryText(temp: number, hum: number): string {
+    if (!Number.isFinite(temp) && !Number.isFinite(hum)) return "—";
+    const advices: string[] = [];
+    if (Number.isFinite(temp)) {
+      if (temp < 19) advices.push("Considera di alzare il riscaldamento");
+      else if (temp > 25) advices.push("Apri le tapparelle o ventila");
+      else advices.push("Comfort termico nella norma");
+    }
+    if (Number.isFinite(hum)) {
+      if (hum < 35) advices.push("aria secca, valuta un umidificatore");
+      else if (hum > 65) advices.push("umidità alta, ventila");
+    }
+    return advices.join(" · ");
+  }
+
+  private renderClimate(
+    view: ReturnType<typeof deriveThermostatView>,
+    variantLabel: string,
+    cur: string,
+    tgt: string,
+    upTarget: number | null,
+    downTarget: number | null,
+    fans: string[],
+  ) {
+    if (!this.room) return nothing;
     return html`
       <div class="caption">CLIMA — ${variantLabel}</div>
       <div class="full">

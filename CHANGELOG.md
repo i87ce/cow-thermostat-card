@@ -4,6 +4,28 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and
 this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.5.1] — 2026-05-12
+
+### Added
+- **Ambient sensors per room** — new optional `temperature` and `humidity`
+  config fields (sensor.* entity_ids). Used as a fallback when no
+  `climate.*` entity is configured for the room (typical for open-plan
+  Sala & Cucina with no thermostat).
+- **Climate tab "Sensors-only" mode** — when a room has no climate but
+  has temperature/humidity sensors, the Climate tab renders a sky-blue
+  card with big temp + humidity + comfort-level hint + actionable
+  advisory ("Apri le tapparelle…", "Aria secca…").
+- **Climate-mini tile in Lights tab** also falls back to a sky-blue
+  ambient sensor mini when no climate is configured.
+- Drawer status pill now shows `23° · 49%` when on Climate tab in
+  sensors-only mode.
+- Drawer subtitle ("3 luci · 2 tapparelle · sensori ambiente") when no
+  thermostat is wired but sensors are.
+
+### Changed
+- Default tab when opening the drawer is now **Lights** (most common),
+  then Blinds, then Climate (was Climate-first).
+
 ## [0.5.0] — 2026-05-12
 
 ### Added — Phase 2: Drawer slide-up (XL card)

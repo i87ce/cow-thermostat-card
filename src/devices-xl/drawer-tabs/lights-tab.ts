@@ -306,39 +306,79 @@ export class CowXLLightsTab extends LitElement {
   }
 
   private renderClimateMini() {
-    if (!this.room?.climate) return nothing;
-    const climate = this.hass?.states?.[this.room.climate];
-    const view = deriveThermostatView(climate);
-    const variantLabel =
-      view.variant === "heating"
-        ? "HEATING"
-        : view.variant === "cooling"
-          ? "COOLING"
-          : view.variant === "off"
-            ? "OFF"
-            : "IDLE";
-    const icon =
-      view.variant === "heating"
-        ? "🔥"
-        : view.variant === "cooling"
-          ? "❄"
-          : view.variant === "off"
-            ? "○"
-            : "⚖";
-    const cur = view.current != null ? `${Math.round(view.current)}°` : "—";
-    const tgt = view.target != null ? `${Math.round(view.target)}°C` : "—";
-    return html`
-      <div class="climate-mini" role="group" aria-label="Termostato stanza">
-        <div class="cm-icon">${icon}</div>
-        <div class="cm-spacer"></div>
-        <div class="cm-label">${variantLabel}</div>
-        <div class="cm-temp">${cur}</div>
-        <div class="cm-target">→ ${tgt} · Fan ${view.fan}</div>
-        ${view.humidity != null
-          ? html`<div class="cm-humidity">💧 ${Math.round(view.humidity)}% umidità</div>`
-          : nothing}
-      </div>
-    `;
+    if (!this.room) return nothing;
+
+    // === Climate entity present → full thermostat mini ===
+    if (this.room.climate) {
+      const climate = this.hass?.states?.[this.room.climate];
+      const view = deriveThermostatView(climate);
+      const variantLabel =
+        view.variant === "heating"
+          ? "HEATING"
+          : view.variant === "cooling"
+            ? "COOLING"
+            : view.variant === "off"
+              ? "OFF"
+              : "IDLE";
+      const icon =
+        view.variant === "heating"
+          ? "🔥"
+          : view.variant === "cooling"
+            ? "❄"
+            : view.variant === "off"
+              ? "○"
+              : "⚖";
+      const cur = view.current != null ? `${Math.round(view.current)}°` : "—";
+      const tgt = view.target != null ? `${Math.round(view.target)}°C` : "—";
+      return html`
+        <div class="climate-mini" role="group" aria-label="Termostato stanza">
+          <div class="cm-icon">${icon}</div>
+          <div class="cm-spacer"></div>
+          <div class="cm-label">${variantLabel}</div>
+          <div class="cm-temp">${cur}</div>
+          <div class="cm-target">→ ${tgt} · Fan ${view.fan}</div>
+          ${view.humidity != null
+            ? html`<div class="cm-humidity">💧 ${Math.round(view.humidity)}% umidità</div>`
+            : nothing}
+        </div>
+      `;
+    }
+
+    // === Sensors-only fallback (sky-blue, no setpoint) ===
+    if (this.room.temperature || this.room.humidity) {
+      const states = this.hass?.states ?? {};
+      const tempEl = this.room.temperature
+        ? states[this.room.temperature]
+        : undefined;
+      const humEl = this.room.humidity ? states[this.room.humidity] : undefined;
+      const tempVal = tempEl ? parseFloat(tempEl.state) : NaN;
+      const humVal = humEl ? parseFloat(humEl.state) : NaN;
+      const tempStr = Number.isFinite(tempVal)
+        ? `${Math.round(tempVal * 10) / 10}°`
+        : "—";
+      return html`
+        <div
+          class="climate-mini"
+          role="group"
+          aria-label="Sensori ambiente stanza"
+          style="background: linear-gradient(150deg, #6da3d6 0%, #4f8cc7 100%);"
+        >
+          <div class="cm-icon">🌡</div>
+          <div class="cm-spacer"></div>
+          <div class="cm-label">AMBIENTE</div>
+          <div class="cm-temp">${tempStr}</div>
+          <div class="cm-target">
+            ${Number.isFinite(humVal)
+              ? `💧 ${Math.round(humVal)}% umidità`
+              : "Solo monitoraggio"}
+          </div>
+          <div class="cm-humidity">Nessun termostato in stanza</div>
+        </div>
+      `;
+    }
+
+    // No climate, no sensors → don't render the tile (more room for lights)
+    return nothing;
   }
 
   private renderLightTile(id: string, label: string) {

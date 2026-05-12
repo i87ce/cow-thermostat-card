@@ -1,11 +1,19 @@
-# Sala & Cucina — Wall Display XL (10.1") placeholder
+# Sala & Cucina — Wall Display XL (10.1") — Room Dashboard
 #
-# This is a TEMPORARY config that uses the small 4" cow-thermostat-card on the
-# XL display. The card scales itself to a square, leaving black bands on the
-# sides of the 10.1" landscape viewport. Functional but not optimised.
+# Uses the large `cow-room-dashboard-card` (Phase 1 idle + Phase 2 drawer):
+#   - Header: chip per room + weather pill + now-playing pill
+#   - Hero: clock + ambient weather hero
+#   - Scenes: 4 quick shortcut buttons
+#   - Drawer (slide-up on chip tap): Lights / Blinds / Climate / Sicurezza
 #
-# When the BIG `cow-room-dashboard-card` (designed in Figma frames 11.x) lands,
-# this dashboard will be swapped to use it (room chips header + drawer-on-tap).
+# "Sala" and "Cucina" are rendered as a SINGLE room called "Sala & Cucina"
+# (open-plan space — no point in having a separate chip for cucina). The
+# rest of the rooms each get their own chip.
+#
+# Ambient temperature/humidity for Sala & Cucina come from the SAWD1
+# WallDisplay sensor in salone (MAC D2D2C5 — 21.7°C / 53.4% rH at this
+# moment, the only one whose readings make sense for a living room).
+# When you map MAC→room officially, swap the entity_id below.
 #
 # URL on the SAWD-XL:
 #   https://<ha-host>/walldisplay-sala-cucina/0?kiosk&block_context_menu&cache
@@ -16,18 +24,94 @@ views:
     path: "0"
     type: panel
     cards:
-      - type: custom:cow-thermostat-card
-        room: "Sala & Cucina"
-        light:
-          - light.led_calda_sala
-          - light.led_sala_fredda
-          - light.luce_tavolo_sala
-          - light.luce_cucina
-        light_labels: ["Calda", "Fredda", "Tavolo", "Cucina"]
-        cover:
-          - cover.tapparella_sala
-          - cover.tapparella_sala_terrazza
-          - cover.tapparella_cucina
-          - cover.tapparella_cucina_terrazza
-        cover_labels: ["Sala", "Sala T.", "Cucina", "Cucina T."]
-        initial_view: lights
+      - type: custom:cow-room-dashboard-card
+        weather_entity: weather.forecast_home
+        media_player: media_player.display_sala
+        locale: it-IT
+
+        rooms:
+          # ── Sala + Cucina aggregata (open-plan) ──────────────────────
+          - name: Sala & Cucina
+            icon: "🛋"
+            # No climate.* yet — wire ambient sensors instead
+            temperature: sensor.shellywalldisplay_000822d2d2c5_temperature
+            humidity: sensor.shellywalldisplay_000822d2d2c5_humidity
+            light:
+              - light.led_calda_sala
+              - light.led_sala_fredda
+              - light.luce_tavolo_sala
+              - light.luce_cucina
+            light_labels: ["Sala calda", "Sala fredda", "Sala tavolo", "Cucina"]
+            cover:
+              - cover.tapparella_sala
+              - cover.tapparella_sala_terrazza
+              - cover.tapparella_cucina
+              - cover.tapparella_cucina_terrazza
+            cover_labels:
+              ["Sala", "Sala terrazza", "Cucina", "Cucina terrazza"]
+
+          # ── Stanze singole ───────────────────────────────────────────
+          - name: Padronale
+            icon: "🛏"
+            light:
+              - light.luce_comodino_1
+              - light.led_cabina_armadio
+            light_labels: ["Comodino", "Cabina"]
+            cover: cover.tapparella_camera_padronale
+
+          - name: Camera 1
+            icon: "🛌"
+            light: light.led_camera_1
+            cover: cover.tapparella_camera_1
+
+          - name: Studio Chiara
+            icon: "🛌"
+            light: light.led_camera_2
+            cover: cover.tapparella_camera_2
+
+          - name: Studio
+            icon: "💻"
+            light:
+              - light.luce_calda_studio
+              - light.luce_fredda_studio
+            light_labels: ["Calda", "Fredda"]
+            cover: cover.tapparella_studio
+
+          - name: Bagno P.
+            icon: "🚿"
+            light:
+              - light.luce_bagno_padronale
+              - light.luce_specchio_bagno_padronale
+            light_labels: ["Soffitto", "Specchio"]
+            cover: cover.tapparella_bagno_padronale
+
+          - name: Bagno O.
+            icon: "🚿"
+            light:
+              - light.led_bagno_piccolo
+              - light.luce_specchio_bagno_piccolo
+            light_labels: ["Soffitto", "Specchio"]
+            cover: cover.tapparella_bagno_piccola
+
+          - name: Lavanderia
+            icon: "🥼"
+            light: light.luce_bagno_pt
+            cover: cover.tapparella_bagno_pt
+
+        scenes:
+          - name: Tutto OFF
+            icon: "○"
+            accent: "#8C8C99"
+            service: script.cow_tutto_off
+          - name: Apri tutto
+            icon: "△"
+            accent: "#26A673"
+            service: script.cow_apri_tutto
+          - name: Notte
+            icon: "☾"
+            accent: "#1F1F2E"
+            service: script.cow_notte
+          - name: Cinema
+            icon: "■"
+            accent: "#FA6B2E"
+            service: script.cow_cinema
