@@ -1,0 +1,107 @@
+<!doctype html>
+<html lang="it">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>cow-room-dashboard-card preview (XL)</title>
+    <style>
+      :root { color-scheme: light; }
+      html, body { margin: 0; padding: 0; background: #2a2a35; min-height: 100vh; font-family: -apple-system, "Segoe UI", Roboto, sans-serif; color: #e9e9f0; }
+      header { padding: 0.75rem 1rem; background: #1a1a25; border-bottom: 1px solid #3a3a4a; display: flex; gap: 1rem; align-items: center; flex-wrap: wrap; }
+      header h1 { font-size: 1rem; margin: 0; font-weight: 600; }
+      header label { display: flex; align-items: center; gap: .25rem; font-size: .8125rem; }
+      select { background: #2c2c3a; color: #e9e9f0; border: 1px solid #4a4a5a; border-radius: .375rem; padding: .25rem .5rem; font-size: .8125rem; }
+      .stage { padding: 1.5rem; display: grid; place-items: center; }
+      .frame { width: var(--w, 1280px); background: #fff; border-radius: 16px; overflow: hidden; box-shadow: 0 1.25rem 4rem rgba(0,0,0,.45); }
+    </style>
+    <script type="module" src="../dist/cow-thermostat-card.js"></script>
+  </head>
+  <body>
+    <header>
+      <h1>cow-room-dashboard-card preview (XL 1280×800)</h1>
+      <label>Width
+        <select id="w">
+          <option value="1280" selected>1280px (Wall Display XL)</option>
+          <option value="1024">1024px</option>
+          <option value="800">800px</option>
+          <option value="1440">1440px</option>
+        </select>
+      </label>
+    </header>
+    <main class="stage">
+      <div class="frame" id="frame"></div>
+    </main>
+
+    <script type="module">
+      const ROOMS = [
+        { name: "Sala", icon: "🏠", climate: null, light: ["light.calda_sala","light.fredda_sala","light.tavolo_sala"], cover: ["cover.tapparella_sala","cover.tapparella_sala_terrazza"] },
+        { name: "Cucina", icon: "🍳", light: ["light.luce_cucina"], cover: ["cover.tapparella_cucina","cover.tapparella_cucina_terrazza"] },
+        { name: "Camera", icon: "🛏", light: ["light.comodino_1"], cover: ["cover.tapparella_camera_padronale"] },
+        { name: "Studio C.", icon: "🛌", light: ["light.led_camera_2"], cover: ["cover.tapparella_camera_2"] },
+        { name: "Camera 1", icon: "🛌", light: ["light.led_camera_1"], cover: ["cover.tapparella_camera_1"] },
+        { name: "Studio", icon: "💻", light: ["light.calda_studio","light.fredda_studio"], cover: ["cover.tapparella_studio"] },
+        { name: "Bagni", icon: "🚿", light: ["light.bagno_padronale"], cover: ["cover.tapparella_bagno_padronale"] },
+      ];
+
+      function buildHass() {
+        const states = {};
+        // light entities (some on)
+        states["light.calda_sala"] = { entity_id: "light.calda_sala", state: "on", attributes: { brightness: 240 } };
+        states["light.fredda_sala"] = { entity_id: "light.fredda_sala", state: "off", attributes: {} };
+        states["light.tavolo_sala"] = { entity_id: "light.tavolo_sala", state: "off", attributes: {} };
+        states["light.luce_cucina"] = { entity_id: "light.luce_cucina", state: "off", attributes: {} };
+        states["light.comodino_1"] = { entity_id: "light.comodino_1", state: "off", attributes: {} };
+        states["light.led_camera_2"] = { entity_id: "light.led_camera_2", state: "on", attributes: { brightness: 100 } };
+        states["light.led_camera_1"] = { entity_id: "light.led_camera_1", state: "off", attributes: {} };
+        states["light.calda_studio"] = { entity_id: "light.calda_studio", state: "off", attributes: {} };
+        states["light.fredda_studio"] = { entity_id: "light.fredda_studio", state: "off", attributes: {} };
+        states["light.bagno_padronale"] = { entity_id: "light.bagno_padronale", state: "off", attributes: {} };
+        // covers (some open)
+        states["cover.tapparella_sala"] = { entity_id: "cover.tapparella_sala", state: "open", attributes: { current_position: 100 } };
+        states["cover.tapparella_sala_terrazza"] = { entity_id: "cover.tapparella_sala_terrazza", state: "open", attributes: { current_position: 50 } };
+        states["cover.tapparella_cucina"] = { entity_id: "cover.tapparella_cucina", state: "closed", attributes: { current_position: 0 } };
+        states["cover.tapparella_cucina_terrazza"] = { entity_id: "cover.tapparella_cucina_terrazza", state: "open", attributes: { current_position: 100 } };
+        states["cover.tapparella_camera_padronale"] = { entity_id: "cover.tapparella_camera_padronale", state: "open", attributes: { current_position: 100 } };
+        states["cover.tapparella_camera_2"] = { entity_id: "cover.tapparella_camera_2", state: "closed", attributes: { current_position: 0 } };
+        states["cover.tapparella_camera_1"] = { entity_id: "cover.tapparella_camera_1", state: "closed", attributes: { current_position: 0 } };
+        states["cover.tapparella_studio"] = { entity_id: "cover.tapparella_studio", state: "closed", attributes: { current_position: 0 } };
+        states["cover.tapparella_bagno_padronale"] = { entity_id: "cover.tapparella_bagno_padronale", state: "open", attributes: { current_position: 100 } };
+        // weather + media
+        states["weather.casa"] = { entity_id: "weather.casa", state: "sunny", attributes: { temperature: 18, humidity: 62, apparent_temperature: 16, wind_speed: 7 } };
+        states["media_player.display_sala"] = { entity_id: "media_player.display_sala", state: "playing", attributes: { media_title: "RDS Relax" } };
+        return {
+          states,
+          callService: async (...args) => console.log("callService", ...args),
+          locale: { language: "it-IT" },
+        };
+      }
+
+      const frame = document.getElementById("frame");
+      const wSel = document.getElementById("w");
+
+      function mount() {
+        frame.style.setProperty("--w", `${wSel.value}px`);
+        frame.replaceChildren();
+        const card = document.createElement("cow-room-dashboard-card");
+        card.setConfig({
+          type: "custom:cow-room-dashboard-card",
+          rooms: ROOMS,
+          weather_entity: "weather.casa",
+          media_player: "media_player.display_sala",
+          locale: "it-IT",
+          scenes: [
+            { name: "Tutto OFF", icon: "○", accent: "#8C8C99" },
+            { name: "Apri tutto", icon: "△", accent: "#26A673" },
+            { name: "Notte", icon: "☾", accent: "#1F1F2E" },
+            { name: "Cinema", icon: "■", accent: "#FA6B2E" },
+          ],
+        });
+        card.hass = buildHass();
+        frame.appendChild(card);
+      }
+
+      wSel.addEventListener("change", mount);
+      mount();
+    </script>
+  </body>
+</html>

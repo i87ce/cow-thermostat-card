@@ -4,6 +4,35 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and
 this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.4.0] — 2026-05-12
+
+### Added
+- **New custom element `cow-room-dashboard-card`** for the Wall Display XL
+  (10.1", landscape 1280×800). Bundled into the same JS file — installing
+  the HACS plugin gives you both cards.
+- XL Phase 1 (Idle state): chip-row room navigator (header) with active-
+  device count per room, weather + media-player pills (top right), hero
+  gradient card (sky→peach with sun glow) with localized clock + date and
+  weather hero (current temp + condition + apparent + wind + humidity),
+  scene shortcuts row (4 customizable buttons), drawer peek with handle.
+- Config schema: `rooms[]`, `weather_entity`, `media_player`, `scenes[]`,
+  `locale`. Each room has `name`, `icon`, `light`, `cover`, `climate`.
+- Container-query scaling on `inline-size`: 1rem == 1280-design-px / 80,
+  so the design scales horizontally to any viewport while preserving the
+  1280:800 aspect ratio.
+- Defaults: 4 built-in scenes (Tutto OFF / Apri tutto / Notte / Cinema)
+  if `scenes` is omitted.
+
+### Internal
+- `src/styles/global-xl.ts`, `src/config-xl.ts`,
+  `src/devices-xl/{header-row,hero-card,scene-shortcuts}.ts`,
+  `src/cow-room-dashboard-card.ts`.
+- `examples/preview-xl.html` for local sanity checks.
+
+### Pending (Phase 2)
+- Drawer slide-up on chip tap, with per-room Lights / Blinds / Climate
+  tabs reusing the existing molecules and state machines.
+
 ## [0.3.0] — 2026-05-11
 
 ### Added

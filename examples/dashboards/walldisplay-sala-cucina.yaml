@@ -1,0 +1,33 @@
+# Sala & Cucina — Wall Display XL (10.1") placeholder
+#
+# This is a TEMPORARY config that uses the small 4" cow-thermostat-card on the
+# XL display. The card scales itself to a square, leaving black bands on the
+# sides of the 10.1" landscape viewport. Functional but not optimised.
+#
+# When the BIG `cow-room-dashboard-card` (designed in Figma frames 11.x) lands,
+# this dashboard will be swapped to use it (room chips header + drawer-on-tap).
+#
+# URL on the SAWD-XL:
+#   https://<ha-host>/walldisplay-sala-cucina/0?kiosk&block_context_menu&cache
+
+title: Sala & Cucina
+views:
+  - title: Sala & Cucina
+    path: "0"
+    type: panel
+    cards:
+      - type: custom:cow-thermostat-card
+        room: "Sala & Cucina"
+        light:
+          - light.led_calda_sala
+          - light.led_sala_fredda
+          - light.luce_tavolo_sala
+          - light.luce_cucina
+        light_labels: ["Calda", "Fredda", "Tavolo", "Cucina"]
+        cover:
+          - cover.tapparella_sala
+          - cover.tapparella_sala_terrazza
+          - cover.tapparella_cucina
+          - cover.tapparella_cucina_terrazza
+        cover_labels: ["Sala", "Sala T.", "Cucina", "Cucina T."]
+        initial_view: lights
