@@ -4,6 +4,20 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and
 this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.7.2] — 2026-05-12
+
+### Fixed
+- **Room names invisible inside chip tiles on HA** — `header-row.ts`
+  was the only file in the XL pipeline that did NOT pull in
+  `globalShellXL` (where the `button { color: inherit }` reset lives),
+  so the `<button>` chips inherited HA's theme default button color
+  (white-ish on most light themes) instead of `--cow-text-primary`.
+  Result on the actual Wall Display: emoji icon + count badge visible,
+  room name rendered in white-on-white. Added explicit
+  `color: var(--cow-text-primary)` + `font: inherit` + `appearance: none`
+  on `.chip` and the `.pill button.play` reset so this never bites again,
+  no matter which theme HA is serving.
+
 ## [0.7.1] — 2026-05-12
 
 ### Changed

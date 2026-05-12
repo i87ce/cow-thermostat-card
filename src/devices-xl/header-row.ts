@@ -65,7 +65,12 @@ export class CowXLHeader extends LitElement {
       background: var(--cow-surface-button-bg);
       border-radius: 50%;
       color: var(--cow-text-primary);
+      font: inherit;
       font-size: 0.75rem;
+      border: 0;
+      cursor: pointer;
+      -webkit-appearance: none;
+      appearance: none;
     }
     .groups {
       position: absolute;
@@ -127,6 +132,14 @@ export class CowXLHeader extends LitElement {
         border-color 160ms ease,
         box-shadow 160ms ease;
       position: relative;
+      /* The chip is a <button>: without this rule, the room name inherits
+         the browser/HA-theme default button color (often white or system
+         grey) instead of our text-primary, which makes it invisible on
+         the white chip background. */
+      color: var(--cow-text-primary);
+      font: inherit;
+      -webkit-appearance: none;
+      appearance: none;
     }
     .chip:hover {
       box-shadow: 0 0.125rem 0.5rem rgba(31, 31, 46, 0.06);
