@@ -46,8 +46,8 @@ export class CowXLLightsTab extends LitElement {
         position: absolute;
         left: 2rem;
         right: 2rem;
-        top: 2.5rem; /* y=232/16 - body offset (12rem) */
-        height: 20rem;
+        top: 2.25rem;
+        bottom: 5rem; /* leave 80px for the actions bar (h 3.5rem + bottom 1rem + gap 0.5rem) */
         display: flex;
         gap: 1rem;
         overflow-x: auto;
@@ -55,63 +55,82 @@ export class CowXLLightsTab extends LitElement {
       }
       .row::-webkit-scrollbar { display: none; }
       .climate-mini {
-        flex: 0 0 17.5rem; /* 280/16 */
-        height: 100%;
+        flex: 0 0 17.5rem;
+        align-self: stretch;
         background: linear-gradient(
           150deg,
           var(--cow-thermostat-orange) 0%,
           var(--cow-thermostat-orange-dark, #e55a1f) 100%
         );
         border-radius: 1.25rem;
-        padding: 1.5rem;
+        padding: 1.25rem 1.25rem 1.125rem;
         color: var(--cow-surface-white);
-        display: flex;
-        flex-direction: column;
-        gap: 0;
+        display: grid;
+        grid-template-rows: auto 1fr auto;
+        row-gap: 0.5rem;
         position: relative;
         box-shadow: inset 0 0 0 0.0625rem rgba(255, 255, 255, 0.08);
       }
+      .cm-top {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 0.5rem;
+      }
       .cm-icon {
-        font-size: 1.75rem;
+        font-size: 1.5rem;
         line-height: 1;
       }
-      .cm-spacer { flex: 1; }
       .cm-label {
         font-weight: 700;
-        font-size: 0.8125rem;
-        letter-spacing: 0.05rem;
+        font-size: 0.75rem;
+        letter-spacing: 0.075rem;
         text-transform: uppercase;
-        opacity: 0.8;
+        opacity: 0.85;
+      }
+      .cm-mid {
+        align-self: center;
+        display: flex;
+        align-items: baseline;
+        gap: 0.25rem;
       }
       .cm-temp {
         font-weight: 300;
-        font-size: 6rem;
+        font-size: 4.25rem;
         line-height: 1;
-        margin-top: 0.5rem;
+        font-variant-numeric: tabular-nums;
       }
       .cm-target {
-        margin-top: 0.5rem;
         font-weight: 500;
-        font-size: 1rem;
+        font-size: 0.9375rem;
         opacity: 0.9;
       }
+      .cm-bot {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 0.5rem;
+        font-weight: 500;
+        font-size: 0.8125rem;
+        opacity: 0.85;
+      }
       .cm-humidity {
-        margin-top: 0.25rem;
-        font-weight: 400;
-        font-size: 0.875rem;
-        opacity: 0.75;
+        display: inline-flex;
+        align-items: center;
+        gap: 0.25rem;
       }
 
       .light-tile {
-        flex: 0 0 18.5rem; /* 296/16 */
-        height: 100%;
+        flex: 0 0 17rem;
+        align-self: stretch;
         background: var(--cow-surface-white);
         border: 0.0625rem solid var(--cow-surface-border);
         border-radius: 1.25rem;
-        padding: 1.5rem 1.5rem 1rem;
-        display: flex;
-        flex-direction: column;
-        align-items: center;
+        padding: 1rem 1.25rem 1rem;
+        display: grid;
+        grid-template-rows: auto auto auto 1fr auto;
+        row-gap: 0.25rem;
+        justify-items: center;
         position: relative;
       }
       .light-tile[data-on] {
@@ -119,33 +138,34 @@ export class CowXLLightsTab extends LitElement {
         border-color: var(--cow-lights-yellow, #ffc72e);
       }
       .lt-bulb {
-        width: 7.5rem;
-        height: 7.5rem;
-        flex: 0 0 auto;
+        width: 5.5rem;
+        height: 5.5rem;
       }
       .lt-label {
-        margin-top: 0.5rem;
         font-weight: 700;
-        font-size: 0.8125rem;
+        font-size: 0.75rem;
         letter-spacing: 0.075rem;
         text-transform: uppercase;
         color: var(--cow-text-secondary);
+        text-align: center;
+        max-width: 100%;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
       }
       .lt-value {
-        margin-top: 0.125rem;
         font-weight: 300;
-        font-size: 3rem;
+        font-size: 2rem;
         line-height: 1;
         color: var(--cow-text-primary);
         font-variant-numeric: tabular-nums;
       }
-      .lt-spacer { flex: 1; }
       .lt-controls {
-        margin-top: 0.5rem;
+        align-self: end;
         width: 100%;
         display: flex;
         align-items: center;
-        gap: 0.625rem;
+        gap: 0.5rem;
       }
       .lt-slider {
         flex: 1;
@@ -165,23 +185,24 @@ export class CowXLLightsTab extends LitElement {
         transition: width 160ms ease;
       }
       .lt-btn {
-        width: 2.25rem;
-        height: 2.25rem;
-        border-radius: 1.125rem;
+        width: 2rem;
+        height: 2rem;
+        border-radius: 1rem;
         background: var(--cow-surface-button-bg);
         color: var(--cow-text-primary);
-        font-size: 1.125rem;
+        font-size: 1rem;
         font-weight: 600;
         display: inline-flex;
         align-items: center;
         justify-content: center;
         cursor: pointer;
+        flex: 0 0 auto;
       }
       .lt-power {
-        margin-top: 0.625rem;
-        width: 3.5rem;
-        height: 2rem;
-        border-radius: 1rem;
+        flex: 0 0 auto;
+        width: 3rem;
+        height: 1.75rem;
+        border-radius: 0.875rem;
         background: var(--cow-surface-button-bg);
         position: relative;
         cursor: pointer;
@@ -195,15 +216,15 @@ export class CowXLLightsTab extends LitElement {
         position: absolute;
         top: 0.1875rem;
         left: 0.1875rem;
-        width: 1.625rem;
-        height: 1.625rem;
+        width: 1.375rem;
+        height: 1.375rem;
         border-radius: 50%;
         background: var(--cow-surface-white);
         transition: transform 160ms ease;
         box-shadow: 0 0.0625rem 0.1875rem rgba(0, 0, 0, 0.15);
       }
       .lt-power[data-on]::after {
-        transform: translateX(1.5rem);
+        transform: translateX(1.25rem);
       }
 
       .actions {
@@ -308,7 +329,6 @@ export class CowXLLightsTab extends LitElement {
   private renderClimateMini() {
     if (!this.room) return nothing;
 
-    // === Climate entity present → full thermostat mini ===
     if (this.room.climate) {
       const climate = this.hass?.states?.[this.room.climate];
       const view = deriveThermostatView(climate);
@@ -329,22 +349,27 @@ export class CowXLLightsTab extends LitElement {
               ? "○"
               : "⚖";
       const cur = view.current != null ? `${Math.round(view.current)}°` : "—";
-      const tgt = view.target != null ? `${Math.round(view.target)}°C` : "—";
+      const tgt = view.target != null ? `${Math.round(view.target)}°C` : null;
       return html`
         <div class="climate-mini" role="group" aria-label="Termostato stanza">
-          <div class="cm-icon">${icon}</div>
-          <div class="cm-spacer"></div>
-          <div class="cm-label">${variantLabel}</div>
-          <div class="cm-temp">${cur}</div>
-          <div class="cm-target">→ ${tgt} · Fan ${view.fan}</div>
-          ${view.humidity != null
-            ? html`<div class="cm-humidity">💧 ${Math.round(view.humidity)}% umidità</div>`
-            : nothing}
+          <div class="cm-top">
+            <span class="cm-icon">${icon}</span>
+            <span class="cm-label">${variantLabel}</span>
+          </div>
+          <div class="cm-mid">
+            <span class="cm-temp">${cur}</span>
+            ${tgt ? html`<span class="cm-target">→ ${tgt}</span>` : nothing}
+          </div>
+          <div class="cm-bot">
+            <span>Fan ${view.fan}</span>
+            ${view.humidity != null
+              ? html`<span class="cm-humidity">💧 ${Math.round(view.humidity)}%</span>`
+              : html`<span></span>`}
+          </div>
         </div>
       `;
     }
 
-    // === Sensors-only fallback (sky-blue, no setpoint) ===
     if (this.room.temperature || this.room.humidity) {
       const states = this.hass?.states ?? {};
       const tempEl = this.room.temperature
@@ -363,21 +388,23 @@ export class CowXLLightsTab extends LitElement {
           aria-label="Sensori ambiente stanza"
           style="background: linear-gradient(150deg, #6da3d6 0%, #4f8cc7 100%);"
         >
-          <div class="cm-icon">🌡</div>
-          <div class="cm-spacer"></div>
-          <div class="cm-label">AMBIENTE</div>
-          <div class="cm-temp">${tempStr}</div>
-          <div class="cm-target">
-            ${Number.isFinite(humVal)
-              ? `💧 ${Math.round(humVal)}% umidità`
-              : "Solo monitoraggio"}
+          <div class="cm-top">
+            <span class="cm-icon">🌡</span>
+            <span class="cm-label">AMBIENTE</span>
           </div>
-          <div class="cm-humidity">Nessun termostato in stanza</div>
+          <div class="cm-mid">
+            <span class="cm-temp">${tempStr}</span>
+          </div>
+          <div class="cm-bot">
+            ${Number.isFinite(humVal)
+              ? html`<span class="cm-humidity">💧 ${Math.round(humVal)}% umidità</span>`
+              : html`<span>Solo monitoraggio</span>`}
+            <span></span>
+          </div>
         </div>
       `;
     }
 
-    // No climate, no sensors → don't render the tile (more room for lights)
     return nothing;
   }
 
@@ -395,7 +422,7 @@ export class CowXLLightsTab extends LitElement {
         ></cow-bulb-visual>
         <div class="lt-label">${label}</div>
         <div class="lt-value">${valueText}</div>
-        <div class="lt-spacer"></div>
+        <div></div>
         <div class="lt-controls">
           <button
             class="lt-btn"
@@ -421,15 +448,15 @@ export class CowXLLightsTab extends LitElement {
           >
             +
           </button>
+          <div
+            class="lt-power"
+            ?data-on=${on}
+            @click=${() => this.toggleLight(id)}
+            role="switch"
+            aria-checked=${on ? "true" : "false"}
+            aria-label="${label} on/off"
+          ></div>
         </div>
-        <div
-          class="lt-power"
-          ?data-on=${on}
-          @click=${() => this.toggleLight(id)}
-          role="switch"
-          aria-checked=${on ? "true" : "false"}
-          aria-label="${label} on/off"
-        ></div>
       </div>
     `;
   }

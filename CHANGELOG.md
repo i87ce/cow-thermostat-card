@@ -4,6 +4,31 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and
 this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.5.2] — 2026-05-12
+
+### Fixed
+- **XL drawer — internal item heights**: light-tile, climate-mini and
+  blind-card content was sized for the design canvas only and could
+  overflow or get clipped when the drawer body was shorter than expected
+  (e.g. narrow viewport, or Lovelace panel forcing a non-1280:800
+  ratio). Power switch on light tiles was being hidden behind the
+  master action bar.
+
+### Changed
+- **Light tile** (XL drawer Lights tab): smaller bulb (5.5rem instead
+  of 7.5rem), smaller value text (2rem instead of 3rem), and the power
+  toggle is now in the same row as the brightness slider/buttons —
+  visually compact and always inside the tile bounds.
+- **Climate-mini tile** (Lights tab, sensors-only and full-thermostat
+  variants): rebuilt as a 3-row grid (top: icon + AMBIENTE/state label;
+  middle: big temperature centered with optional setpoint chip; bottom:
+  fan/humidity badge). No more huge empty spacer.
+- **Blind card** (Blinds tab): more compact — single-card-per-row grid
+  with min-width 28rem, smaller blind visual (7.5×8.5rem instead of
+  10×12.5rem), tighter typography, smaller preset chips (1.75rem high).
+- **Drawer body row** uses `bottom: 5rem` instead of fixed `height:
+  20rem` so the tile area adapts when the drawer height shrinks.
+
 ## [0.5.1] — 2026-05-12
 
 ### Added

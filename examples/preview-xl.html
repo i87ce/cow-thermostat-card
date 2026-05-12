@@ -14,7 +14,6 @@
       .stage { padding: 1.5rem; display: grid; place-items: center; }
       .frame { width: var(--w, 1280px); background: #fff; border-radius: 16px; overflow: hidden; box-shadow: 0 1.25rem 4rem rgba(0,0,0,.45); }
     </style>
-    <script type="module" src="../dist/cow-thermostat-card.js"></script>
   </head>
   <body>
     <header>
@@ -33,20 +32,30 @@
     </main>
 
     <script type="module">
+      await import(`../dist/cow-thermostat-card.js?t=${Date.now()}`);
       // EXACT same config as the HA dashboard /walldisplay-sala-cucina/0
       // so we can reproduce the runtime error locally.
       const ROOMS = [
         {
-          name: "Sala",
-          icon: "🏠",
-          climate: "climate.termostato_sala",
-          light: ["light.led_calda_sala", "light.led_sala_fredda", "light.luce_tavolo_sala"],
-          light_labels: ["Calda", "Fredda", "Tavolo"],
-          cover: ["cover.tapparella_sala", "cover.tapparella_sala_terrazza"],
-          cover_labels: ["Sala", "Terrazza"],
+          name: "Sala & Cucina",
+          icon: "🛋",
+          temperature: "sensor.shellywalldisplay_d2d2c5_temperature",
+          humidity: "sensor.shellywalldisplay_d2d2c5_humidity",
+          light: [
+            "light.led_calda_sala",
+            "light.led_sala_fredda",
+            "light.luce_tavolo_sala",
+            "light.luce_cucina",
+          ],
+          light_labels: ["Sala calda","Sala fredda","Sala tavolo","Cucina"],
+          cover: [
+            "cover.tapparella_sala",
+            "cover.tapparella_sala_terrazza",
+            "cover.tapparella_cucina",
+            "cover.tapparella_cucina_terrazza",
+          ],
+          cover_labels: ["Sala","Sala terr.","Cucina","Cucina terr."],
         },
-        { name: "Cucina", icon: "🍳", light: "light.luce_cucina",
-          cover: ["cover.tapparella_cucina","cover.tapparella_cucina_terrazza"], cover_labels: ["Cucina","Terrazza"] },
         { name: "Camera", icon: "🛏",
           light: ["light.luce_comodino_1","light.led_cabina_armadio"], light_labels: ["Comodino","Cabina"],
           cover: "cover.tapparella_camera_padronale" },
@@ -91,6 +100,16 @@
             friendly_name: "Termostato Sala",
           },
         };
+        states["sensor.shellywalldisplay_d2d2c5_temperature"] = {
+          entity_id: "sensor.shellywalldisplay_d2d2c5_temperature",
+          state: "22",
+          attributes: { device_class: "temperature", unit_of_measurement: "°C" },
+        };
+        states["sensor.shellywalldisplay_d2d2c5_humidity"] = {
+          entity_id: "sensor.shellywalldisplay_d2d2c5_humidity",
+          state: "48.9",
+          attributes: { device_class: "humidity", unit_of_measurement: "%" },
+        };
         states["cover.tapparella_bagno_piccola"] = { entity_id: "cover.tapparella_bagno_piccola", state: "open", attributes: { current_position: 75 } };
         // covers (some open)
         states["cover.tapparella_sala"] = { entity_id: "cover.tapparella_sala", state: "open", attributes: { current_position: 100 } };
@@ -134,6 +153,12 @@
         });
         card.hass = buildHass();
         frame.appendChild(card);
+        // Auto-open drawer on first room for layout debugging
+        requestAnimationFrame(() => {
+          card.activeRoomIndex = 0;
+          card.drawerOpen = true;
+          card.requestUpdate();
+        });
       }
 
       wSel.addEventListener("change", mount);

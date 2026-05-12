@@ -39,27 +39,29 @@ export class CowXLBlindsTab extends LitElement {
         position: absolute;
         left: 2rem;
         right: 2rem;
-        top: 2.5rem;
-        height: 20rem;
+        top: 2.25rem;
+        bottom: 5rem;
         display: grid;
-        grid-template-columns: repeat(auto-fill, minmax(36rem, 1fr));
-        gap: 1rem;
+        grid-template-columns: repeat(auto-fill, minmax(28rem, 1fr));
+        grid-auto-rows: 1fr;
+        gap: 0.75rem;
         overflow-y: auto;
         scrollbar-width: thin;
       }
       .blind-card {
-        height: 20rem;
         background: var(--cow-surface-white);
         border: 0.0625rem solid var(--cow-surface-border);
         border-radius: 1.25rem;
-        padding: 1.5rem;
+        padding: 1rem 1.25rem;
         display: grid;
-        grid-template-columns: 11rem 1fr;
-        gap: 1.5rem;
+        grid-template-columns: 7.5rem 1fr;
+        gap: 1.25rem;
+        align-items: center;
+        min-height: 0;
       }
       .visual-wrap {
-        width: 10rem;
-        height: 12.5rem;
+        width: 7.5rem;
+        height: 8.5rem;
         background: linear-gradient(
           180deg,
           var(--cow-blinds-blue) 0%,
@@ -72,18 +74,19 @@ export class CowXLBlindsTab extends LitElement {
         position: relative;
       }
       cow-blind-visual {
-        width: 8.5rem;
-        height: 11rem;
+        width: 6rem;
+        height: 7.5rem;
         --cow-blinds-amber-light: #f6c47a;
       }
       .info {
         display: flex;
         flex-direction: column;
         min-width: 0;
+        gap: 0.25rem;
       }
       .b-label {
         font-weight: 700;
-        font-size: 0.8125rem;
+        font-size: 0.75rem;
         letter-spacing: 0.075rem;
         text-transform: uppercase;
         color: var(--cow-text-secondary);
@@ -92,28 +95,26 @@ export class CowXLBlindsTab extends LitElement {
         text-overflow: ellipsis;
       }
       .b-value {
-        margin-top: 0.5rem;
         font-weight: 300;
-        font-size: 4.5rem;
+        font-size: 2.5rem;
         line-height: 1;
         color: var(--cow-text-primary);
         font-variant-numeric: tabular-nums;
       }
       .b-status {
-        margin-top: 0.5rem;
         font-weight: 500;
-        font-size: 0.875rem;
+        font-size: 0.8125rem;
         color: var(--cow-text-secondary);
       }
-      .b-spacer { flex: 1; }
+      .b-spacer { flex: 1; min-height: 0.25rem; }
       .b-buttons {
-        margin-top: 1rem;
+        margin-top: 0.5rem;
         display: flex;
-        gap: 0.5rem;
+        gap: 0.375rem;
       }
       .b-btn {
         flex: 1;
-        height: 2.5rem;
+        height: 2.25rem;
         border-radius: 0.75rem;
         background: var(--cow-surface-button-bg);
         color: var(--cow-text-primary);
@@ -134,19 +135,19 @@ export class CowXLBlindsTab extends LitElement {
         background: var(--cow-stop, #e74c3c);
       }
       .b-presets {
-        margin-top: 0.5rem;
+        margin-top: 0.375rem;
         display: flex;
-        gap: 0.5rem;
+        gap: 0.375rem;
       }
       .b-preset {
         flex: 1;
-        height: 2rem;
-        border-radius: 0.625rem;
+        height: 1.75rem;
+        border-radius: 0.5rem;
         background: var(--cow-surface-white);
         border: 0.0625rem solid var(--cow-surface-border);
         color: var(--cow-text-secondary);
         font-weight: 500;
-        font-size: 0.8125rem;
+        font-size: 0.75rem;
         display: inline-flex;
         align-items: center;
         justify-content: center;
