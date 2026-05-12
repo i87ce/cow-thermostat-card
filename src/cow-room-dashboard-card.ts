@@ -63,10 +63,10 @@ export class CowRoomDashboardCard
         position: absolute;
         left: 1.5rem;
         right: 1.5rem;
-        top: 11.75rem;
+        top: 18.75rem;
       }
       cow-xl-scenes {
-        /* positioned by its own styles (top: 36.25rem) */
+        /* positioned by its own styles (top: 42.5rem) */
       }
       .drawer-peek {
         position: absolute;
@@ -190,6 +190,8 @@ export class CowRoomDashboardCard
           <cow-xl-hero
             .hass=${this.hass}
             .weatherEntity=${cfg.weather_entity}
+            .sunEntity=${cfg.sun_entity ?? "sun.sun"}
+            .moonEntity=${cfg.moon_entity ?? "sensor.moon"}
             .locale=${cfg.locale ?? this.hass?.locale?.language}
           ></cow-xl-hero>
         </div>

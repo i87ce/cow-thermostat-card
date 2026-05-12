@@ -4,6 +4,78 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and
 this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.7.0] — 2026-05-12
+
+### Added
+- **Live sky hero** — the big hero card behind the clock is now a
+  living wallpaper driven by three Home Assistant entities:
+  - `sun.sun` (built-in) → sky gradient interpolated across six
+    keyframes from deep-night through astronomical and civil twilight
+    to full daylight; animated sun arcs across the sky following live
+    `elevation` + `azimuth`.
+  - `sensor.moon` (requires the `moon:` integration — one line in
+    `configuration.yaml`) → moon rendered at night using the classic
+    two-overlapping-circles clip technique; all 8 phases supported
+    (`new_moon`, `waxing_crescent`, `first_quarter`, `waxing_gibbous`,
+    `full_moon`, `waning_gibbous`, `last_quarter`, `waning_crescent`).
+    The dark side has its own deep-slate radial gradient (slightly
+    brighter at the limb to suggest earthshine) so the unlit portion
+    of the disc reads as a 3D sphere in shadow rather than a hole
+    punched through to the sky.
+  - `weather.*` → weather visual effects layered over the sky: drifting
+    clouds, falling rain, drifting snow, low fog wash, brief lightning
+    flashes (driven off the standard HA condition states).
+- **Stars + foreground contrast** — ~60 deterministic stars (seeded LCG,
+  positions stay put across re-renders) fade in as the sun drops below
+  3° and twinkle on staggered delays. Clock + date + weather text auto-
+  shift to a soft off-white with a subtle drop-shadow on dark skies so
+  the panel stays readable at midnight.
+- **New optional config keys**:
+  - `sun_entity` — defaults to `sun.sun`
+  - `moon_entity` — defaults to `sensor.moon`
+  Both can be set to `null`/omitted to disable; the card falls back to
+  a static day palette and skips the moon if either is missing.
+- **Preview controls** — `examples/preview-xl.html` now has sliders for
+  sun elevation/azimuth and dropdowns for the weather condition and the
+  moon phase so the whole sky engine can be exercised live in the
+  browser without waiting for actual sunset.
+
+### Notes
+- All animation is pure `transform`/`opacity` on GPU-accelerated layers
+  — zero `filter: blur()`, zero `backdrop-filter`, no canvas. Tested on
+  the MTK6580 SoC in the Shelly Wall Display: the live sky doesn't
+  measurably increase render time vs. the previous static hero.
+- Re-evaluation cadence: the hero re-renders every 30 s (the existing
+  clock tick) plus on any `hass` state change. Cloud drift, rain, snow,
+  twinkle and lightning flashes run continuously as pure CSS keyframes.
+
+## [0.6.0] — 2026-05-12
+
+### Added
+- **Room-group tiles in XL header** — rooms can now be clustered into
+  visually distinct "tiles" via the new optional `group: <label>` field
+  on each room. The XL header lays the tiles side-by-side with width
+  proportional to the number of chips inside each, giving order to
+  layouts with many rooms (e.g. *Living / Zona notte / Servizi / Altro*).
+  Rooms without `group` fall into a trailing "Altro" tile. Fully
+  backward-compatible: configs that omit `group` render the previous
+  single-row layout.
+
+### Changed
+- **`walldisplay-sala-cucina.yaml` example** — reorganized the 11 rooms
+  into the 4 tiles described above. *Padronale* now includes the cabina
+  armadio LED plus the two `light.comodino_0[12]` helpers and the LED
+  soffitto (`light.led_camera_3`). *Sala & Cucina* picks up the two
+  new lights `light.led_corridoio_p1` and `light.led_cucina` (HA area
+  reshuffle). New chips: *Garage*, *Ingresso PT* (luce_scala +
+  sgabuzzino_pt — the HA area was renamed from "Scala" to "Ingresso
+  PT"), *Esterno* (terrazzo + esterno P1 + esterna studio),
+  *Lavanderia*. The *Cabina armadio* no longer has its own chip — its
+  controls live inside Padronale. Removed the dead
+  `sensor.shellywalldisplay_000822d2d2c5_*` ambient-sensor references
+  from Sala & Cucina (the Display Sala has no temperature/humidity
+  sensor; one will be wired in a future hardware change).
+
 ## [0.5.3] — 2026-05-12
 
 ### Added

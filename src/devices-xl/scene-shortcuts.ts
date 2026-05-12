@@ -20,7 +20,7 @@ export class CowXLScenes extends LitElement {
         position: absolute;
         left: 1.5rem;
         right: 1.5rem;
-        top: 36.5rem;
+        top: 42.5rem;
       }
       .row {
         display: flex;

@@ -26,22 +26,31 @@ views:
     cards:
       - type: custom:cow-room-dashboard-card
         weather_entity: weather.forecast_home
+        # Live sky / sun position / moon phases (v0.7.0+).
+        # `sun.sun` is built into HA, always available.
+        # `sensor.moon` requires the `moon:` integration — add a line
+        # `moon:` under `# Sensors` in configuration.yaml.
+        sun_entity: sun.sun
+        moon_entity: sensor.moon
         media_player: media_player.display_sala
         locale: it-IT
 
         rooms:
-          # ── Sala + Cucina aggregata (open-plan) ──────────────────────
+          # ── Living ───────────────────────────────────────────────────
           - name: Sala & Cucina
             icon: "🛋"
-            # No climate.* yet — wire ambient sensors instead
-            temperature: sensor.shellywalldisplay_000822d2d2c5_temperature
-            humidity: sensor.shellywalldisplay_000822d2d2c5_humidity
+            group: Living
+            # Il Display Sala non ha sensore ambient (in arrivo): niente
+            # temperature/humidity qui finché non viene installato.
             light:
               - light.led_calda_sala
               - light.led_sala_fredda
               - light.luce_tavolo_sala
+              - light.led_corridoio_p1
               - light.luce_cucina
-            light_labels: ["Sala calda", "Sala fredda", "Sala tavolo", "Cucina"]
+              - light.led_cucina
+            light_labels:
+              ["Sala calda", "Sala fredda", "Sala tavolo", "Corridoio", "Cucina", "Cucina LED"]
             cover:
               - cover.tapparella_sala
               - cover.tapparella_sala_terrazza
@@ -50,35 +59,38 @@ views:
             cover_labels:
               ["Sala", "Sala terrazza", "Cucina", "Cucina terrazza"]
 
-          # ── Stanze singole ───────────────────────────────────────────
+          # ── Zona notte ───────────────────────────────────────────────
           - name: Padronale
             icon: "🛏"
+            group: Zona notte
+            # Comodini + LED soffitto + LED cabina armadio (la cabina non
+            # ha più un chip dedicato: i suoi controlli vivono qui).
+            # NOTE: comodino_01/02 sono esposti come light.* via helper
+            # "Switch as X" (i device fisici in HA sono switch.*).
             light:
-              - light.luce_comodino_1
+              - light.comodino_01
+              - light.comodino_02
+              - light.led_camera_3
               - light.led_cabina_armadio
-            light_labels: ["Comodino", "Cabina"]
+            light_labels: ["Comodino 1", "Comodino 2", "LED", "Cabina"]
             cover: cover.tapparella_camera_padronale
-
-          - name: Camera 1
-            icon: "🛌"
-            light: light.led_camera_1
-            cover: cover.tapparella_camera_1
 
           - name: Studio Chiara
             icon: "🛌"
+            group: Zona notte
             light: light.led_camera_2
             cover: cover.tapparella_camera_2
 
-          - name: Studio
-            icon: "💻"
-            light:
-              - light.luce_calda_studio
-              - light.luce_fredda_studio
-            light_labels: ["Calda", "Fredda"]
-            cover: cover.tapparella_studio
+          - name: Camera 1
+            icon: "🛌"
+            group: Zona notte
+            light: light.led_camera_1
+            cover: cover.tapparella_camera_1
 
+          # ── Servizi ──────────────────────────────────────────────────
           - name: Bagno P.
             icon: "🚿"
+            group: Servizi
             light:
               - light.luce_bagno_padronale
               - light.luce_specchio_bagno_padronale
@@ -87,6 +99,7 @@ views:
 
           - name: Bagno O.
             icon: "🚿"
+            group: Servizi
             light:
               - light.led_bagno_piccolo
               - light.luce_specchio_bagno_piccolo
@@ -94,9 +107,42 @@ views:
             cover: cover.tapparella_bagno_piccola
 
           - name: Lavanderia
-            icon: "🥼"
+            icon: "🧺"
+            group: Servizi
             light: light.luce_bagno_pt
             cover: cover.tapparella_bagno_pt
+
+          # ── Altro ────────────────────────────────────────────────────
+          - name: Studio
+            icon: "💻"
+            group: Altro
+            light:
+              - light.luce_calda_studio
+              - light.luce_fredda_studio
+            light_labels: ["Calda", "Fredda"]
+            cover: cover.tapparella_studio
+
+          - name: Garage
+            icon: "🚗"
+            group: Altro
+            light: light.luce_box
+
+          - name: Ingresso PT
+            icon: "🚪"
+            group: Altro
+            light:
+              - light.luce_scala
+              - light.sgabuzzino_pt
+            light_labels: ["Scala", "Sgabuzzino"]
+
+          - name: Esterno
+            icon: "🌳"
+            group: Altro
+            light:
+              - light.led_terrazzo
+              - light.led_esterno_p1
+              - light.luce_esterna_studio
+            light_labels: ["Terrazzo", "Esterno P1", "Studio"]
 
         scenes:
           - name: Tutto OFF

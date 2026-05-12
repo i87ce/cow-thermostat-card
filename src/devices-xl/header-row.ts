@@ -67,17 +67,47 @@ export class CowXLHeader extends LitElement {
       color: var(--cow-text-primary);
       font-size: 0.75rem;
     }
-    .chips {
+    .groups {
       position: absolute;
       left: 1.5rem;
       right: 1.5rem;
-      top: 4.25rem;
+      top: 3.5rem;
       display: flex;
-      gap: 0.5rem;
-      overflow-x: auto;
-      scrollbar-width: none;
+      flex-direction: column;
+      gap: 0.625rem;
     }
-    .chips::-webkit-scrollbar { display: none; }
+    .groups-row {
+      display: flex;
+      gap: 0.625rem;
+      align-items: stretch;
+      min-width: 0;
+    }
+    .group {
+      flex: var(--group-flex, 1) 1 0;
+      min-width: 0;
+      background: var(--cow-surface-background);
+      border: 0.0625rem solid var(--cow-surface-border);
+      border-radius: 1.125rem;
+      padding: 0.375rem 0.5rem 0.5rem;
+      display: flex;
+      flex-direction: column;
+      gap: 0.3125rem;
+    }
+    .group-label {
+      font-size: 0.625rem;
+      font-weight: 700;
+      letter-spacing: 0.09375rem;
+      text-transform: uppercase;
+      color: var(--cow-text-secondary);
+      padding: 0 0.25rem;
+      line-height: 1;
+    }
+    .group-chips {
+      display: flex;
+      gap: 0.375rem;
+      flex: 1 1 auto;
+      min-width: 0;
+    }
     .chip {
       flex: 1 1 0;
       min-width: 0;
@@ -107,17 +137,17 @@ export class CowXLHeader extends LitElement {
       color: var(--cow-surface-white);
     }
     .chip-icon {
-      font-size: 1.375rem;
+      font-size: 1.5rem;
       line-height: 1;
     }
     .chip-count {
       position: absolute;
-      top: 0.625rem;
-      right: 0.625rem;
-      min-width: 1.125rem;
-      height: 1.125rem;
+      top: 0.5rem;
+      right: 0.5rem;
+      min-width: 1.0625rem;
+      height: 1.0625rem;
       padding: 0 0.3125rem;
-      border-radius: 0.5625rem;
+      border-radius: 0.53125rem;
       background: var(--cow-accent-active, #fa6b2e);
       color: var(--cow-surface-white);
       font-size: 0.625rem;
@@ -137,17 +167,18 @@ export class CowXLHeader extends LitElement {
     }
     .chip-name {
       font-weight: 600;
-      font-size: 0.875rem;
+      font-size: 0.9375rem;
       white-space: nowrap;
       overflow: hidden;
       text-overflow: ellipsis;
       width: 100%;
+      line-height: 1.1;
     }
     .divider {
       position: absolute;
       left: 0;
       right: 0;
-      top: 10.5rem;
+      top: 17.5rem;
       height: 0.0625rem;
       background: var(--cow-surface-border);
     }
@@ -189,10 +220,70 @@ export class CowXLHeader extends LitElement {
     );
   }
 
+  /**
+   * Bucket the room list into ordered groups by their `group` field while
+   * preserving the original room indices (used for `activeIndex` and for
+   * the `cow-room-tap` event payload). Rooms with no `group` fall into a
+   * trailing "Altro" tile.
+   */
+  private buildGroups(): Array<{
+    label: string;
+    items: Array<{ room: CowRoomConfig; index: number }>;
+  }> {
+    const out: Array<{
+      label: string;
+      items: Array<{ room: CowRoomConfig; index: number }>;
+    }> = [];
+    const byLabel = new Map<string, number>();
+    this.rooms.forEach((room, i) => {
+      const label = (room.group && room.group.trim()) || "Altro";
+      let pos = byLabel.get(label);
+      if (pos === undefined) {
+        pos = out.length;
+        byLabel.set(label, pos);
+        out.push({ label, items: [] });
+      }
+      out[pos].items.push({ room, index: i });
+    });
+    return out;
+  }
+
   override render() {
     const states = this.hass?.states ?? {};
     const weather = this.getWeatherText();
     const media = this.getMediaText();
+    const groups = this.buildGroups();
+    // Split into 2 rows (first half + remainder). With 4 groups this is a
+    // clean 2+2; with 3 it becomes 2+1; with 5 it becomes 3+2.
+    const half = Math.ceil(groups.length / 2);
+    const rows = groups.length > 1 ? [groups.slice(0, half), groups.slice(half)] : [groups];
+
+    const renderGroup = (g: { label: string; items: Array<{ room: CowRoomConfig; index: number }> }) => html`
+      <div
+        class="group"
+        style="--group-flex: ${g.items.length};"
+      >
+        <div class="group-label">${g.label}</div>
+        <div class="group-chips">
+          ${g.items.map(({ room, index }) => {
+            const count = countActiveDevices(room, states);
+            return html`
+              <button
+                class="chip"
+                ?data-active=${index === this.activeIndex}
+                ?data-zero=${count === 0}
+                @click=${() => this.onChipTap(index)}
+              >
+                <span class="chip-count">${count}</span>
+                <span class="chip-icon">${room.icon ?? "•"}</span>
+                <div class="chip-name">${room.name}</div>
+              </button>
+            `;
+          })}
+        </div>
+      </div>
+    `;
+
     return html`
       <div class="label">STANZE</div>
       <div class="pills">
@@ -207,22 +298,12 @@ export class CowXLHeader extends LitElement {
             </div>`
           : nothing}
       </div>
-      <div class="chips">
-        ${this.rooms.map((r, i) => {
-          const count = countActiveDevices(r, states);
-          return html`
-            <button
-              class="chip"
-              ?data-active=${i === this.activeIndex}
-              ?data-zero=${count === 0}
-              @click=${() => this.onChipTap(i)}
-            >
-              <span class="chip-count">${count}</span>
-              <span class="chip-icon">${r.icon ?? "•"}</span>
-              <div class="chip-name">${r.name}</div>
-            </button>
-          `;
-        })}
+      <div class="groups">
+        ${rows.map(
+          (row) => row.length
+            ? html`<div class="groups-row">${row.map(renderGroup)}</div>`
+            : nothing,
+        )}
       </div>
       <div class="divider"></div>
     `;

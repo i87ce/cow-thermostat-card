@@ -10,6 +10,13 @@ export interface CowRoomConfig {
   name: string;
   /** Material Design Icon (mdi:...) or single emoji shown on the chip */
   icon?: string;
+  /**
+   * Optional group label used by the XL header to cluster chips into
+   * visually contiguous "tiles" (e.g. "Camere", "Bagni"). Rooms sharing
+   * the same group string are rendered side-by-side inside one tile;
+   * rooms with no group fall back to a default "Altro" tile.
+   */
+  group?: string;
   /** Optional climate entity */
   climate?: string;
   /** Optional ambient temperature sensor (used as fallback when no climate
@@ -44,6 +51,18 @@ export interface CowRoomDashboardConfig {
   rooms: CowRoomConfig[];
   /** Optional weather.* entity for the hero card. */
   weather_entity?: string;
+  /**
+   * Optional sun.* entity (typically `sun.sun`) used by the hero card
+   * to drive the live sky gradient + the position of the animated sun.
+   * If omitted, the hero falls back to a static day palette.
+   */
+  sun_entity?: string;
+  /**
+   * Optional sensor.* entity (typically `sensor.moon`) used by the hero
+   * card to render the right lunar phase at night. Requires the HA
+   * `moon:` integration to be enabled. If omitted, no moon is drawn.
+   */
+  moon_entity?: string;
   /** Optional media_player.* entity for the now-playing pill. */
   media_player?: string;
   /** Optional scene shortcuts row (max 4 fit nicely). */
@@ -79,6 +98,7 @@ export function validateXLConfig(input: unknown): CowRoomDashboardConfig {
     return {
       name: room.name,
       icon: typeof room.icon === "string" ? room.icon : undefined,
+      group: typeof room.group === "string" ? room.group : undefined,
       climate: typeof room.climate === "string" ? room.climate : undefined,
       temperature:
         typeof room.temperature === "string" ? room.temperature : undefined,
@@ -118,6 +138,10 @@ export function validateXLConfig(input: unknown): CowRoomDashboardConfig {
     rooms,
     weather_entity:
       typeof cfg.weather_entity === "string" ? cfg.weather_entity : undefined,
+    sun_entity:
+      typeof cfg.sun_entity === "string" ? cfg.sun_entity : undefined,
+    moon_entity:
+      typeof cfg.moon_entity === "string" ? cfg.moon_entity : undefined,
     media_player:
       typeof cfg.media_player === "string" ? cfg.media_player : undefined,
     scenes,

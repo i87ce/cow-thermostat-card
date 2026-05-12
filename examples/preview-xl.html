@@ -10,9 +10,11 @@
       header { padding: 0.75rem 1rem; background: #1a1a25; border-bottom: 1px solid #3a3a4a; display: flex; gap: 1rem; align-items: center; flex-wrap: wrap; }
       header h1 { font-size: 1rem; margin: 0; font-weight: 600; }
       header label { display: flex; align-items: center; gap: .25rem; font-size: .8125rem; }
-      select { background: #2c2c3a; color: #e9e9f0; border: 1px solid #4a4a5a; border-radius: .375rem; padding: .25rem .5rem; font-size: .8125rem; }
+      select, input[type=range] { background: #2c2c3a; color: #e9e9f0; border: 1px solid #4a4a5a; border-radius: .375rem; padding: .25rem .5rem; font-size: .8125rem; }
+      input[type=range] { width: 12rem; padding: 0; }
       .stage { padding: 1.5rem; display: grid; place-items: center; }
       .frame { width: var(--w, 1280px); background: #fff; border-radius: 16px; overflow: hidden; box-shadow: 0 1.25rem 4rem rgba(0,0,0,.45); }
+      .badge { font-variant-numeric: tabular-nums; font-size: .75rem; opacity: .7; min-width: 3.5rem; text-align: right; }
     </style>
   </head>
   <body>
@@ -26,6 +28,39 @@
           <option value="1440">1440px</option>
         </select>
       </label>
+      <label>Sun elev
+        <input type="range" id="elev" min="-30" max="80" value="45" step="1" />
+        <span class="badge" id="elev-out">45°</span>
+      </label>
+      <label>Sun azim
+        <input type="range" id="azim" min="60" max="300" value="180" step="1" />
+        <span class="badge" id="azim-out">180°</span>
+      </label>
+      <label>Weather
+        <select id="wx">
+          <option value="sunny" selected>sunny</option>
+          <option value="partlycloudy">partlycloudy</option>
+          <option value="cloudy">cloudy</option>
+          <option value="rainy">rainy</option>
+          <option value="pouring">pouring</option>
+          <option value="snowy">snowy</option>
+          <option value="fog">fog</option>
+          <option value="lightning-rainy">lightning-rainy</option>
+          <option value="clear-night">clear-night</option>
+        </select>
+      </label>
+      <label>Moon
+        <select id="moon">
+          <option value="new_moon">new_moon</option>
+          <option value="waxing_crescent">waxing_crescent</option>
+          <option value="first_quarter">first_quarter</option>
+          <option value="waxing_gibbous" selected>waxing_gibbous</option>
+          <option value="full_moon">full_moon</option>
+          <option value="waning_gibbous">waning_gibbous</option>
+          <option value="last_quarter">last_quarter</option>
+          <option value="waning_crescent">waning_crescent</option>
+        </select>
+      </label>
     </header>
     <main class="stage">
       <div class="frame" id="frame"></div>
@@ -36,18 +71,22 @@
       // EXACT same config as the HA dashboard /walldisplay-sala-cucina/0
       // so we can reproduce the runtime error locally.
       const ROOMS = [
+        // ── Living ────────────────────────────────────────────────────
         {
           name: "Sala & Cucina",
           icon: "🛋",
-          temperature: "sensor.shellywalldisplay_d2d2c5_temperature",
-          humidity: "sensor.shellywalldisplay_d2d2c5_humidity",
+          group: "Living",
+          // Il Display Sala non ha sensore ambient (in arrivo): per ora
+          // niente temperature/humidity in questo chip.
           light: [
             "light.led_calda_sala",
             "light.led_sala_fredda",
             "light.luce_tavolo_sala",
+            "light.led_corridoio_p1",
             "light.luce_cucina",
+            "light.led_cucina",
           ],
-          light_labels: ["Sala calda","Sala fredda","Sala tavolo","Cucina"],
+          light_labels: ["Sala calda","Sala fredda","Sala tavolo","Corridoio","Cucina","Cucina LED"],
           cover: [
             "cover.tapparella_sala",
             "cover.tapparella_sala_terrazza",
@@ -56,30 +95,86 @@
           ],
           cover_labels: ["Sala","Sala terr.","Cucina","Cucina terr."],
         },
-        { name: "Camera", icon: "🛏",
-          light: ["light.luce_comodino_1","light.led_cabina_armadio"], light_labels: ["Comodino","Cabina"],
+
+        // ── Zona notte ────────────────────────────────────────────────
+        { name: "Padronale", icon: "🛏", group: "Zona notte",
+          // luci comodino + LED soffitto + LED cabina armadio (la cabina
+          // non ha più un proprio chip: i suoi controlli vivono qui)
+          light: [
+            "light.comodino_01",
+            "light.comodino_02",
+            "light.led_camera_3",
+            "light.led_cabina_armadio",
+          ],
+          light_labels: ["Comodino 1","Comodino 2","LED","Cabina"],
           cover: "cover.tapparella_camera_padronale" },
-        { name: "Studio Chiara", icon: "🛌", light: "light.led_camera_2_2", cover: "cover.tapparella_camera_2" },
-        { name: "Camera 1", icon: "🛌", light: "light.led_camera_1", cover: "cover.tapparella_camera_1" },
-        { name: "Studio", icon: "💻",
-          light: ["light.luce_calda_studio","light.luce_fredda_studio"], light_labels: ["Calda","Fredda"],
-          cover: "cover.tapparella_studio" },
-        { name: "Bagno P.", icon: "🚿",
+        { name: "Studio Chiara", icon: "🛌", group: "Zona notte",
+          light: "light.led_camera_2_2", cover: "cover.tapparella_camera_2" },
+        { name: "Camera 1", icon: "🛌", group: "Zona notte",
+          light: "light.led_camera_1", cover: "cover.tapparella_camera_1" },
+
+        // ── Servizi ───────────────────────────────────────────────────
+        { name: "Bagno P.", icon: "🚿", group: "Servizi",
           light: ["light.luce_bagno_padronale","light.luce_specchio_bagno_padronale"], light_labels: ["Soffitto","Specchio"],
           cover: "cover.tapparella_bagno_padronale" },
-        { name: "Bagno O.", icon: "🚿",
+        { name: "Bagno O.", icon: "🚿", group: "Servizi",
           light: ["light.led_bagno_piccolo","light.luce_specchio_bagno_piccolo"], light_labels: ["Soffitto","Specchio"],
           cover: "cover.tapparella_bagno_piccola" },
+        { name: "Lavanderia", icon: "🧺", group: "Servizi",
+          light: "light.luce_bagno_pt", cover: "cover.tapparella_bagno_pt" },
+
+        // ── Altro ─────────────────────────────────────────────────────
+        { name: "Studio", icon: "💻", group: "Altro",
+          light: ["light.luce_calda_studio","light.luce_fredda_studio"], light_labels: ["Calda","Fredda"],
+          cover: "cover.tapparella_studio" },
+        { name: "Garage", icon: "🚗", group: "Altro",
+          light: "light.luce_box" },
+        { name: "Ingresso PT", icon: "🚪", group: "Altro",
+          light: ["light.luce_scala","light.sgabuzzino_pt"], light_labels: ["Scala","Sgabuzzino"] },
+        { name: "Esterno", icon: "🌳", group: "Altro",
+          light: ["light.led_terrazzo","light.led_esterno_p1","light.luce_esterna_studio"],
+          light_labels: ["Terrazzo","Esterno P1","Studio"] },
       ];
 
-      function buildHass() {
+      function buildHass({ elev, azim, weather, moon }) {
         const states = {};
+        // Sun (built-in HA entity) — drives the live sky + sun position.
+        // For the preview, synthesize a sunset/sunrise window centered
+        // around "now" so the synthesized moon sits high in the sky
+        // regardless of when we look at the preview.
+        const now = Date.now();
+        const aboveHorizon = elev > 0;
+        const nextSetting = new Date(now + 4 * 3600_000).toISOString();
+        // Pretend yesterday's sunset was 4h ago and sunrise is 4h away,
+        // i.e. we're at "moon midnight" → moon peaks high in the middle.
+        const nextRising = new Date(now + 4 * 3600_000).toISOString();
+        states["sun.sun"] = {
+          entity_id: "sun.sun",
+          state: aboveHorizon ? "above_horizon" : "below_horizon",
+          attributes: {
+            elevation: elev,
+            azimuth: azim,
+            rising: azim < 180,
+            next_setting: nextSetting,
+            next_rising: nextRising,
+          },
+        };
+        // Moon (HA built-in `moon:` integration)
+        states["sensor.moon"] = {
+          entity_id: "sensor.moon",
+          state: moon,
+          attributes: {},
+        };
         // light entities (some on)  — matched to ROOMS config
         states["light.led_calda_sala"]    = { entity_id: "light.led_calda_sala", state: "on",  attributes: { brightness: 240, friendly_name: "Sala calda" } };
         states["light.led_sala_fredda"]   = { entity_id: "light.led_sala_fredda", state: "off", attributes: {} };
         states["light.luce_tavolo_sala"]  = { entity_id: "light.luce_tavolo_sala", state: "on", attributes: { brightness: 130 } };
         states["light.luce_cucina"] = { entity_id: "light.luce_cucina", state: "off", attributes: {} };
-        states["light.luce_comodino_1"] = { entity_id: "light.luce_comodino_1", state: "off", attributes: {} };
+        states["light.led_cucina"] = { entity_id: "light.led_cucina", state: "off", attributes: {} };
+        states["light.led_corridoio_p1"] = { entity_id: "light.led_corridoio_p1", state: "off", attributes: {} };
+        states["light.comodino_01"] = { entity_id: "light.comodino_01", state: "on", attributes: { brightness: 60, friendly_name: "Comodino 1" } };
+        states["light.comodino_02"] = { entity_id: "light.comodino_02", state: "off", attributes: {} };
+        states["light.led_camera_3"] = { entity_id: "light.led_camera_3", state: "off", attributes: {} };
         states["light.led_cabina_armadio"] = { entity_id: "light.led_cabina_armadio", state: "off", attributes: {} };
         states["light.led_camera_2_2"] = { entity_id: "light.led_camera_2_2", state: "on", attributes: { brightness: 100 } };
         states["light.led_camera_1"] = { entity_id: "light.led_camera_1", state: "off", attributes: {} };
@@ -89,6 +184,15 @@
         states["light.luce_specchio_bagno_padronale"] = { entity_id: "light.luce_specchio_bagno_padronale", state: "off", attributes: {} };
         states["light.led_bagno_piccolo"] = { entity_id: "light.led_bagno_piccolo", state: "off", attributes: {} };
         states["light.luce_specchio_bagno_piccolo"] = { entity_id: "light.luce_specchio_bagno_piccolo", state: "off", attributes: {} };
+        states["light.luce_bagno_pt"] = { entity_id: "light.luce_bagno_pt", state: "off", attributes: {} };
+        states["cover.tapparella_bagno_pt"] = { entity_id: "cover.tapparella_bagno_pt", state: "closed", attributes: { current_position: 0 } };
+        // Garage / Scala / Esterno
+        states["light.luce_box"] = { entity_id: "light.luce_box", state: "off", attributes: {} };
+        states["light.luce_scala"] = { entity_id: "light.luce_scala", state: "off", attributes: {} };
+        states["light.sgabuzzino_pt"] = { entity_id: "light.sgabuzzino_pt", state: "off", attributes: {} };
+        states["light.led_terrazzo"] = { entity_id: "light.led_terrazzo", state: "on", attributes: { brightness: 200 } };
+        states["light.led_esterno_p1"] = { entity_id: "light.led_esterno_p1", state: "off", attributes: {} };
+        states["light.luce_esterna_studio"] = { entity_id: "light.luce_esterna_studio", state: "off", attributes: {} };
         // climates
         states["climate.termostato_sala"] = {
           entity_id: "climate.termostato_sala", state: "heat",
@@ -122,7 +226,7 @@
         states["cover.tapparella_studio"] = { entity_id: "cover.tapparella_studio", state: "closed", attributes: { current_position: 0 } };
         states["cover.tapparella_bagno_padronale"] = { entity_id: "cover.tapparella_bagno_padronale", state: "open", attributes: { current_position: 100 } };
         // weather + media
-        states["weather.casa"] = { entity_id: "weather.casa", state: "sunny", attributes: { temperature: 18, humidity: 62, apparent_temperature: 16, wind_speed: 7 } };
+        states["weather.casa"] = { entity_id: "weather.casa", state: weather, attributes: { temperature: 18, humidity: 62, apparent_temperature: 16, wind_speed: 7 } };
         states["media_player.display_sala"] = { entity_id: "media_player.display_sala", state: "playing", attributes: { media_title: "RDS Relax" } };
         return {
           states,
@@ -133,15 +237,34 @@
 
       const frame = document.getElementById("frame");
       const wSel = document.getElementById("w");
+      const elevEl = document.getElementById("elev");
+      const azimEl = document.getElementById("azim");
+      const wxEl = document.getElementById("wx");
+      const moonEl = document.getElementById("moon");
+      const elevOut = document.getElementById("elev-out");
+      const azimOut = document.getElementById("azim-out");
+
+      let card = null;
+
+      function buildConfig() {
+        return {
+          elev: Number(elevEl.value),
+          azim: Number(azimEl.value),
+          weather: wxEl.value,
+          moon: moonEl.value,
+        };
+      }
 
       function mount() {
         frame.style.setProperty("--w", `${wSel.value}px`);
         frame.replaceChildren();
-        const card = document.createElement("cow-room-dashboard-card");
+        card = document.createElement("cow-room-dashboard-card");
         card.setConfig({
           type: "custom:cow-room-dashboard-card",
           rooms: ROOMS,
           weather_entity: "weather.casa",
+          sun_entity: "sun.sun",
+          moon_entity: "sensor.moon",
           media_player: "media_player.display_sala",
           locale: "it-IT",
           scenes: [
@@ -151,17 +274,20 @@
             { name: "Cinema", icon: "■", accent: "#FA6B2E" },
           ],
         });
-        card.hass = buildHass();
+        card.hass = buildHass(buildConfig());
         frame.appendChild(card);
-        // Auto-open drawer on first room for layout debugging
-        requestAnimationFrame(() => {
-          card.activeRoomIndex = 0;
-          card.drawerOpen = true;
-          card.requestUpdate();
-        });
+      }
+
+      function refreshHass() {
+        elevOut.textContent = `${elevEl.value}°`;
+        azimOut.textContent = `${azimEl.value}°`;
+        if (card) card.hass = buildHass(buildConfig());
       }
 
       wSel.addEventListener("change", mount);
+      [elevEl, azimEl, wxEl, moonEl].forEach((el) =>
+        el.addEventListener("input", refreshHass),
+      );
       mount();
     </script>
   </body>
