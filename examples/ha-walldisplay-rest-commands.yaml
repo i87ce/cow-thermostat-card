@@ -1,0 +1,181 @@
+# =============================================================================
+# Push Wall Display configuration from Home Assistant
+# =============================================================================
+# Add this block to your configuration.yaml (or include it via !include).
+# After editing, RESTART Home Assistant.
+#
+# Then call services from Developer Tools → Services:
+#
+#  Step 1 (one-time discovery, to confirm the RPC keys for HA URL):
+#       walldisplay_camera_discover
+#    Look at the response in Logbook or persistent_notification (see "discover"
+#    helper script below). Send Alessio the dump so the SetConfig payload can
+#    be tuned to match the actual schema for your firmware (2.6.0-beta).
+#
+#  Step 2 (push HA URL + screen lock + disable gestures to ALL displays):
+#       script.cow_walldisplay_provision_all
+#
+#  Single-display retry:
+#       script.cow_walldisplay_provision_camera
+#
+# =============================================================================
+
+# -----------------------------------------------------------------------------
+# Mapping MAC ↔ IP ↔ stanza ↔ URL Lovelace.
+# Edit the YAML anchors below if you reassign physical displays to rooms.
+# -----------------------------------------------------------------------------
+
+rest_command:
+
+  # ---------- DISCOVER (read full Sys+Ui config from a display) -----------
+  # Use these once to dump the device's current config so we can find the exact
+  # RPC key holding the HA Custom URL on your firmware version.
+
+  walldisplay_camera_discover:
+    url: "http://172.16.2.10/rpc/Shelly.GetConfig"
+    method: GET
+
+  walldisplay_studio_chiara_discover:
+    url: "http://172.16.2.11/rpc/Shelly.GetConfig"
+    method: GET
+
+  walldisplay_camera_1_discover:
+    url: "http://172.16.2.12/rpc/Shelly.GetConfig"
+    method: GET
+
+  walldisplay_bagno_ospiti_discover:
+    url: "http://172.16.2.13/rpc/Shelly.GetConfig"
+    method: GET
+
+  walldisplay_bagno_camera_discover:
+    url: "http://172.16.2.15/rpc/Shelly.GetConfig"
+    method: GET
+
+  walldisplay_living_xl_discover:
+    url: "http://172.16.2.14/rpc/Shelly.GetConfig"
+    method: GET
+
+  # ---------- SET HA URL (best-guess RPC: Sys.SetConfig) ------------------
+  # NOTE: the exact path may need to be tweaked once you run "discover".
+  # Educated guesses for the field that holds the dashboard URL:
+  #   - sys.homeassistant.url          (most likely on Wall Display 2.x+)
+  #   - sys.cfg.homeassistant.url
+  #   - ui.applications.homeassistant.url
+  # The payload below uses sys.homeassistant.url. After discover we can refine.
+
+  walldisplay_camera_set_url:
+    url: "http://172.16.2.10/rpc/Sys.SetConfig"
+    method: POST
+    headers:
+      content-type: "application/json"
+    payload: >-
+      {"config":{"homeassistant":{"url":"https://8ywaxxculoipavdsrwewtrhw5qhlqysg.ui.nabu.casa/walldisplay-camera/0?kiosk&block_context_menu&cache"}}}
+
+  walldisplay_studio_chiara_set_url:
+    url: "http://172.16.2.11/rpc/Sys.SetConfig"
+    method: POST
+    headers:
+      content-type: "application/json"
+    payload: >-
+      {"config":{"homeassistant":{"url":"https://8ywaxxculoipavdsrwewtrhw5qhlqysg.ui.nabu.casa/walldisplay-studio-chiara/0?kiosk&block_context_menu&cache"}}}
+
+  walldisplay_camera_1_set_url:
+    url: "http://172.16.2.12/rpc/Sys.SetConfig"
+    method: POST
+    headers:
+      content-type: "application/json"
+    payload: >-
+      {"config":{"homeassistant":{"url":"https://8ywaxxculoipavdsrwewtrhw5qhlqysg.ui.nabu.casa/walldisplay-camera-1/0?kiosk&block_context_menu&cache"}}}
+
+  walldisplay_bagno_ospiti_set_url:
+    url: "http://172.16.2.13/rpc/Sys.SetConfig"
+    method: POST
+    headers:
+      content-type: "application/json"
+    payload: >-
+      {"config":{"homeassistant":{"url":"https://8ywaxxculoipavdsrwewtrhw5qhlqysg.ui.nabu.casa/walldisplay-bagno-ospiti/0?kiosk&block_context_menu&cache"}}}
+
+  walldisplay_bagno_camera_set_url:
+    url: "http://172.16.2.15/rpc/Sys.SetConfig"
+    method: POST
+    headers:
+      content-type: "application/json"
+    payload: >-
+      {"config":{"homeassistant":{"url":"https://8ywaxxculoipavdsrwewtrhw5qhlqysg.ui.nabu.casa/walldisplay-bagno-camera/0?kiosk&block_context_menu&cache"}}}
+
+  # XL is reserved for the future "Sala e Cucina" 10.1" card.
+  # Uncomment when the cow-room-dashboard-card is implemented.
+  #
+  # walldisplay_living_xl_set_url:
+  #   url: "http://172.16.2.14/rpc/Sys.SetConfig"
+  #   method: POST
+  #   headers:
+  #     content-type: "application/json"
+  #   payload: >-
+  #     {"config":{"homeassistant":{"url":"https://8ywaxxculoipavdsrwewtrhw5qhlqysg.ui.nabu.casa/living-cucina/0?kiosk&cache"}}}
+
+  # ---------- AUX (works today on stock firmware) -------------------------
+  # Brightness control + screen on/off (these RPC paths are documented).
+
+  walldisplay_camera_screen_off:
+    url: 'http://172.16.2.10/rpc/Ui.Screen.Set?params={"on":false}'
+    method: GET
+
+  walldisplay_camera_screen_on:
+    url: 'http://172.16.2.10/rpc/Ui.Screen.Set?params={"on":true}'
+    method: GET
+
+  walldisplay_camera_brightness_max:
+    url: 'http://172.16.2.10/rpc/Ui.SetConfig?config={"brightness":{"level":100,"auto":false}}'
+    method: GET
+
+
+# -----------------------------------------------------------------------------
+# Helper scripts
+# -----------------------------------------------------------------------------
+
+script:
+
+  cow_walldisplay_discover_camera:
+    alias: "Wall Display — discover Camera config"
+    sequence:
+      - service: rest_command.walldisplay_camera_discover
+        response_variable: result
+      - service: persistent_notification.create
+        data:
+          title: "Wall Display Camera config dump"
+          message: "{{ result | tojson }}"
+
+  cow_walldisplay_provision_camera:
+    alias: "Wall Display — push HA URL to Camera"
+    sequence:
+      - service: rest_command.walldisplay_camera_set_url
+
+  cow_walldisplay_provision_studio_chiara:
+    alias: "Wall Display — push HA URL to Studio Chiara"
+    sequence:
+      - service: rest_command.walldisplay_studio_chiara_set_url
+
+  cow_walldisplay_provision_camera_1:
+    alias: "Wall Display — push HA URL to Camera 1"
+    sequence:
+      - service: rest_command.walldisplay_camera_1_set_url
+
+  cow_walldisplay_provision_bagno_ospiti:
+    alias: "Wall Display — push HA URL to Bagno Ospiti"
+    sequence:
+      - service: rest_command.walldisplay_bagno_ospiti_set_url
+
+  cow_walldisplay_provision_bagno_camera:
+    alias: "Wall Display — push HA URL to Bagno Camera"
+    sequence:
+      - service: rest_command.walldisplay_bagno_camera_set_url
+
+  cow_walldisplay_provision_all:
+    alias: "Wall Display — push HA URL to ALL 5 SAWD1"
+    sequence:
+      - service: rest_command.walldisplay_camera_set_url
+      - service: rest_command.walldisplay_studio_chiara_set_url
+      - service: rest_command.walldisplay_camera_1_set_url
+      - service: rest_command.walldisplay_bagno_ospiti_set_url
+      - service: rest_command.walldisplay_bagno_camera_set_url
