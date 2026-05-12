@@ -4,6 +4,38 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and
 this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.5.3] — 2026-05-12
+
+### Added
+- **Ambient sensor chip in drawer header** — when a room has
+  `temperature` / `humidity` sensors but no `climate` entity, a small
+  sky-blue chip (`🌡 22° · 💧 49%`) sits inline with the room name in
+  the drawer header. Live values pulled from the configured sensors.
+- **Tap-to-toggle on light tile** — the entire light tile is now a
+  button: tap anywhere on it to flip on/off. The brightness slider,
+  +/− buttons and inline power switch keep working independently
+  (clicks are stopped at the controls level so they don't double-fire).
+  Includes proper keyboard support (Enter/Space) and ARIA pressed
+  state.
+
+### Changed
+- **Lights tab — climate-mini removed for sensors-only rooms** — the
+  blue ambient mini tile no longer shows up in the Lights tab when
+  there's no climate entity. Temperature/humidity now live in the
+  drawer-header chip; the dedicated Climate tab keeps the full
+  monitoring view. When a room DOES have a climate entity, the orange
+  thermostat-mini still shows up unchanged.
+- **Blinds tab — compact card grid** — fixed-height (8.75rem) cards in
+  a 2-column auto-fill grid. Smaller blind visual (4.5rem wide), label
+  and percentage on the same head row, action buttons at the bottom.
+  Position presets row removed (low signal, lots of vertical cost) —
+  use Apri/Stop/Chiudi or the Lovelace details for fine control.
+- **Climate sensors-only — cleaner monitoring card** — dedicated
+  3-column layout (Temperature · Humidity · Suggerimento). Removed the
+  raw `sensor.*` entity_id that was being shown verbatim. Removed the
+  big dashed footer warning; "aggiungi un `climate.*` alla stanza"
+  is now a subtle hint inside the suggestion column.
+
 ## [0.5.2] — 2026-05-12
 
 ### Fixed

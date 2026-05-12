@@ -95,6 +95,12 @@ export class CowXLDrawer extends LitElement {
         gap: 0.25rem;
         min-width: 0;
       }
+      .title-row {
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+        min-width: 0;
+      }
       .title {
         font-weight: 600;
         font-size: 2rem;
@@ -103,6 +109,26 @@ export class CowXLDrawer extends LitElement {
         white-space: nowrap;
         overflow: hidden;
         text-overflow: ellipsis;
+        flex: 0 1 auto;
+      }
+      .ambient-chip {
+        flex: 0 0 auto;
+        display: inline-flex;
+        align-items: center;
+        gap: 0.5rem;
+        height: 2rem;
+        padding: 0 0.75rem;
+        background: linear-gradient(150deg, #e8f0fa 0%, #d0e2f5 100%);
+        border: 0.0625rem solid #c4d8ee;
+        border-radius: 1rem;
+        color: #2f5e8f;
+        font-weight: 600;
+        font-size: 0.875rem;
+        font-variant-numeric: tabular-nums;
+      }
+      .ambient-chip .sep {
+        opacity: 0.45;
+        font-weight: 400;
       }
       .subtitle {
         font-weight: 500;
@@ -268,9 +294,27 @@ export class CowXLDrawer extends LitElement {
     if (c.blinds > 0)
       parts.push(`${c.blinds} ${c.blinds === 1 ? "tapparella" : "tapparelle"}`);
     if (c.climate) parts.push("termostato");
-    else if (this.room?.temperature || this.room?.humidity)
-      parts.push("sensori ambiente");
     return parts.length === 0 ? "Nessun dispositivo" : parts.join(" · ");
+  }
+
+  /** When the room has ambient sensors (no climate), expose them as a chip
+   * inline with the room title — replaces the climate-mini tile in Lights. */
+  private ambientChipValue(): { temp: string | null; hum: string | null } | null {
+    if (this.room?.climate) return null; // full climate-tab handles it
+    if (!this.room?.temperature && !this.room?.humidity) return null;
+    const states = this.hass?.states ?? {};
+    const tempEl = this.room?.temperature
+      ? states[this.room.temperature]
+      : undefined;
+    const humEl = this.room?.humidity ? states[this.room.humidity] : undefined;
+    const tempVal = tempEl ? parseFloat(tempEl.state) : NaN;
+    const humVal = humEl ? parseFloat(humEl.state) : NaN;
+    return {
+      temp: Number.isFinite(tempVal)
+        ? `${Math.round(tempVal * 10) / 10}°`
+        : null,
+      hum: Number.isFinite(humVal) ? `${Math.round(humVal)}%` : null,
+    };
   }
 
   /** Contextual status pill text based on the active tab. */
@@ -349,6 +393,22 @@ export class CowXLDrawer extends LitElement {
     this.activeTab = tab;
   }
 
+  private renderAmbientChip() {
+    const a = this.ambientChipValue();
+    if (!a) return nothing;
+    const parts: unknown[] = [];
+    if (a.temp) parts.push(html`<span>🌡 ${a.temp}</span>`);
+    if (a.temp && a.hum) parts.push(html`<span class="sep">·</span>`);
+    if (a.hum) parts.push(html`<span>💧 ${a.hum}</span>`);
+    return html`<div
+      class="ambient-chip"
+      role="status"
+      aria-label="Sensori ambiente stanza"
+    >
+      ${parts}
+    </div>`;
+  }
+
   private renderBody() {
     if (!this.room) return nothing;
     switch (this.activeTab) {
@@ -389,7 +449,10 @@ export class CowXLDrawer extends LitElement {
 
         <div class="header">
           <div class="title-block">
-            <div class="title">${this.room.name}</div>
+            <div class="title-row">
+              <div class="title">${this.room.name}</div>
+              ${this.renderAmbientChip()}
+            </div>
             <div class="subtitle">${this.subtitleText()}</div>
           </div>
           <div class="header-actions">

@@ -185,6 +185,68 @@ export class CowXLClimateTab extends LitElement {
         opacity: 0.9;
       }
 
+      /* === Sensors-only mode (no climate entity) === */
+      .full.sensors-only {
+        height: auto;
+        bottom: 1rem; /* stretch from top:2.5rem down to body bottom */
+        padding: 1.5rem 2rem;
+        grid-template-columns: 1fr 1fr 1.4fr;
+        gap: 2rem;
+        align-items: stretch;
+      }
+      .so-col {
+        display: grid;
+        grid-template-rows: auto 1fr auto;
+        row-gap: 0.5rem;
+        min-width: 0;
+      }
+      .so-col.so-advisory {
+        border-left: 0.0625rem solid rgba(255, 255, 255, 0.35);
+        padding-left: 1.5rem;
+      }
+      .so-label {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.5rem;
+        font-weight: 700;
+        font-size: 0.8125rem;
+        letter-spacing: 0.075rem;
+        text-transform: uppercase;
+        opacity: 0.92;
+      }
+      .so-big {
+        align-self: center;
+        font-weight: 200;
+        font-size: 5.5rem;
+        line-height: 1;
+        font-variant-numeric: tabular-nums;
+      }
+      .so-sub {
+        font-weight: 500;
+        font-size: 0.9375rem;
+        opacity: 0.85;
+      }
+      .so-advice {
+        align-self: center;
+        font-weight: 500;
+        font-size: 1rem;
+        line-height: 1.4;
+        opacity: 0.95;
+      }
+      .so-hint {
+        font-weight: 400;
+        font-size: 0.8125rem;
+        opacity: 0.7;
+        line-height: 1.4;
+      }
+      .so-hint code {
+        font-family: inherit;
+        background: rgba(255, 255, 255, 0.18);
+        padding: 0 0.375rem;
+        border-radius: 0.25rem;
+        font-weight: 600;
+      }
+
       .actions {
         position: absolute;
         left: 2rem;
@@ -339,52 +401,36 @@ export class CowXLClimateTab extends LitElement {
       else comfort = "Molto caldo";
     }
 
+    const humSub = Number.isFinite(humVal)
+      ? humVal < 35
+        ? "Aria secca"
+        : humVal > 65
+          ? "Aria umida"
+          : "Umidità ottimale"
+      : "—";
     return html`
       <div class="caption">CLIMA — SOLO MONITORAGGIO</div>
       <div
-        class="full"
+        class="full sensors-only"
         style="background: linear-gradient(120deg, #6da3d6 0%, #8fb9e0 60%, #cfe6ff 100%);"
       >
-        <div class="col">
-          <div class="col-label">TEMPERATURA</div>
-          <div class="col-icon">🌡</div>
-          <div class="col-big">${tempStr}</div>
-          <div class="col-sub">${comfort} · ${this.room?.name ?? ""}</div>
+        <div class="so-col">
+          <div class="so-label"><span>🌡</span><span>TEMPERATURA</span></div>
+          <div class="so-big">${tempStr}</div>
+          <div class="so-sub">${comfort}</div>
         </div>
-        <div class="col" style="align-items:flex-start;">
-          <div class="col-label">UMIDITÀ</div>
-          <div class="col-icon">💧</div>
-          <div class="setpoint-big">${humStr}</div>
-          <div class="col-sub" style="margin-top:auto;">
-            ${Number.isFinite(humVal)
-              ? humVal < 35
-                ? "Aria secca"
-                : humVal > 65
-                  ? "Aria umida"
-                  : "Umidità ottimale"
-              : "—"}
-          </div>
+        <div class="so-col">
+          <div class="so-label"><span>💧</span><span>UMIDITÀ</span></div>
+          <div class="so-big">${humStr}</div>
+          <div class="so-sub">${humSub}</div>
         </div>
-        <div class="col right">
-          <div class="col-label">SUGGERIMENTO</div>
-          <div
-            style="margin-top:0.5rem;font-weight:500;font-size:0.9375rem;line-height:1.5;opacity:0.9;"
-          >
-            ${this.advisoryText(tempVal, humVal)}
+        <div class="so-col so-advisory">
+          <div class="so-label">SUGGERIMENTO</div>
+          <div class="so-advice">${this.advisoryText(tempVal, humVal)}</div>
+          <div class="so-hint">
+            Aggiungi un <code>climate.*</code> alla stanza per regolare
+            temperatura e modalità.
           </div>
-          <div class="schedule-label" style="margin-top:auto;">SENSORE</div>
-          <div class="schedule-text">
-            ${this.room?.temperature ?? "—"}
-          </div>
-        </div>
-      </div>
-      <div class="actions">
-        <div
-          class="act"
-          style="background:transparent;border:0.0625rem dashed var(--cow-surface-border);color:var(--cow-text-secondary);cursor:default;"
-        >
-          ℹ Stanza senza termostato — aggiungi un'entità climate.* per
-          poter regolare temperatura e modalità.
         </div>
       </div>
     `;

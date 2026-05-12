@@ -132,6 +132,19 @@ export class CowXLLightsTab extends LitElement {
         row-gap: 0.25rem;
         justify-items: center;
         position: relative;
+        cursor: pointer;
+        transition:
+          background 160ms ease,
+          border-color 160ms ease,
+          transform 120ms ease,
+          box-shadow 160ms ease;
+        -webkit-tap-highlight-color: transparent;
+      }
+      .light-tile:hover {
+        box-shadow: 0 0.125rem 0.5rem rgba(31, 31, 46, 0.06);
+      }
+      .light-tile:active {
+        transform: scale(0.985);
       }
       .light-tile[data-on] {
         background: var(--cow-lights-glow-bg, #fff8e0);
@@ -326,6 +339,12 @@ export class CowXLLightsTab extends LitElement {
     );
   }
 
+  /** Climate mini tile inside Lights tab.
+   *
+   * Renders ONLY when the room has a real climate entity (full thermostat
+   * mini). When the room only has ambient sensors we skip the tile here —
+   * the temperature/humidity is shown in the drawer header chip instead,
+   * and the dedicated Climate tab handles the monitoring view. */
   private renderClimateMini() {
     if (!this.room) return nothing;
 
@@ -370,41 +389,6 @@ export class CowXLLightsTab extends LitElement {
       `;
     }
 
-    if (this.room.temperature || this.room.humidity) {
-      const states = this.hass?.states ?? {};
-      const tempEl = this.room.temperature
-        ? states[this.room.temperature]
-        : undefined;
-      const humEl = this.room.humidity ? states[this.room.humidity] : undefined;
-      const tempVal = tempEl ? parseFloat(tempEl.state) : NaN;
-      const humVal = humEl ? parseFloat(humEl.state) : NaN;
-      const tempStr = Number.isFinite(tempVal)
-        ? `${Math.round(tempVal * 10) / 10}°`
-        : "—";
-      return html`
-        <div
-          class="climate-mini"
-          role="group"
-          aria-label="Sensori ambiente stanza"
-          style="background: linear-gradient(150deg, #6da3d6 0%, #4f8cc7 100%);"
-        >
-          <div class="cm-top">
-            <span class="cm-icon">🌡</span>
-            <span class="cm-label">AMBIENTE</span>
-          </div>
-          <div class="cm-mid">
-            <span class="cm-temp">${tempStr}</span>
-          </div>
-          <div class="cm-bot">
-            ${Number.isFinite(humVal)
-              ? html`<span class="cm-humidity">💧 ${Math.round(humVal)}% umidità</span>`
-              : html`<span>Solo monitoraggio</span>`}
-            <span></span>
-          </div>
-        </div>
-      `;
-    }
-
     return nothing;
   }
 
@@ -413,8 +397,26 @@ export class CowXLLightsTab extends LitElement {
     const view = deriveLightsView(entity);
     const on = view.variant !== "off";
     const valueText = on ? `${view.brightnessPct}%` : "OFF";
+    // Inner controls swallow the click so they don't trigger the tile-level
+    // toggle. Without this, dragging the slider or tapping +/− would also
+    // flip the light on/off, which is a confusing double-effect.
+    const stop = (e: Event) => e.stopPropagation();
     return html`
-      <div class="light-tile" ?data-on=${on}>
+      <div
+        class="light-tile"
+        ?data-on=${on}
+        @click=${() => this.toggleLight(id)}
+        role="button"
+        tabindex="0"
+        aria-pressed=${on ? "true" : "false"}
+        aria-label="${label} ${on ? "accesa" : "spenta"} — tap per ${on ? "spegnere" : "accendere"}"
+        @keydown=${(e: KeyboardEvent) => {
+          if (e.key === "Enter" || e.key === " ") {
+            e.preventDefault();
+            this.toggleLight(id);
+          }
+        }}
+      >
         <cow-bulb-visual
           class="lt-bulb"
           .variant=${view.variant}
@@ -423,17 +425,23 @@ export class CowXLLightsTab extends LitElement {
         <div class="lt-label">${label}</div>
         <div class="lt-value">${valueText}</div>
         <div></div>
-        <div class="lt-controls">
+        <div class="lt-controls" @click=${stop} @pointerdown=${stop}>
           <button
             class="lt-btn"
-            @click=${() => this.bumpBrightness(id, -10)}
+            @click=${(e: Event) => {
+              stop(e);
+              this.bumpBrightness(id, -10);
+            }}
             aria-label="Diminuisci luminosità"
           >
             −
           </button>
           <div
             class="lt-slider"
-            @pointerdown=${(e: PointerEvent) => this.onSliderTap(e, id)}
+            @pointerdown=${(e: PointerEvent) => {
+              stop(e);
+              this.onSliderTap(e, id);
+            }}
             role="slider"
             aria-valuemin="0"
             aria-valuemax="100"
@@ -443,7 +451,10 @@ export class CowXLLightsTab extends LitElement {
           </div>
           <button
             class="lt-btn"
-            @click=${() => this.bumpBrightness(id, 10)}
+            @click=${(e: Event) => {
+              stop(e);
+              this.bumpBrightness(id, 10);
+            }}
             aria-label="Aumenta luminosità"
           >
             +
@@ -451,7 +462,10 @@ export class CowXLLightsTab extends LitElement {
           <div
             class="lt-power"
             ?data-on=${on}
-            @click=${() => this.toggleLight(id)}
+            @click=${(e: Event) => {
+              stop(e);
+              this.toggleLight(id);
+            }}
             role="switch"
             aria-checked=${on ? "true" : "false"}
             aria-label="${label} on/off"
