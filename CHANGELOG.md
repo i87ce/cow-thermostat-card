@@ -4,6 +4,20 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and
 this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.7.3] — 2026-05-12
+
+### Changed
+- **Chip activity badges split by device type** — the single orange
+  badge per chip is replaced by up to three category-tinted badges:
+  blue (`--cow-blinds-medium`) for open blinds, yellow
+  (`--cow-lights-bright`) for lights on, orange (`--cow-heating-primary`)
+  for an active climate. A badge is rendered only when its count > 0,
+  so rooms with everything off look clean (no badges at all). On the
+  active (dark) chip background the badges invert to white-on-text.
+- New helper `countActiveByCategory(room, states)` in `config-xl.ts`
+  returns the per-class breakdown. The original `countActiveDevices`
+  remains as a thin sum-wrapper for any external callers.
+
 ## [0.7.2] — 2026-05-12
 
 ### Fixed

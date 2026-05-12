@@ -149,30 +149,58 @@ export function validateXLConfig(input: unknown): CowRoomDashboardConfig {
   };
 }
 
-/** Count active devices in a room (lights ON + covers not closed). */
-export function countActiveDevices(
+/** Counts of active devices in a room, split by category. */
+export interface RoomActivityCounts {
+  /** Number of `light.*` entities currently `on`. */
+  lights: number;
+  /** Number of `cover.*` entities that are anything but `closed`/`unavailable`. */
+  covers: number;
+  /** 1 if the optional `climate.*` is in `heat` / `cool`, else 0. */
+  climate: 0 | 1;
+}
+
+/**
+ * Per-category active-device counts for a room. Used by the XL header
+ * to render colored "what's happening here?" badges on each chip — one
+ * tinted yellow for lights, one tinted blue for blinds.
+ */
+export function countActiveByCategory(
   room: CowRoomConfig,
   states: Record<string, { state: string }>,
-): number {
-  let n = 0;
+): RoomActivityCounts {
   const lights = Array.isArray(room.light)
     ? room.light
     : room.light
       ? [room.light]
       : [];
-  for (const l of lights) {
-    if (states[l]?.state === "on") n++;
-  }
   const covers = Array.isArray(room.cover)
     ? room.cover
     : room.cover
       ? [room.cover]
       : [];
+  let lightsOn = 0;
+  for (const l of lights) if (states[l]?.state === "on") lightsOn++;
+  let coversOpen = 0;
   for (const c of covers) {
     const s = states[c]?.state;
-    if (s && s !== "closed" && s !== "unavailable") n++;
+    if (s && s !== "closed" && s !== "unavailable") coversOpen++;
   }
-  if (room.climate && states[room.climate]?.state === "heat") n++;
-  if (room.climate && states[room.climate]?.state === "cool") n++;
-  return n;
+  const climateState = room.climate ? states[room.climate]?.state : undefined;
+  const climateActive: 0 | 1 =
+    climateState === "heat" || climateState === "cool" ? 1 : 0;
+  return { lights: lightsOn, covers: coversOpen, climate: climateActive };
+}
+
+/**
+ * Sum of all active devices in a room (lights ON + covers not closed
+ * + climate heating/cooling). Kept for any external callers; the XL
+ * header itself now uses `countActiveByCategory` so each device class
+ * gets its own colored badge.
+ */
+export function countActiveDevices(
+  room: CowRoomConfig,
+  states: Record<string, { state: string }>,
+): number {
+  const c = countActiveByCategory(room, states);
+  return c.lights + c.covers + c.climate;
 }

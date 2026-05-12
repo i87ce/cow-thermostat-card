@@ -2,7 +2,7 @@ import { LitElement, html, css, nothing } from "lit";
 import { customElement, property } from "lit/decorators.js";
 import type { HomeAssistant } from "../types/hass.js";
 import type { CowRoomConfig } from "../config-xl.js";
-import { countActiveDevices } from "../config-xl.js";
+import { countActiveByCategory } from "../config-xl.js";
 
 import "../molecules/info-badge.js";
 
@@ -153,16 +153,19 @@ export class CowXLHeader extends LitElement {
       font-size: 1.5rem;
       line-height: 1;
     }
-    .chip-count {
+    .chip-badges {
       position: absolute;
-      top: 0.5rem;
-      right: 0.5rem;
+      top: 0.4375rem;
+      right: 0.4375rem;
+      display: flex;
+      gap: 0.25rem;
+      pointer-events: none;
+    }
+    .chip-badge {
       min-width: 1.0625rem;
       height: 1.0625rem;
       padding: 0 0.3125rem;
       border-radius: 0.53125rem;
-      background: var(--cow-accent-active, #fa6b2e);
-      color: var(--cow-surface-white);
       font-size: 0.625rem;
       font-weight: 700;
       display: inline-flex;
@@ -170,11 +173,23 @@ export class CowXLHeader extends LitElement {
       justify-content: center;
       line-height: 1;
     }
-    .chip[data-zero] .chip-count {
-      background: var(--cow-surface-button-bg);
-      color: var(--cow-text-disabled);
+    .chip-badge.lights {
+      /* warm yellow from the design system — the lights/heating accent */
+      background: var(--cow-lights-bright);
+      color: var(--cow-text-primary);
     }
-    .chip[data-active] .chip-count {
+    .chip-badge.covers {
+      /* cool blue from the design system — the blinds accent */
+      background: var(--cow-blinds-medium);
+      color: var(--cow-surface-white);
+    }
+    .chip-badge.climate {
+      /* orange — the heating accent */
+      background: var(--cow-heating-primary);
+      color: var(--cow-surface-white);
+    }
+    .chip[data-active] .chip-badge {
+      /* On the active (dark) chip background, invert badges to white-on-text */
       background: var(--cow-surface-white);
       color: var(--cow-text-primary);
     }
@@ -279,15 +294,35 @@ export class CowXLHeader extends LitElement {
         <div class="group-label">${g.label}</div>
         <div class="group-chips">
           ${g.items.map(({ room, index }) => {
-            const count = countActiveDevices(room, states);
+            const counts = countActiveByCategory(room, states);
+            const total = counts.lights + counts.covers + counts.climate;
             return html`
               <button
                 class="chip"
                 ?data-active=${index === this.activeIndex}
-                ?data-zero=${count === 0}
+                ?data-zero=${total === 0}
                 @click=${() => this.onChipTap(index)}
               >
-                <span class="chip-count">${count}</span>
+                <div class="chip-badges">
+                  ${counts.covers > 0
+                    ? html`<span
+                        class="chip-badge covers"
+                        title="${counts.covers} tapparell${counts.covers === 1 ? "a aperta" : "e aperte"}"
+                      >${counts.covers}</span>`
+                    : nothing}
+                  ${counts.lights > 0
+                    ? html`<span
+                        class="chip-badge lights"
+                        title="${counts.lights} luc${counts.lights === 1 ? "e accesa" : "i accese"}"
+                      >${counts.lights}</span>`
+                    : nothing}
+                  ${counts.climate > 0
+                    ? html`<span
+                        class="chip-badge climate"
+                        title="Termostato attivo"
+                      >●</span>`
+                    : nothing}
+                </div>
                 <span class="chip-icon">${room.icon ?? "•"}</span>
                 <div class="chip-name">${room.name}</div>
               </button>
