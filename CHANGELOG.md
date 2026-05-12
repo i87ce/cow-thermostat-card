@@ -4,6 +4,18 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and
 this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.7.1] — 2026-05-12
+
+### Changed
+- **Group tile labels readable** — the small uppercase group name above
+  each tile (LIVING, ZONA NOTTE, SERVIZI, ALTRO) was 10 px and rendered
+  in `--cow-text-secondary` (light grey on light grey); essentially
+  invisible at arm's length on the Wall Display. Bumped to 14 px,
+  primary-text color, slightly more breathing room above the chips.
+  Header section grew by ~1.5 rem; divider/hero/scenes y-positions
+  nudged down to compensate while keeping the bottom drawer-peek
+  pinned to the same place.
+
 ## [0.7.0] — 2026-05-12
 
 ### Added

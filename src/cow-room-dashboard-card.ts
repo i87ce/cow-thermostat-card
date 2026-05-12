@@ -63,10 +63,10 @@ export class CowRoomDashboardCard
         position: absolute;
         left: 1.5rem;
         right: 1.5rem;
-        top: 18.75rem;
+        top: 19.25rem;
       }
       cow-xl-scenes {
-        /* positioned by its own styles (top: 42.5rem) */
+        /* positioned by its own styles (top: 43rem) */
       }
       .drawer-peek {
         position: absolute;

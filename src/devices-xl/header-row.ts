@@ -88,17 +88,17 @@ export class CowXLHeader extends LitElement {
       background: var(--cow-surface-background);
       border: 0.0625rem solid var(--cow-surface-border);
       border-radius: 1.125rem;
-      padding: 0.375rem 0.5rem 0.5rem;
+      padding: 0.5rem 0.625rem 0.625rem;
       display: flex;
       flex-direction: column;
-      gap: 0.3125rem;
+      gap: 0.5rem;
     }
     .group-label {
-      font-size: 0.625rem;
+      font-size: 0.875rem;
       font-weight: 700;
-      letter-spacing: 0.09375rem;
+      letter-spacing: 0.0625rem;
       text-transform: uppercase;
-      color: var(--cow-text-secondary);
+      color: var(--cow-text-primary);
       padding: 0 0.25rem;
       line-height: 1;
     }
@@ -178,7 +178,7 @@ export class CowXLHeader extends LitElement {
       position: absolute;
       left: 0;
       right: 0;
-      top: 17.5rem;
+      top: 19rem;
       height: 0.0625rem;
       background: var(--cow-surface-border);
     }
