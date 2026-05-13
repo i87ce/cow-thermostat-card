@@ -79,8 +79,15 @@ export const globalShell = css`
    * cqmin then evaluates to 0 on us. vmin is a sturdy fallback for
    * full-screen kiosks: 1 vmin = 1% of the shorter viewport side.
    */
+  /*
+   * Card grid is 24rem wide by design. Hardcoding 1rem = 30px makes
+   * the panels render at a fixed 720x720 — large enough to fill any
+   * Shelly Wall Display kiosk (480x480 native or 720x720 screenshot
+   * scale) without depending on viewport/container queries that the
+   * embedded browser handles inconsistently.
+   */
   :host {
-    font-size: calc(100vmin / 24);
+    font-size: 30px;
   }
 
   *,
