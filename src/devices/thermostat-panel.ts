@@ -57,8 +57,9 @@ export class CowThermostatPanel extends LitElement {
   static override styles = css`
     :host {
       display: block;
-      width: 24rem;
-      height: 24rem;
+      width: 100%;
+      height: 100%;
+      position: relative;
     }
 
     /* LEFT pane */

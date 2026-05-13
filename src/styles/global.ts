@@ -87,7 +87,7 @@ export const globalShell = css`
    * embedded browser handles inconsistently.
    */
   :host {
-    font-size: 30px;
+    font-size: 30px !important;
   }
 
   *,
