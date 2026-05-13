@@ -70,15 +70,17 @@ export const globalShell = css`
    * vmin is fine for kiosks where the dashboard occupies the whole
    * viewport (which is exactly the panel-mode case we care about).
    */
+  /*
+   * Use vmin everywhere. Container queries (cqmin) were the original
+   * design and would have been ideal because they respect the card's
+   * actual painted area instead of the global viewport — but in
+   * practice the Shelly Wall Display kiosk + HA's panel-view wrapper
+   * end up with a container size that doesn't match the screen, and
+   * cqmin then evaluates to 0 on us. vmin is a sturdy fallback for
+   * full-screen kiosks: 1 vmin = 1% of the shorter viewport side.
+   */
   :host {
     font-size: calc(100vmin / 24);
-  }
-  @supports (container-type: size) and (width: 1cqmin) {
-    @container cow-card (min-width: 0px) {
-      :host {
-        font-size: calc(100cqmin / 24);
-      }
-    }
   }
 
   *,
