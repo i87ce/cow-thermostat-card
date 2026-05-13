@@ -36,7 +36,7 @@ import { deriveLightsView } from "./state/lights-state.js";
 
 type DeviceKind = "thermostat" | "blinds" | "lights";
 
-const VERSION = "0.8.3";
+const VERSION = "0.8.4";
 
 @customElement("cow-thermostat-card")
 export class CowThermostatCard extends LitElement implements LovelaceCard {
@@ -78,6 +78,45 @@ export class CowThermostatCard extends LitElement implements LovelaceCard {
     } catch (e) {
       this.config = undefined;
       throw e;
+    }
+  }
+
+  /**
+   * After the first paint, walk up the DOM until we hit either a
+   * `<hui-panel-view>` (panel mode = should fill the screen) or the
+   * document. Toggle a `panel` attribute accordingly so the CSS in
+   * `globalShell` can promote :host to `position: absolute; inset: 0`.
+   */
+  override connectedCallback(): void {
+    super.connectedCallback();
+    queueMicrotask(() => this.applyPanelAttr());
+  }
+
+  override updated(): void {
+    this.applyPanelAttr();
+  }
+
+  private applyPanelAttr(): void {
+    let node: Node | null = this.parentNode;
+    let host: ParentNode | null = null;
+    while (node) {
+      if (node instanceof HTMLElement) {
+        const tag = node.tagName.toLowerCase();
+        if (tag === "hui-panel-view" || tag === "ha-panel-lovelace") {
+          host = node;
+          break;
+        }
+      }
+      // Cross shadow-DOM boundaries
+      const root = (node as Node & { getRootNode?: () => Node }).getRootNode?.();
+      node =
+        node.parentNode ??
+        (root instanceof ShadowRoot ? root.host : null);
+    }
+    if (host) {
+      this.setAttribute("panel", "");
+    } else {
+      this.removeAttribute("panel");
     }
   }
 

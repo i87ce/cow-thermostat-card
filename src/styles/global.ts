@@ -25,6 +25,23 @@ export const globalShell = css`
   }
 
   /*
+   * In Lovelace panel mode HA wraps the card in <hui-panel-view> with
+   * 8px padding all-around — on a 480×480 Shelly Wall Display kiosk
+   * that turns 24rem (=100% of the shorter side, designed flush) into
+   * 24rem-but-clipped-inside-460×460, leaving a visible black border.
+   *
+   * When we detect that we are inside a panel view (hui-panel-view)
+   * we promote :host to position absolute + inset 0 so the card
+   * paints over the panel-view padding and reaches the screen edges.
+   */
+  :host([panel]) {
+    position: absolute;
+    inset: 0;
+    width: auto;
+    height: auto;
+  }
+
+  /*
    * 1cqmin = 1% of the smaller side of the host. With base 24, font-size
    * becomes 100/24 cqmin, so 1rem = 100/24 cqmin ≈ 4.166% of the side.
    * That makes the 384-design-px unit map to 24rem = 100% of the side.

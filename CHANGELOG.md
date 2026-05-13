@@ -4,6 +4,20 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and
 this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.8.4] — 2026-05-13
+
+### Fixed
+- **`cow-thermostat-card` was too small in panel mode** on the Shelly
+  Wall Display kiosk. Lovelace's `<hui-panel-view>` adds an 8 px
+  padding all around its single child, so on a 480×480 display the
+  card painted into a 464×464 box, leaving a visible black border on
+  every side. We now detect at `connectedCallback` time whether we
+  are inside a panel view (walk the DOM until we hit
+  `<hui-panel-view>` or `<ha-panel-lovelace>`) and toggle a `panel`
+  attribute on `:host`. The CSS in `globalShell` promotes
+  `:host([panel])` to `position: absolute; inset: 0` so the card
+  draws edge-to-edge.
+
 ## [0.8.3] — 2026-05-13
 
 ### Added
