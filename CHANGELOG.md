@@ -18,6 +18,41 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   `:host([panel])` to `position: absolute; inset: 0` so the card
   draws edge-to-edge.
 
+## [0.8.4–0.8.14] — 2026-05-13
+
+### Fixed — kiosk full-screen rendering on Shelly Wall Display
+Tracking down why the card painted into a tiny 384×384 box in the
+middle of a 480×480 (or 720×720 screenshot) Shelly Wall Display
+turned into a six-step deep-dive. The series of patches converged on
+v0.8.14 which actually renders edge-to-edge:
+- **v0.8.4**: detect `<hui-panel-view>` ancestor and promote :host
+  to `position: absolute; inset: 0`.
+- **v0.8.5**: switch to `position: fixed` to escape every wrapper.
+- **v0.8.6**: drop CSS Container Queries (`100cqmin / 24`) — the
+  Shelly kiosk browser doesn't support them — and use `100vmin / 24`.
+- **v0.8.7**: broaden ancestor detection to also accept `hui-root`,
+  `home-assistant-main`, `ha-app-layout`; add `console.warn` so we
+  can see the chain at runtime.
+- **v0.8.8**: `?kiosk` URL is a strong panel-mode signal even when no
+  ancestor matches.
+- **v0.8.9**: panel-mode :host gets `z-index: 100` + a background so
+  it actually paints above kiosk-mode plugin overlays.
+- **v0.8.10**: drop the cqmin attempt entirely.
+- **v0.8.11**: hardcode `font-size: 30px` so 24rem = 720px regardless
+  of viewport/container.
+- **v0.8.12**: panels (`blinds-panel`, `lights-panel`,
+  `thermostat-panel`) drop their `width/height: 24rem` cap in favour
+  of `width: 100%; height: 100%; position: relative`.
+- **v0.8.13**: `device-swiper` slide becomes `align-items: stretch` +
+  `::slotted(*) { flex:1 1 auto; width:100%; height:100% }` so the
+  slotted panel actually receives full height (flex centering was
+  collapsing it).
+- **v0.8.14**: ROOT CAUSE — `cow-split-panel`'s `:host { width:24rem;
+  height:24rem }` was still capping every panel that goes through
+  the split layout (blinds, lights, thermostat). Switched to
+  `width: 100%; height: 100%` + grid `1fr 1fr` columns. The card
+  finally fills the screen edge-to-edge.
+
 ## [0.8.3] — 2026-05-13
 
 ### Added
