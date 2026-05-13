@@ -36,7 +36,7 @@ import { deriveLightsView } from "./state/lights-state.js";
 
 type DeviceKind = "thermostat" | "blinds" | "lights";
 
-const VERSION = "0.8.7";
+const VERSION = "0.8.8";
 
 @customElement("cow-thermostat-card")
 export class CowThermostatCard extends LitElement implements LovelaceCard {
@@ -127,14 +127,22 @@ export class CowThermostatCard extends LitElement implements LovelaceCard {
     // Debug log first time we run
     if (!this.hasAttribute("data-debug-logged")) {
       this.setAttribute("data-debug-logged", "");
-      console.log(
+      console.warn(
         "[cow-thermostat-card] ancestor chain:",
         tagChain.slice(0, 15).join(" > "),
         "panel-mode:",
         found,
+        "vw/vh:",
+        window.innerWidth + "x" + window.innerHeight,
       );
     }
-    if (found) {
+    // Final escape hatch: if the URL contains ?kiosk (the standard
+    // marker for a Wall Display kiosk page) treat that as a strong
+    // signal that we want to fill the viewport, even if we couldn't
+    // identify the wrapper.
+    const isKioskUrl =
+      typeof window !== "undefined" && /[?&]kiosk(=|&|$)/.test(window.location.search);
+    if (found || isKioskUrl) {
       this.setAttribute("panel", "");
     } else {
       this.removeAttribute("panel");
