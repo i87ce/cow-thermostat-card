@@ -16,8 +16,8 @@ export class CowSplitPanel extends LitElement {
   static override styles = css`
     :host {
       display: block;
-      width: 24rem;
-      height: 24rem;
+      width: 100%;
+      height: 100%;
       border-radius: var(--cow-radius-xl);
       background: var(--cow-surface-background);
       overflow: hidden;
@@ -26,7 +26,7 @@ export class CowSplitPanel extends LitElement {
     }
     .grid {
       display: grid;
-      grid-template-columns: 12rem 12rem;
+      grid-template-columns: 1fr 1fr;
       width: 100%;
       height: 100%;
     }
