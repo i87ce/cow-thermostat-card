@@ -41,13 +41,15 @@ export const globalShell = css`
    * Shelly Wall Display's status bar overlay).
    */
   :host([panel]) {
-    width: 100vw;
-    height: 100vh;
-    min-width: 100vw;
-    min-height: 100vh;
-    position: absolute;
+    position: fixed;
     left: 0;
     top: 0;
+    right: 0;
+    bottom: 0;
+    width: 100vw;
+    height: 100vh;
+    z-index: 100;
+    background: var(--cow-surface-background, #f0f0f0);
   }
 
   /*
