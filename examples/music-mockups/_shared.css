@@ -1,0 +1,293 @@
+/* Shared design tokens + layout shell for all music-block mockups.
+   Mirrors src/styles/tokens.ts so the mockups feel like the real card. */
+:root {
+  --w: 1280px;
+
+  --cow-heating-primary: #fa6b2e;
+  --cow-blinds-medium: #4d8cd1;
+  --cow-blinds-sky: #66bfff;
+  --cow-lights-bright: #ffc72e;
+  --cow-idle-primary: #26a673;
+
+  --cow-surface-white: #ffffff;
+  --cow-surface-background: #f7f7fa;
+  --cow-surface-border: #ebebed;
+  --cow-surface-button-bg: #f0f0f2;
+
+  --cow-text-primary: #1f1f2e;
+  --cow-text-secondary: #8c8c99;
+  --cow-text-disabled: #b3b3bd;
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+html, body {
+  margin: 0;
+  background: #2a2a35;
+  min-height: 100vh;
+  font-family: -apple-system, "Segoe UI", Roboto, sans-serif;
+  color: #e9e9f0;
+  -webkit-font-smoothing: antialiased;
+}
+
+header.toolbar {
+  padding: 0.75rem 1rem;
+  background: #1a1a25;
+  border-bottom: 1px solid #3a3a4a;
+  display: flex;
+  gap: 1rem;
+  align-items: center;
+  flex-wrap: wrap;
+  font-size: 13px;
+}
+header.toolbar h1 { font-size: 1rem; font-weight: 600; }
+header.toolbar a { color: #9bb6ff; }
+header.toolbar .pill {
+  background: #2c2c3a;
+  border: 1px solid #4a4a5a;
+  border-radius: .375rem;
+  padding: .25rem .5rem;
+}
+header.toolbar .pill.active {
+  background: #4d8cd1;
+  border-color: #4d8cd1;
+  color: white;
+}
+
+.stage {
+  padding: 1.5rem;
+  display: grid;
+  place-items: center;
+}
+
+.frame {
+  width: var(--w);
+  height: calc(var(--w) * 800 / 1280);
+  background: var(--cow-surface-background);
+  border-radius: 16px;
+  overflow: hidden;
+  box-shadow: 0 1.25rem 4rem rgba(0,0,0,.45);
+  font-size: calc(var(--w) / 80);
+  color: var(--cow-text-primary);
+  position: relative;
+}
+
+/* ── Top "STANZE" label */
+.label-stanze {
+  position: absolute;
+  left: 1.75rem; top: 1.5rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.125rem;
+  color: var(--cow-text-secondary);
+}
+
+/* ── Top-right pills (weather + media) */
+.top-pills {
+  position: absolute;
+  right: 1.75rem; top: 1rem;
+  display: flex;
+  gap: 0.75rem;
+}
+.pill-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  height: 2.25rem;
+  padding: 0 1rem;
+  background: var(--cow-surface-white);
+  border: 0.0625rem solid var(--cow-surface-border);
+  border-radius: 1.125rem;
+  font-size: 0.8125rem;
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+/* ── Group tiles area */
+.groups {
+  position: absolute;
+  left: 1.5rem; right: 1.5rem;
+  top: 3.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.625rem;
+}
+.groups-row { display: flex; gap: 0.625rem; align-items: stretch; }
+.group {
+  flex: var(--g, 1) 1 0;
+  min-width: 0;
+  background: var(--cow-surface-background);
+  border: 0.0625rem solid var(--cow-surface-border);
+  border-radius: 1.125rem;
+  padding: 0.5rem 0.625rem 0.625rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+.group-label {
+  font-size: 0.875rem;
+  font-weight: 700;
+  letter-spacing: 0.0625rem;
+  text-transform: uppercase;
+  color: var(--cow-text-primary);
+  padding: 0 0.25rem;
+}
+.group-chips { display: flex; gap: 0.375rem; flex: 1; }
+.chip {
+  flex: 1;
+  min-width: 0;
+  height: 5rem;
+  padding: 0.75rem 0.875rem;
+  background: var(--cow-surface-white);
+  border: 0.0625rem solid var(--cow-surface-border);
+  border-radius: 1rem;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  font-size: 0.9375rem;
+  font-weight: 600;
+}
+.chip-icon { font-size: 1.5rem; }
+.chip-name {
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.chip[data-active] {
+  background: var(--cow-text-primary);
+  color: white;
+}
+
+/* ── Divider + hero placeholder */
+.divider {
+  position: absolute;
+  left: 0; right: 0; top: 19rem;
+  height: 0.0625rem;
+  background: var(--cow-surface-border);
+}
+.hero {
+  position: absolute;
+  left: 1.5rem; right: 1.5rem;
+  top: 19.25rem;
+  height: 23rem;
+  border-radius: 1.5rem;
+  background: linear-gradient(180deg, #6cb8e2 0%, #a5d3ec 35%, #ffd9b0 65%, #ffc086 100%);
+  overflow: hidden;
+}
+.hero .clock {
+  position: absolute;
+  left: 4rem; top: 6rem;
+  font-weight: 300;
+  font-size: 10rem;
+  line-height: 1;
+  letter-spacing: -0.375rem;
+  color: var(--cow-text-primary);
+}
+.hero .date {
+  position: absolute;
+  left: 4rem; top: 17.75rem;
+  font-weight: 500;
+  font-size: 1.25rem;
+  opacity: 0.75;
+}
+.hero .sun {
+  position: absolute;
+  right: 8rem; top: 5rem;
+  width: 10rem; height: 10rem;
+  border-radius: 50%;
+  background: radial-gradient(circle at 40% 40%, #fff7c4 0%, #ffd35a 55%, #ffaa30 100%);
+  box-shadow: 0 0 4rem rgba(255,200,70,.45);
+}
+.hero .meteo {
+  position: absolute;
+  right: 4rem; bottom: 4rem;
+  text-align: right;
+}
+.hero .meteo .t { font-size: 6rem; font-weight: 300; line-height: 1; }
+.hero .meteo .d { font-size: 1.125rem; opacity: .75; margin-top: 0.625rem; }
+
+/* ── Scene shortcuts */
+.scenes {
+  position: absolute;
+  left: 1.5rem; right: 1.5rem;
+  top: 43rem;
+  display: flex;
+  gap: 1rem;
+  justify-content: center;
+}
+.scene {
+  width: 17.5rem; height: 4rem;
+  background: var(--cow-surface-white);
+  border: 0.0625rem solid var(--cow-surface-border);
+  border-radius: 1rem;
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0 1rem;
+  font-weight: 600;
+  font-size: 1rem;
+}
+.scene .dot { width: 0.625rem; height: 0.625rem; border-radius: 50%; }
+
+/* ── Drawer peek */
+.drawer-peek {
+  position: absolute;
+  left: 0; right: 0; bottom: 0;
+  height: 2.5rem;
+  background: var(--cow-surface-white);
+  border-top: 0.0625rem solid var(--cow-surface-border);
+  border-top-left-radius: 1.5rem;
+  border-top-right-radius: 1.5rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.875rem;
+  font-size: 0.75rem;
+  color: var(--cow-text-secondary);
+  font-weight: 500;
+}
+.drawer-peek .handle {
+  width: 2.5rem; height: 0.25rem;
+  background: var(--cow-text-disabled);
+  border-radius: 0.125rem;
+}
+
+/* ── Common buttons / album art */
+.album-art {
+  background-image: linear-gradient(135deg, #1ed760 0%, #11783a 50%, #0a1e0f 100%);
+  background-size: cover;
+  background-position: center;
+  border-radius: 0.5rem;
+  position: relative;
+  overflow: hidden;
+  flex: 0 0 auto;
+}
+.album-art::before {
+  content: "♪";
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.5em;
+  color: white;
+  opacity: 0.85;
+}
+.btn-icon {
+  width: 2.5rem; height: 2.5rem;
+  border: none;
+  background: transparent;
+  border-radius: 50%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.25rem;
+  cursor: pointer;
+  color: var(--cow-text-primary);
+}
+.btn-icon:hover { background: var(--cow-surface-button-bg); }
+.btn-icon.primary {
+  background: var(--cow-text-primary);
+  color: white;
+  width: 3rem; height: 3rem;
+  font-size: 1.5rem;
+}
+.btn-icon.primary:hover { background: #000; }

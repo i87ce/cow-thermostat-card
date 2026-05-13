@@ -61,6 +61,13 @@
           <option value="waning_crescent">waning_crescent</option>
         </select>
       </label>
+      <label>Music
+        <select id="music">
+          <option value="idle">idle (pill)</option>
+          <option value="playing" selected>playing (ribbon)</option>
+          <option value="paused">paused (ribbon)</option>
+        </select>
+      </label>
     </header>
     <main class="stage">
       <div class="frame" id="frame"></div>
@@ -136,7 +143,7 @@
           light_labels: ["Terrazzo","Esterno P1","Studio"] },
       ];
 
-      function buildHass({ elev, azim, weather, moon }) {
+      function buildHass({ elev, azim, weather, moon, music }) {
         const states = {};
         // Sun (built-in HA entity) — drives the live sky + sun position.
         // For the preview, synthesize a sunset/sunrise window centered
@@ -227,10 +234,70 @@
         states["cover.tapparella_bagno_padronale"] = { entity_id: "cover.tapparella_bagno_padronale", state: "open", attributes: { current_position: 100 } };
         // weather + media
         states["weather.casa"] = { entity_id: "weather.casa", state: weather, attributes: { temperature: 18, humidity: 62, apparent_temperature: 16, wind_speed: 7 } };
-        states["media_player.display_sala"] = { entity_id: "media_player.display_sala", state: "playing", attributes: { media_title: "RDS Relax" } };
+        // Speaker state — controlled by the "Music" dropdown in the toolbar.
+        // When playing/paused, mocks a Cesare Cremonini track so the
+        // ribbon+cinema can show realistic art + progress.
+        states["media_player.display_sala"] = {
+          entity_id: "media_player.display_sala",
+          state: music,
+          attributes: music === "idle"
+            ? {
+                friendly_name: "Display Sala",
+                media_title: "RDS Relax",
+                entity_picture: "https://rdsrelax.it/images/logo.png",
+                volume_level: 1.0,
+                media_content_type: "music",
+                supported_features: 152117,
+              }
+            : {
+                friendly_name: "Display Sala",
+                media_title: "Felicità Puttana",
+                media_artist: "Thegiornalisti",
+                media_album_name: "Completamente",
+                media_duration: 215,
+                media_position: 84,
+                media_position_updated_at: new Date(Date.now() - 8000).toISOString(),
+                entity_picture: "https://i.scdn.co/image/ab67616d0000b273cd24f3b3a82bafc8a5f3aaaa",
+                volume_level: 0.6,
+                media_content_type: "music",
+                supported_features: 152117,
+              },
+        };
+        // Stub MA responses for the preview so the music drawer can render
+        // results without a real HA backend.
+        const MOCK_PLAYLISTS = [
+          { uri: "library://playlist/1", name: "All favorited tracks", subtitle: "Tutti i preferiti" },
+          { uri: "library://playlist/7", name: "Liked Songs Alessio", subtitle: "Canzoni che ti piacciono" },
+          { uri: "library://playlist/8", name: "Anni 90", subtitle: "Hit anni '90" },
+          { uri: "library://playlist/18", name: "Disney Italiano!", subtitle: "Karaoke ufficiale" },
+          { uri: "library://playlist/15", name: "Karaoke", subtitle: "Da cantare" },
+          { uri: "library://playlist/13", name: "Carnazza", subtitle: "Per le serate" },
+        ];
+        const MOCK_TRACKS = [
+          { uri: "spotify--mock://track/1", name: "Felicità Puttana", artist: "Thegiornalisti", subtitle: "Completamente" },
+          { uri: "spotify--mock://track/2", name: "Ora che non ho più te", artist: "Cesare Cremonini", subtitle: "Possibili scenari" },
+          { uri: "spotify--mock://track/3", name: "La Nuova Stella Di Broadway", artist: "Cesare Cremonini", subtitle: "Il primo bacio sulla Luna" },
+        ];
+
         return {
           states,
-          callService: async (...args) => console.log("callService", ...args),
+          callService: async (domain, service, data, target, _notifyOnError, returnResponse) => {
+            console.log("callService", domain, service, data, target);
+            if (returnResponse) {
+              if (domain === "music_assistant" && service === "get_library") {
+                if (data?.media_type === "playlist")
+                  return { response: { items: MOCK_PLAYLISTS } };
+                return { response: { items: [] } };
+              }
+              if (domain === "music_assistant" && service === "search") {
+                return { response: { tracks: MOCK_TRACKS } };
+              }
+              if (domain === "music_assistant" && service === "get_queue") {
+                return { response: { items: [] } };
+              }
+            }
+            return undefined;
+          },
           locale: { language: "it-IT" },
         };
       }
@@ -241,6 +308,7 @@
       const azimEl = document.getElementById("azim");
       const wxEl = document.getElementById("wx");
       const moonEl = document.getElementById("moon");
+      const musicEl = document.getElementById("music");
       const elevOut = document.getElementById("elev-out");
       const azimOut = document.getElementById("azim-out");
 
@@ -252,6 +320,7 @@
           azim: Number(azimEl.value),
           weather: wxEl.value,
           moon: moonEl.value,
+          music: musicEl.value,
         };
       }
 
@@ -266,6 +335,14 @@
           sun_entity: "sun.sun",
           moon_entity: "sensor.moon",
           media_player: "media_player.display_sala",
+          music_assistant_id: "01KR70XN8WQ46Y3B20BQKHG27P",
+          music: {
+            radios: [
+              { name: "Radio Deejay", stream: "https://radiodeejay-lh.akamaihd.net/i/RadioDeejay_Live_1@189857/master.m3u8", color: "#e6202d" },
+              { name: "RDS 105",      stream: "https://icestreaming.rai.it/12.mp3",                                        color: "#0066ff" },
+              { name: "Radio Italia", stream: "https://radioitalia-lh.akamaihd.net/i/RadioItalia_Live_1@196312/master.m3u8", color: "#21c25e" },
+            ],
+          },
           locale: "it-IT",
           scenes: [
             { name: "Tutto OFF", icon: "○", accent: "#8C8C99" },
@@ -285,9 +362,10 @@
       }
 
       wSel.addEventListener("change", mount);
-      [elevEl, azimEl, wxEl, moonEl].forEach((el) =>
-        el.addEventListener("input", refreshHass),
-      );
+      [elevEl, azimEl, wxEl, moonEl, musicEl].forEach((el) => {
+        el.addEventListener("input", refreshHass);
+        el.addEventListener("change", refreshHass);
+      });
       mount();
     </script>
   </body>

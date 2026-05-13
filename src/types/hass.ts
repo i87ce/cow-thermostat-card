@@ -47,12 +47,30 @@ export interface HassSensorAttributes {
 
 export interface HomeAssistant {
   states: Record<string, HassEntity>;
+  /**
+   * Standard fire-and-forget service call.
+   * For services that return data (e.g. `music_assistant.search`,
+   * `music_assistant.get_library`), use {@link callServiceWithResponse}.
+   */
   callService(
     domain: string,
     service: string,
     serviceData?: Record<string, unknown>,
-    target?: { entity_id: string | string[] },
+    target?: { entity_id?: string | string[] },
   ): Promise<void>;
+  /**
+   * HA ≥ 2024.4 service calls that return a payload. The host frontend
+   * passes `return_response: true` to the websocket. We model it as an
+   * overload so call sites stay readable.
+   */
+  callService(
+    domain: string,
+    service: string,
+    serviceData: Record<string, unknown> | undefined,
+    target: { entity_id?: string | string[] } | undefined,
+    notifyOnError: boolean,
+    returnResponse: true,
+  ): Promise<{ response?: unknown }>;
   language?: string;
   locale?: { language: string; time_format?: string };
 }

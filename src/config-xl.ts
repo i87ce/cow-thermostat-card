@@ -45,6 +45,24 @@ export interface CowSceneConfig {
   service?: string;
 }
 
+/** A radio preset shown as a quick-tap chip in the music drawer. */
+export interface CowRadioPreset {
+  /** Display name, e.g. "Radio Deejay" */
+  name: string;
+  /** HTTP(S)/HLS stream URL the speaker can play directly */
+  stream: string;
+  /** Optional logo URL */
+  image?: string;
+  /** Optional accent color hex */
+  color?: string;
+}
+
+/** Music block configuration (top-right hero player + drawer). */
+export interface CowMusicConfig {
+  /** Optional list of radio quick-presets */
+  radios?: CowRadioPreset[];
+}
+
 export interface CowRoomDashboardConfig {
   type: "custom:cow-room-dashboard-card";
   /** Rooms shown in the chip-row header. Min 1, max ~10 to fit visually. */
@@ -65,6 +83,15 @@ export interface CowRoomDashboardConfig {
   moon_entity?: string;
   /** Optional media_player.* entity for the now-playing pill. */
   media_player?: string;
+  /**
+   * Optional Music Assistant config entry id (a ULID-ish string like
+   * "01KR70XN8WQ46Y3B20BQKHG27P"). Required only for Spotify/library
+   * search & browse inside the music drawer; basic transport controls
+   * on the configured `media_player` work without it.
+   */
+  music_assistant_id?: string;
+  /** Optional music-block configuration (radio quick-presets, etc.) */
+  music?: CowMusicConfig;
   /** Optional scene shortcuts row (max 4 fit nicely). */
   scenes?: CowSceneConfig[];
   /** BCP-47 locale for time/date formatting. Defaults to browser language. */
@@ -133,6 +160,32 @@ export function validateXLConfig(input: unknown): CowRoomDashboardConfig {
       })
     : undefined;
 
+  // Music block sub-config (radio quick-presets)
+  let music: CowMusicConfig | undefined;
+  if (typeof cfg.music === "object" && cfg.music !== null) {
+    const m = cfg.music as Record<string, unknown>;
+    const radios: CowRadioPreset[] | undefined = Array.isArray(m.radios)
+      ? m.radios.map((r, i) => {
+          if (typeof r !== "object" || r === null) {
+            throw new CowXLConfigError(`music.radios[${i}] must be an object`);
+          }
+          const rr = r as Record<string, unknown>;
+          if (typeof rr.name !== "string" || typeof rr.stream !== "string") {
+            throw new CowXLConfigError(
+              `music.radios[${i}] requires 'name' and 'stream' strings`,
+            );
+          }
+          return {
+            name: rr.name,
+            stream: rr.stream,
+            image: typeof rr.image === "string" ? rr.image : undefined,
+            color: typeof rr.color === "string" ? rr.color : undefined,
+          };
+        })
+      : undefined;
+    music = { radios };
+  }
+
   return {
     type: "custom:cow-room-dashboard-card",
     rooms,
@@ -144,6 +197,11 @@ export function validateXLConfig(input: unknown): CowRoomDashboardConfig {
       typeof cfg.moon_entity === "string" ? cfg.moon_entity : undefined,
     media_player:
       typeof cfg.media_player === "string" ? cfg.media_player : undefined,
+    music_assistant_id:
+      typeof cfg.music_assistant_id === "string"
+        ? cfg.music_assistant_id
+        : undefined,
+    music,
     scenes,
     locale: typeof cfg.locale === "string" ? cfg.locale : undefined,
   };

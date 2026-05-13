@@ -27,12 +27,24 @@ views:
       - type: custom:cow-room-dashboard-card
         weather_entity: weather.forecast_home
         # Live sky / sun position / moon phases (v0.7.0+).
-        # `sun.sun` is built into HA, always available.
-        # `sensor.moon` requires the `moon:` integration — add a line
-        # `moon:` under `# Sensors` in configuration.yaml.
         sun_entity: sun.sun
         moon_entity: sensor.moon
+        # Music block (v0.8.0+). The speaker is the Shelly Wall Display
+        # in the kitchen. Music Assistant routes Spotify content through
+        # its stream proxy → the speaker.
         media_player: media_player.display_sala
+        music_assistant_id: 01KR70XN8WQ46Y3B20BQKHG27P
+        music:
+          radios:
+            - name: Radio Deejay
+              stream: "https://radiodeejay-lh.akamaihd.net/i/RadioDeejay_Live_1@189857/master.m3u8"
+              color: "#e6202d"
+            - name: RDS 105
+              stream: "https://icestreaming.rai.it/12.mp3"
+              color: "#0066ff"
+            - name: Radio Italia
+              stream: "https://radioitalia-lh.akamaihd.net/i/RadioItalia_Live_1@196312/master.m3u8"
+              color: "#21c25e"
         locale: it-IT
 
         rooms:

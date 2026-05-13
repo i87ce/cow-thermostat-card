@@ -79,6 +79,12 @@ export class CowXLHero extends LitElement {
   /** sensor.moon — drives moon phase (requires `moon:` integration) */
   @property({ type: String }) moonEntity?: string;
   @property({ type: String }) locale?: string;
+  /**
+   * Compact mode: when the music ribbon is visible, the hero is squeezed
+   * from 23rem tall to ~17.5rem. The clock + sun/moon shrink so the
+   * sky-and-time aesthetic stays readable in less vertical space.
+   */
+  @property({ type: Boolean, reflect: true }) compact = false;
 
   @state() private now = new Date();
   private timer?: number;
@@ -96,8 +102,30 @@ export class CowXLHero extends LitElement {
         --cow-sky,
         linear-gradient(180deg, #87ceeb 0%, #b8dff5 55%, #fff4d6 100%)
       );
-      transition: background 4s ease;
+      transition: background 4s ease, height 280ms ease;
       color: var(--cow-text-primary);
+    }
+    :host([compact]) {
+      height: 17.5rem;
+    }
+    :host([compact]) .clock {
+      font-size: 7rem;
+      top: 3.5rem;
+    }
+    :host([compact]) .date {
+      top: 12.75rem;
+      font-size: 1.0625rem;
+    }
+    :host([compact]) .meteo {
+      bottom: 2.5rem;
+      right: 3.5rem;
+    }
+    :host([compact]) .meteo .temp-big { font-size: 4.5rem; }
+    :host([compact]) .meteo .meteo-desc { font-size: 0.9375rem; margin-top: 0.375rem; }
+    :host([compact]) .meteo .meteo-desc-2 { display: none; }
+    :host([compact]) .celestial {
+      width: 14rem;
+      height: 14rem;
     }
 
     /* ─── Sky layers ─────────────────────────────────────────────── */

@@ -1,0 +1,280 @@
+<!doctype html>
+<html lang="it">
+<head>
+<meta charset="utf-8" />
+<title>Mockup A — Mini card + drawer</title>
+<link rel="stylesheet" href="_shared.css" />
+<style>
+  /* Proposta A: la "pillola" musica in alto a destra è una mini card
+     a 3 elementi (cover + titolo a 2 righe + play/pause), tap aprire
+     il drawer slide-up come per le stanze. */
+  .music-mini {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.625rem;
+    height: 3.25rem;
+    padding: 0.375rem 0.625rem 0.375rem 0.375rem;
+    background: var(--cow-surface-white);
+    border: 0.0625rem solid var(--cow-surface-border);
+    border-radius: 1.625rem;
+    cursor: pointer;
+    transition: box-shadow 160ms ease;
+    max-width: 22rem;
+  }
+  .music-mini:hover { box-shadow: 0 0.125rem 0.5rem rgba(31,31,46,0.08); }
+  .music-mini .art { width: 2.5rem; height: 2.5rem; border-radius: 0.5rem; }
+  .music-mini .text {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+    flex: 1;
+  }
+  .music-mini .title {
+    font-weight: 600;
+    font-size: 0.8125rem;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    line-height: 1.1;
+  }
+  .music-mini .artist {
+    font-weight: 400;
+    font-size: 0.6875rem;
+    color: var(--cow-text-secondary);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    line-height: 1.2;
+    margin-top: 0.125rem;
+  }
+  .music-mini .play-btn {
+    flex: 0 0 auto;
+    width: 2rem; height: 2rem;
+    border-radius: 50%;
+    background: var(--cow-text-primary);
+    color: white;
+    border: 0;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.875rem;
+    cursor: pointer;
+  }
+
+  /* ── Drawer slide-up ── */
+  .scrim {
+    position: absolute;
+    inset: 0;
+    background: rgba(31,31,46,0.32);
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 280ms ease;
+    z-index: 5;
+  }
+  .scrim.open { opacity: 1; pointer-events: auto; }
+
+  .music-drawer {
+    position: absolute;
+    left: 0; right: 0; bottom: 0;
+    height: 30rem;
+    background: var(--cow-surface-white);
+    border-top-left-radius: 1.5rem;
+    border-top-right-radius: 1.5rem;
+    box-shadow: 0 -0.5rem 2rem rgba(31,31,46,0.18);
+    transform: translateY(100%);
+    transition: transform 320ms cubic-bezier(.2,.7,.2,1);
+    padding: 1rem 1.5rem 1.5rem;
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+    z-index: 6;
+  }
+  .music-drawer.open { transform: translateY(0); }
+  .drawer-handle {
+    width: 3rem; height: 0.25rem;
+    border-radius: 0.125rem;
+    background: var(--cow-text-disabled);
+    align-self: center;
+  }
+  .now-playing {
+    display: grid;
+    grid-template-columns: 11rem 1fr auto;
+    gap: 1.5rem;
+    align-items: center;
+  }
+  .now-playing .art-big { width: 11rem; height: 11rem; border-radius: 0.75rem; }
+  .now-playing .meta-title { font-size: 1.5rem; font-weight: 700; }
+  .now-playing .meta-artist { font-size: 1rem; color: var(--cow-text-secondary); margin-top: 0.25rem; }
+  .now-playing .progress { margin-top: 0.875rem; display: flex; align-items: center; gap: 0.625rem; }
+  .now-playing .bar { flex: 1; height: 0.25rem; background: var(--cow-surface-button-bg); border-radius: 0.125rem; position: relative; }
+  .now-playing .bar::before { content:""; position:absolute; left:0; top:0; bottom:0; width:40%; background: var(--cow-text-primary); border-radius:0.125rem; }
+  .now-playing .time { font-size: 0.75rem; color: var(--cow-text-secondary); font-variant-numeric: tabular-nums; }
+  .transport-controls { display: flex; align-items: center; gap: 0.5rem; }
+
+  .volume-row {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    padding-top: 0.5rem;
+    border-top: 1px solid var(--cow-surface-border);
+  }
+  .volume-row .icon { font-size: 1.125rem; }
+  .volume-row .slider { flex: 1; height: 0.25rem; background: var(--cow-surface-button-bg); border-radius: 0.125rem; position: relative; }
+  .volume-row .slider::before { content:""; position:absolute; left:0; top:0; bottom:0; width:60%; background: var(--cow-text-primary); border-radius:0.125rem; }
+  .volume-row .value { font-size: 0.8125rem; color: var(--cow-text-secondary); }
+  .device-chip {
+    background: var(--cow-surface-button-bg);
+    border-radius: 1rem;
+    padding: 0.25rem 0.75rem;
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: var(--cow-text-primary);
+  }
+
+  .tabs {
+    display: flex;
+    gap: 0.5rem;
+    padding-top: 0.5rem;
+  }
+  .tab {
+    padding: 0.5rem 1rem;
+    border-radius: 1rem;
+    font-weight: 600;
+    font-size: 0.875rem;
+    background: var(--cow-surface-button-bg);
+    color: var(--cow-text-primary);
+    cursor: pointer;
+  }
+  .tab[data-active] { background: var(--cow-text-primary); color: white; }
+
+  .tab-content {
+    flex: 1;
+    overflow-y: auto;
+  }
+  .quick-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 0.625rem;
+  }
+  .quick-item {
+    background: var(--cow-surface-background);
+    border: 1px solid var(--cow-surface-border);
+    border-radius: 0.75rem;
+    padding: 0.625rem 0.875rem;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 0.625rem;
+  }
+  .quick-item:hover { background: white; }
+  .quick-item .icon-sq { width: 2rem; height: 2rem; border-radius: 0.375rem; display:flex; align-items:center; justify-content:center; color: white; }
+  .quick-item .qi-text { display:flex; flex-direction:column; min-width:0; }
+  .quick-item .qi-name { font-weight: 600; font-size: 0.875rem; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .quick-item .qi-sub { font-size: 0.6875rem; color: var(--cow-text-secondary); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+
+  .search-box {
+    width: 100%;
+    height: 2.25rem;
+    border-radius: 1.125rem;
+    border: 1px solid var(--cow-surface-border);
+    padding: 0 1rem;
+    font-size: 0.875rem;
+    background: var(--cow-surface-background);
+  }
+</style>
+</head>
+<body>
+<header class="toolbar">
+  <h1>Mockup <b>A</b> — Mini card top-right + drawer slide-up</h1>
+  <span class="pill">click sulla mini card per aprire il drawer</span>
+  <span style="flex:1"></span>
+  <a href="index.html">‹ tutti i mockup</a>
+  <a href="b-ribbon.html">B — ribbon ›</a>
+</header>
+<div class="stage"><div class="frame" id="frame"></div></div>
+
+<script type="module">
+import { MOCK, fmt, renderShell } from "./_shell.js";
+const frame = document.getElementById("frame");
+renderShell(frame);
+
+// Insert the mini-card into the music-pill slot
+const slot = frame.querySelector("#music-pill-slot");
+slot.outerHTML = `
+  <div class="music-mini" id="open-music">
+    <div class="art album-art"></div>
+    <div class="text">
+      <div class="title">${MOCK.track.title}</div>
+      <div class="artist">${MOCK.track.artist}</div>
+    </div>
+    <button class="play-btn">⏸</button>
+  </div>
+`;
+
+// Drawer
+const scrim = document.createElement("div");
+scrim.className = "scrim";
+frame.appendChild(scrim);
+
+const drawer = document.createElement("div");
+drawer.className = "music-drawer";
+drawer.innerHTML = `
+  <div class="drawer-handle"></div>
+  <div class="now-playing">
+    <div class="art-big album-art"></div>
+    <div>
+      <div class="meta-title">${MOCK.track.title}</div>
+      <div class="meta-artist">${MOCK.track.artist} · ${MOCK.track.album}</div>
+      <div class="progress">
+        <span class="time">${fmt(MOCK.track.progress)}</span>
+        <div class="bar"></div>
+        <span class="time">${fmt(MOCK.track.duration)}</span>
+      </div>
+      <div class="transport-controls" style="margin-top:0.75rem">
+        <button class="btn-icon">🔀</button>
+        <button class="btn-icon">⏮</button>
+        <button class="btn-icon primary">⏸</button>
+        <button class="btn-icon">⏭</button>
+        <button class="btn-icon">🔁</button>
+      </div>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:0.5rem;align-items:flex-end">
+      <div class="device-chip">📻 ${MOCK.device}</div>
+      <button class="btn-icon" title="Cambia speaker">⇄</button>
+    </div>
+  </div>
+  <div class="volume-row">
+    <span class="icon">🔊</span>
+    <div class="slider"></div>
+    <span class="value">${MOCK.volume}%</span>
+  </div>
+  <div class="tabs">
+    <div class="tab" data-active>Spotify</div>
+    <div class="tab">Radio</div>
+    <div class="tab">Coda</div>
+  </div>
+  <div class="tab-content">
+    <input class="search-box" placeholder="Cerca su Spotify: brano, artista, album…" />
+    <div style="height:0.75rem"></div>
+    <div style="font-size:0.75rem;font-weight:700;letter-spacing:0.0625rem;text-transform:uppercase;color:var(--cow-text-secondary);margin-bottom:0.5rem">LE TUE PLAYLIST</div>
+    <div class="quick-grid">
+      ${MOCK.playlists.map(p => `
+        <div class="quick-item">
+          <div class="icon-sq" style="background:linear-gradient(135deg,#1ed760,#0e7c3a)">♪</div>
+          <div class="qi-text">
+            <div class="qi-name">${p.name}</div>
+            <div class="qi-sub">${p.desc}</div>
+          </div>
+        </div>`).join("")}
+    </div>
+  </div>
+`;
+frame.appendChild(drawer);
+
+const open = () => { scrim.classList.add("open"); drawer.classList.add("open"); };
+const close = () => { scrim.classList.remove("open"); drawer.classList.remove("open"); };
+frame.querySelector("#open-music").addEventListener("click", open);
+scrim.addEventListener("click", close);
+</script>
+</body>
+</html>

@@ -1,4 +1,4 @@
-import { LitElement, html, css, nothing } from "lit";
+import { LitElement, html, css, nothing, type TemplateResult } from "lit";
 import { customElement, property } from "lit/decorators.js";
 import type { HomeAssistant } from "../types/hass.js";
 import type { CowRoomConfig } from "../config-xl.js";
@@ -18,7 +18,18 @@ export class CowXLHeader extends LitElement {
   @property({ type: Array }) rooms: CowRoomConfig[] = [];
   @property({ type: Number }) activeIndex = -1;
   @property({ type: String }) weatherEntity?: string;
+  /**
+   * Backwards-compatible: a media_player entity_id to render a quick
+   * "now playing" pill. As of v0.8.0 the parent typically passes
+   * `musicPillSlot` instead so the music block owns its rendering.
+   */
   @property({ type: String }) mediaPlayer?: string;
+  /**
+   * Music pill to render in the top-right header alongside the weather
+   * pill. The parent (cow-room-dashboard-card) decides what to show
+   * here (idle pill, hidden during ribbon/cinema mode, etc.).
+   */
+  @property({ attribute: false }) musicPillSlot?: TemplateResult;
 
   static override styles = css`
     :host {
@@ -338,13 +349,15 @@ export class CowXLHeader extends LitElement {
         ${weather
           ? html`<div class="pill">${weather}</div>`
           : nothing}
-        ${media
-          ? html`<div class="pill">
-              <span>♪</span>
-              <span>${media}</span>
-              <button class="play" aria-label="Play/pause">II</button>
-            </div>`
-          : nothing}
+        ${this.musicPillSlot
+          ? this.musicPillSlot
+          : media
+            ? html`<div class="pill">
+                <span>♪</span>
+                <span>${media}</span>
+                <button class="play" aria-label="Play/pause">II</button>
+              </div>`
+            : nothing}
       </div>
       <div class="groups">
         ${rows.map(

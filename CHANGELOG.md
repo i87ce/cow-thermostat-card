@@ -4,6 +4,63 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and
 this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.8.0] — 2026-05-13
+
+### Added
+- **Music block** — the tiny now-playing pill in the header is replaced
+  by a real music player wired to Home Assistant + Music Assistant.
+  Three UI modes driven by `media_player.<target>.state`:
+  - **idle** → a "▶ Riprendi" pill in the header top-right next to the
+    weather pill. Tap = resume last track on the speaker.
+  - **playing / paused** → a full-width `cow-xl-music-ribbon` appears
+    between the chip tiles and the hero. Shows album art, title +
+    artist + album, progress bar, transport (⏮ ⏸/▶ ⏭), volume slider,
+    a 📋 button that opens the browse drawer, and a ⛶ button (or tap
+    on the album art) that expands into…
+  - **cinema** → the live-sky hero is replaced by `cow-xl-music-cinema`:
+    a wallpaper-sized player with a 18 rem album cover on the left and
+    title + transport + volume + radio quick-chips on the right. A
+    small clock + date stays in the top-right of the cinema panel. ✕
+    returns to the ribbon.
+- **Music drawer** — slide-up panel with three tabs:
+  - **Spotify** — search box (debounced 380 ms) hitting the
+    `music_assistant.search` service across track/album/playlist; when
+    empty, falls back to the user's Spotify playlists via
+    `music_assistant.get_library`.
+  - **Radio** — quick-tap chips for configured radio presets. Plays
+    via `media_player.play_media` directly with the raw HTTP/HLS URL
+    so MA isn't in the loop for plain radio streams.
+  - **Coda** — current Music Assistant queue.
+- **Hero compact mode** — the `cow-xl-hero` element now reflects a
+  `compact` attribute that shrinks the host to 17.5 rem, scales the
+  clock to 7 rem, and tightens the celestial body / weather pill. The
+  parent passes `compact` when the music ribbon is visible so both fit
+  inside the 50 rem card height without overlapping the scene
+  shortcuts.
+- **New config keys** on `custom:cow-room-dashboard-card`:
+  - `media_player`: the speaker entity (e.g. `media_player.display_sala`).
+  - `music_assistant_id`: the MA config entry id (a ULID string from
+    `config_entries/get?domain=music_assistant`). Required for search
+    & browse, optional for plain transport.
+  - `music.radios[]`: list of `{name, stream, image?, color?}` quick
+    presets shown in the drawer Radio tab + as inline chips in cinema
+    mode.
+
+### Internals
+- New `src/devices-xl/music/` package with 4 Lit components
+  (`music-pill`, `music-ribbon`, `music-cinema`, `music-drawer`) plus
+  a `MaClient` wrapper around `hass.callService` that normalizes MA
+  responses (`{response: {tracks/albums/playlists/items: [...]}}`
+  shapes) into a single `MaItem` interface.
+- `HomeAssistant.callService` type updated to accept the HA ≥ 2024.4
+  `notifyOnError + returnResponse` overload so we can `await` typed
+  responses from MA.
+- `cow-xl-header` now accepts a `musicPillSlot: TemplateResult` so
+  the parent owns what's rendered alongside the weather pill (idle
+  pill, nothing during ribbon/cinema, future overlays, etc.). The
+  legacy `mediaPlayer` prop is kept for backwards compatibility but
+  is overridden when `musicPillSlot` is present.
+
 ## [0.7.3] — 2026-05-12
 
 ### Changed
