@@ -35,10 +35,11 @@ export const globalShell = css`
    * paints over the panel-view padding and reaches the screen edges.
    */
   :host([panel]) {
-    position: absolute;
+    position: fixed;
     inset: 0;
     width: auto;
     height: auto;
+    z-index: 0;
   }
 
   /*
