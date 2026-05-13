@@ -34,6 +34,8 @@ export class CowXLMusicRibbon extends LitElement {
     }
 
     .ribbon {
+      box-sizing: border-box;
+      width: 100%;
       height: 5rem;
       background: var(--cow-surface-white);
       border: 0.0625rem solid var(--cow-surface-border);

@@ -35,7 +35,13 @@ views:
         # live from MA's "Radio Browser" provider (~50k stations) and
         # surfaced from the user's MA favorites (heart icon in MA UI) —
         # no URLs hardcoded here on purpose.
-        media_player: media_player.display_sala
+        # `media_player.music_assistant` is the universal MA player that
+        # always works because MA streams to it natively. Once the Shelly
+        # firmware compatibility issue is resolved (Settings → MA →
+        # Players → Display Sala → Output protocol = MP3 stream), swap
+        # this to `media_player.display_sala_2` so audio actually plays
+        # on the Wall Display speaker.
+        media_player: media_player.music_assistant
         music_assistant_id: 01KR70XN8WQ46Y3B20BQKHG27P
         # music:
         #   favorite_radios_limit: 6   # default — chips in cinema mode

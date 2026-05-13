@@ -43,6 +43,7 @@ export class CowXLMusicCinema extends LitElement {
     }
 
     .cinema {
+      box-sizing: border-box;
       width: 100%;
       height: 100%;
       background: linear-gradient(
@@ -58,7 +59,7 @@ export class CowXLMusicCinema extends LitElement {
       display: grid;
       grid-template-columns: 18rem 1fr;
       gap: 2.5rem;
-      padding: 2.25rem 2.5rem;
+      padding: 2rem 2.25rem;
       font: inherit;
     }
 
