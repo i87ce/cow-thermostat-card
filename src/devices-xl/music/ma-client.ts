@@ -85,6 +85,48 @@ export class MaClient {
     return normalizeItems(res);
   }
 
+  /**
+   * Radio-specific search — narrower than the generic Spotify search.
+   * Requires the "Radio Browser" provider (https://www.radio-browser.info/)
+   * to be installed in Music Assistant. If it isn't, this returns [].
+   */
+  async searchRadios(query: string, limit = 30): Promise<MaItem[]> {
+    if (!this.configEntryId) return [];
+    const res = await this.hass.callService(
+      "music_assistant",
+      "search",
+      {
+        config_entry_id: this.configEntryId,
+        name: query,
+        media_type: ["radio"],
+        limit,
+      },
+      undefined,
+      true,
+      true,
+    );
+    return normalizeItems(res);
+  }
+
+  /** Favorited radios (heart on each station in MA). */
+  async getFavoriteRadios(limit = 30): Promise<MaItem[]> {
+    if (!this.configEntryId) return [];
+    const res = await this.hass.callService(
+      "music_assistant",
+      "get_library",
+      {
+        config_entry_id: this.configEntryId,
+        media_type: "radio",
+        favorite: true,
+        limit,
+      },
+      undefined,
+      true,
+      true,
+    );
+    return normalizeItems(res);
+  }
+
   async getQueue(): Promise<MaItem[]> {
     if (!this.configEntryId) return [];
     const res = await this.hass.callService(

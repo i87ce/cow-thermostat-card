@@ -26,7 +26,11 @@ import "./devices-xl/music/music-cinema.js";
 import "./devices-xl/music/music-drawer.js";
 
 import { MaClient } from "./devices-xl/music/ma-client.js";
-import type { NowPlaying, MusicMode, MaItem } from "./devices-xl/music/types.js";
+import type {
+  NowPlaying,
+  MusicMode,
+  MaItem,
+} from "./devices-xl/music/types.js";
 
 /**
  * Cave of Wonders ROOM DASHBOARD card — for the Shelly Wall Display XL (10.1").
@@ -51,8 +55,13 @@ export class CowRoomDashboardCard
    * but the cinema-vs-ribbon split is user-controlled (defaults to ribbon). */
   @state() private cinemaOpen = false;
   @state() private musicDrawerOpen = false;
+  /** Favorite radios from MA's library — fetched lazily on first need
+   * (when entering cinema mode or opening the drawer). */
+  @state() private favoriteRadios: MaItem[] = [];
   /** Live "now playing" snapshot, computed every render from hass. */
   private nowPlaying: NowPlaying = { status: "idle" };
+  /** Guards a single in-flight favorite-radios fetch. */
+  private favoriteRadiosFetched = false;
 
   static override styles = [
     fontFaces,
@@ -259,20 +268,39 @@ export class CowRoomDashboardCard
   private onMusicVolume = (e: CustomEvent<number>) =>
     this.withClient((c) => c.setVolume(e.detail));
   private onMusicResume = () => this.withClient((c) => c.play_());
-  private onMusicCinema = () => { this.cinemaOpen = true; };
-  private onMusicCloseCinema = () => { this.cinemaOpen = false; };
-  private onMusicBrowse = () => { this.musicDrawerOpen = true; };
-  private onMusicCloseDrawer = () => { this.musicDrawerOpen = false; };
-
-  private onMusicRadioPlay = (e: CustomEvent<{ url: string; name: string }>) => {
-    this.withClient((c) => c.playUrl(e.detail.url));
-    this.musicDrawerOpen = false;
+  private onMusicCinema = () => {
+    this.cinemaOpen = true;
+    this.ensureFavoriteRadios();
   };
+  private onMusicCloseCinema = () => { this.cinemaOpen = false; };
+  private onMusicBrowse = () => {
+    this.musicDrawerOpen = true;
+    this.ensureFavoriteRadios();
+  };
+  private onMusicCloseDrawer = () => { this.musicDrawerOpen = false; };
 
   private onMusicPlayItem = (e: CustomEvent<MaItem>) => {
     this.withClient((c) => c.play(e.detail));
     this.musicDrawerOpen = false;
   };
+
+  /**
+   * Fetch the user's favorite radios from MA once per session. Called
+   * lazily on first access (cinema open or drawer open) so we don't
+   * spam MA before the user actually wants the data.
+   */
+  private async ensureFavoriteRadios(): Promise<void> {
+    if (this.favoriteRadiosFetched) return;
+    const c = this.getMaClient();
+    if (!c?.isMaAvailable) return;
+    this.favoriteRadiosFetched = true;
+    try {
+      const limit = this.config?.music?.favorite_radios_limit ?? 6;
+      this.favoriteRadios = await c.getFavoriteRadios(Math.max(limit, 6));
+    } catch {
+      this.favoriteRadiosFetched = false; // allow retry next time
+    }
+  }
 
   override render() {
     if (!this.config) {
@@ -334,7 +362,10 @@ export class CowRoomDashboardCard
         ${showCinema
           ? html`<cow-xl-music-cinema
               .nowPlaying=${this.nowPlaying}
-              .radios=${cfg.music?.radios ?? []}
+              .favoriteRadios=${this.favoriteRadios.slice(
+                0,
+                cfg.music?.favorite_radios_limit ?? 6,
+              )}
               .clockText=${this.formatNowTime(heroLocale)}
               .dateText=${this.formatNowDate(heroLocale)}
               .deviceLabel=${deviceLabel}
@@ -344,7 +375,7 @@ export class CowRoomDashboardCard
               @cow-music-next=${this.onMusicNext}
               @cow-music-volume=${this.onMusicVolume}
               @cow-music-browse=${this.onMusicBrowse}
-              @cow-music-radio-play=${this.onMusicRadioPlay}
+              @cow-music-play-item=${this.onMusicPlayItem}
             ></cow-xl-music-cinema>`
           : html`<div class="hero-wrap" ?data-shrunk=${showRibbon}>
               <cow-xl-hero
@@ -378,11 +409,9 @@ export class CowRoomDashboardCard
           ? html`<cow-xl-music-drawer
               ?open=${this.musicDrawerOpen}
               .ma=${maClient}
-              .radios=${cfg.music?.radios ?? []}
               .deviceLabel=${deviceLabel}
               @cow-music-drawer-close=${this.onMusicCloseDrawer}
               @cow-music-play-item=${this.onMusicPlayItem}
-              @cow-music-radio-play=${this.onMusicRadioPlay}
             ></cow-xl-music-drawer>`
           : ""}
       </div>

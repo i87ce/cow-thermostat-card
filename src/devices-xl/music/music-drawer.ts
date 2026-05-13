@@ -14,13 +14,11 @@ import { LitElement, html, css, nothing } from "lit";
 import { customElement, property, state } from "lit/decorators.js";
 import type { MaClient } from "./ma-client.js";
 import type { MaItem, DrawerTab } from "./types.js";
-import type { CowRadioPreset } from "../../config-xl.js";
 
 @customElement("cow-xl-music-drawer")
 export class CowXLMusicDrawer extends LitElement {
   @property({ type: Boolean, reflect: true }) open = false;
   @property({ attribute: false }) ma?: MaClient;
-  @property({ attribute: false }) radios: CowRadioPreset[] = [];
   @property({ type: String }) deviceLabel = "";
 
   @state() private tab: DrawerTab = "spotify";
@@ -28,10 +26,16 @@ export class CowXLMusicDrawer extends LitElement {
   @state() private results: MaItem[] = [];
   @state() private playlists: MaItem[] = [];
   @state() private queue: MaItem[] = [];
+  /** Radio-specific state — separate from Spotify search to avoid mixing
+   * media types when the user toggles between tabs. */
+  @state() private radioQuery = "";
+  @state() private radioResults: MaItem[] = [];
+  @state() private radioFavorites: MaItem[] = [];
   @state() private loading = false;
   @state() private error = "";
 
   private searchTimer?: number;
+  private radioSearchTimer?: number;
 
   static override styles = css`
     :host {
@@ -254,6 +258,11 @@ export class CowXLMusicDrawer extends LitElement {
           this.loading = true;
           this.playlists = await this.ma.getLibrary("playlist", { limit: 24 });
         }
+      } else if (this.tab === "radio") {
+        if (!this.radioFavorites.length) {
+          this.loading = true;
+          this.radioFavorites = await this.ma.getFavoriteRadios(30);
+        }
       } else if (this.tab === "queue") {
         this.loading = true;
         this.queue = await this.ma.getQueue();
@@ -315,14 +324,30 @@ export class CowXLMusicDrawer extends LitElement {
     );
   }
 
-  private playRadio(r: CowRadioPreset) {
-    this.dispatchEvent(
-      new CustomEvent("cow-music-radio-play", {
-        detail: { url: r.stream, name: r.name },
-        bubbles: true,
-        composed: true,
-      }),
-    );
+  private onRadioSearchInput = (e: Event) => {
+    const v = (e.target as HTMLInputElement).value;
+    this.radioQuery = v;
+    if (this.radioSearchTimer) window.clearTimeout(this.radioSearchTimer);
+    if (!v.trim()) {
+      this.radioResults = [];
+      return;
+    }
+    this.radioSearchTimer = window.setTimeout(() => this.runRadioSearch(), 380);
+  };
+
+  private async runRadioSearch() {
+    if (!this.ma) return;
+    if (!this.radioQuery.trim()) return;
+    this.loading = true;
+    this.error = "";
+    try {
+      this.radioResults = await this.ma.searchRadios(this.radioQuery, 30);
+    } catch (e) {
+      this.error = String((e as Error)?.message ?? e);
+      this.radioResults = [];
+    } finally {
+      this.loading = false;
+    }
   }
 
   override render() {
@@ -384,31 +409,31 @@ export class CowXLMusicDrawer extends LitElement {
   }
 
   private renderRadio() {
+    const showResults = this.radioQuery.trim().length > 0;
+    const placeholder = this.ma?.isMaAvailable
+      ? "Cerca radio: nome, città, genere…"
+      : "Music Assistant non configurato";
     return html`
+      <div class="search">
+        <input
+          class="search-box"
+          placeholder=${placeholder}
+          .value=${this.radioQuery}
+          @input=${this.onRadioSearchInput}
+          ?disabled=${!this.ma?.isMaAvailable}
+        />
+      </div>
       <div class="content">
-        ${this.radios.length === 0
-          ? html`<div class="empty">Nessuna radio configurata.</div>`
-          : html`
-              <div class="section-h">Radio preset</div>
-              <div class="grid">
-                ${this.radios.map(
-                  (r) => html`
-                    <button class="item" @click=${() => this.playRadio(r)}>
-                      <span
-                        class="icon-sq"
-                        style=${`background:${r.color ?? "#1f1f2e"}${
-                          r.image ? `; background-image:url("${r.image}")` : ""
-                        }`}
-                      >📻</span>
-                      <div class="text">
-                        <div class="name">${r.name}</div>
-                        <div class="sub">In diretta</div>
-                      </div>
-                    </button>
-                  `,
-                )}
-              </div>
-            `}
+        ${this.error ? html`<div class="error">${this.error}</div>` : nothing}
+        ${showResults
+          ? this.renderResultGrid("Risultati", this.radioResults)
+          : this.radioFavorites.length > 0
+            ? this.renderResultGrid("Radio preferite", this.radioFavorites)
+            : html`<div class="empty">
+                Nessuna radio nei preferiti.<br />
+                Cerca con la barra in alto o aggiungi una radio ai
+                preferiti in Music Assistant (cuore sulla stazione).
+              </div>`}
       </div>
     `;
   }

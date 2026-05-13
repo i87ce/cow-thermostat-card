@@ -45,22 +45,18 @@ export interface CowSceneConfig {
   service?: string;
 }
 
-/** A radio preset shown as a quick-tap chip in the music drawer. */
-export interface CowRadioPreset {
-  /** Display name, e.g. "Radio Deejay" */
-  name: string;
-  /** HTTP(S)/HLS stream URL the speaker can play directly */
-  stream: string;
-  /** Optional logo URL */
-  image?: string;
-  /** Optional accent color hex */
-  color?: string;
-}
-
-/** Music block configuration (top-right hero player + drawer). */
+/**
+ * Music block configuration (top-right hero player + drawer).
+ *
+ * Radios are not hardcoded here on purpose: as of v0.8.1 the drawer
+ * does live search against Music Assistant's "Radio Browser" provider
+ * (~50k stations) and surfaces user-favorited stations from MA. The
+ * only optional knob is `favorite_radios_limit` if you ever want to
+ * cap how many favorites show up as quick-chips in cinema mode.
+ */
 export interface CowMusicConfig {
-  /** Optional list of radio quick-presets */
-  radios?: CowRadioPreset[];
+  /** Max favorite radios shown as quick-chips in cinema mode (default 6). */
+  favorite_radios_limit?: number;
 }
 
 export interface CowRoomDashboardConfig {
@@ -160,30 +156,16 @@ export function validateXLConfig(input: unknown): CowRoomDashboardConfig {
       })
     : undefined;
 
-  // Music block sub-config (radio quick-presets)
+  // Music block sub-config
   let music: CowMusicConfig | undefined;
   if (typeof cfg.music === "object" && cfg.music !== null) {
     const m = cfg.music as Record<string, unknown>;
-    const radios: CowRadioPreset[] | undefined = Array.isArray(m.radios)
-      ? m.radios.map((r, i) => {
-          if (typeof r !== "object" || r === null) {
-            throw new CowXLConfigError(`music.radios[${i}] must be an object`);
-          }
-          const rr = r as Record<string, unknown>;
-          if (typeof rr.name !== "string" || typeof rr.stream !== "string") {
-            throw new CowXLConfigError(
-              `music.radios[${i}] requires 'name' and 'stream' strings`,
-            );
-          }
-          return {
-            name: rr.name,
-            stream: rr.stream,
-            image: typeof rr.image === "string" ? rr.image : undefined,
-            color: typeof rr.color === "string" ? rr.color : undefined,
-          };
-        })
-      : undefined;
-    music = { radios };
+    music = {
+      favorite_radios_limit:
+        typeof m.favorite_radios_limit === "number"
+          ? m.favorite_radios_limit
+          : undefined,
+    };
   }
 
   return {

@@ -29,22 +29,16 @@ views:
         # Live sky / sun position / moon phases (v0.7.0+).
         sun_entity: sun.sun
         moon_entity: sensor.moon
-        # Music block (v0.8.0+). The speaker is the Shelly Wall Display
-        # in the kitchen. Music Assistant routes Spotify content through
-        # its stream proxy → the speaker.
+        # Music block (v0.8.1+). The speaker is the Shelly Wall Display
+        # in the kitchen. Music Assistant routes Spotify content
+        # through its stream proxy → the speaker. Radios are searched
+        # live from MA's "Radio Browser" provider (~50k stations) and
+        # surfaced from the user's MA favorites (heart icon in MA UI) —
+        # no URLs hardcoded here on purpose.
         media_player: media_player.display_sala
         music_assistant_id: 01KR70XN8WQ46Y3B20BQKHG27P
-        music:
-          radios:
-            - name: Radio Deejay
-              stream: "https://radiodeejay-lh.akamaihd.net/i/RadioDeejay_Live_1@189857/master.m3u8"
-              color: "#e6202d"
-            - name: RDS 105
-              stream: "https://icestreaming.rai.it/12.mp3"
-              color: "#0066ff"
-            - name: Radio Italia
-              stream: "https://radioitalia-lh.akamaihd.net/i/RadioItalia_Live_1@196312/master.m3u8"
-              color: "#21c25e"
+        # music:
+        #   favorite_radios_limit: 6   # default — chips in cinema mode
         locale: it-IT
 
         rooms:

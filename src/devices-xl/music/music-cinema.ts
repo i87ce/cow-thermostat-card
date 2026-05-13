@@ -21,13 +21,13 @@
  */
 import { LitElement, html, css, nothing } from "lit";
 import { customElement, property } from "lit/decorators.js";
-import type { NowPlaying } from "./types.js";
-import type { CowRadioPreset } from "../../config-xl.js";
+import type { MaItem, NowPlaying } from "./types.js";
 
 @customElement("cow-xl-music-cinema")
 export class CowXLMusicCinema extends LitElement {
   @property({ attribute: false }) nowPlaying?: NowPlaying;
-  @property({ attribute: false }) radios?: CowRadioPreset[];
+  /** Up to N favorited radios from MA's library (heart icon in MA). */
+  @property({ attribute: false }) favoriteRadios?: MaItem[];
   @property({ type: String }) clockText?: string;
   @property({ type: String }) dateText?: string;
   @property({ type: String }) deviceLabel?: string;
@@ -362,18 +362,17 @@ export class CowXLMusicCinema extends LitElement {
                 class="chip primary"
                 @click=${() => this.emit("cow-music-browse")}
               >Sfoglia Spotify…</button>
-              ${(this.radios ?? []).map(
+              ${(this.favoriteRadios ?? []).map(
                 (r) => html`
                   <button
                     class="chip"
-                    style=${r.color ? `background:${r.color}cc` : ""}
                     @click=${() =>
-                      this.emit("cow-music-radio-play", { url: r.stream, name: r.name })}
+                      this.emit("cow-music-play-item", r)}
                   >📻 ${r.name}</button>
                 `,
               )}
               ${this.deviceLabel
-                ? html`<span class="device-tag">📻 ${this.deviceLabel}</span>`
+                ? html`<span class="device-tag">📡 ${this.deviceLabel}</span>`
                 : nothing}
             </div>
           </div>

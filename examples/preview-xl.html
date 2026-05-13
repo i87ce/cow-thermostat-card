@@ -278,6 +278,17 @@
           { uri: "spotify--mock://track/2", name: "Ora che non ho più te", artist: "Cesare Cremonini", subtitle: "Possibili scenari" },
           { uri: "spotify--mock://track/3", name: "La Nuova Stella Di Broadway", artist: "Cesare Cremonini", subtitle: "Il primo bacio sulla Luna" },
         ];
+        const MOCK_RADIOS_FAVORITES = [
+          { uri: "radiobrowser--mock://radio/1", media_type: "radio", name: "Radio Deejay", subtitle: "Italia · Pop" },
+          { uri: "radiobrowser--mock://radio/2", media_type: "radio", name: "RDS 100% Grandi Successi", subtitle: "Italia · Hits" },
+          { uri: "radiobrowser--mock://radio/3", media_type: "radio", name: "Radio Italia Solo Musica Italiana", subtitle: "Italia" },
+          { uri: "radiobrowser--mock://radio/4", media_type: "radio", name: "m2o", subtitle: "Italia · Dance" },
+        ];
+        const MOCK_RADIOS_SEARCH = [
+          { uri: "radiobrowser--mock://radio/5", media_type: "radio", name: "Radio Capital", subtitle: "Italia · Rock" },
+          { uri: "radiobrowser--mock://radio/6", media_type: "radio", name: "Radio 105", subtitle: "Italia · Pop" },
+          { uri: "radiobrowser--mock://radio/7", media_type: "radio", name: "Virgin Radio Italy", subtitle: "Italia · Rock" },
+        ];
 
         return {
           states,
@@ -287,9 +298,17 @@
               if (domain === "music_assistant" && service === "get_library") {
                 if (data?.media_type === "playlist")
                   return { response: { items: MOCK_PLAYLISTS } };
+                if (data?.media_type === "radio")
+                  return { response: { items: MOCK_RADIOS_FAVORITES } };
                 return { response: { items: [] } };
               }
               if (domain === "music_assistant" && service === "search") {
+                const types = Array.isArray(data?.media_type)
+                  ? data.media_type
+                  : [data?.media_type];
+                if (types.includes("radio")) {
+                  return { response: { items: MOCK_RADIOS_SEARCH } };
+                }
                 return { response: { tracks: MOCK_TRACKS } };
               }
               if (domain === "music_assistant" && service === "get_queue") {
@@ -336,13 +355,9 @@
           moon_entity: "sensor.moon",
           media_player: "media_player.display_sala",
           music_assistant_id: "01KR70XN8WQ46Y3B20BQKHG27P",
-          music: {
-            radios: [
-              { name: "Radio Deejay", stream: "https://radiodeejay-lh.akamaihd.net/i/RadioDeejay_Live_1@189857/master.m3u8", color: "#e6202d" },
-              { name: "RDS 105",      stream: "https://icestreaming.rai.it/12.mp3",                                        color: "#0066ff" },
-              { name: "Radio Italia", stream: "https://radioitalia-lh.akamaihd.net/i/RadioItalia_Live_1@196312/master.m3u8", color: "#21c25e" },
-            ],
-          },
+          // Radio presets are no longer hardcoded — the drawer Radio tab
+          // does a live search against MA's Radio Browser provider and
+          // shows the user's favorited stations from MA's library.
           locale: "it-IT",
           scenes: [
             { name: "Tutto OFF", icon: "○", accent: "#8C8C99" },

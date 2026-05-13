@@ -4,6 +4,30 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and
 this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.8.1] — 2026-05-13
+
+### Changed
+- **Radios are now MA-driven, not hardcoded.** The drawer's Radio tab
+  is a live search box that hits `music_assistant.search` with
+  `media_type: ["radio"]` (Radio Browser provider, ~50k stations) and
+  falls back to the user's MA favorites
+  (`music_assistant.get_library` with `favorite: true`) when the box
+  is empty. Cinema mode shows the top N (default 6) favorited radios
+  as quick-chips instead of YAML-configured presets.
+- **Removed** `music.radios[]` from the card config schema. The only
+  optional knob left is `music.favorite_radios_limit` (cinema chips).
+- Cinema "📻 RDS / Deejay / Italia" chips now dispatch
+  `cow-music-play-item` with the real `MaItem` from MA — so MA
+  resolves the stream URL through its proxy and routes audio to the
+  speaker. Plain-HTTP `playUrl()` path is still available in the
+  client for ad-hoc URL playback.
+
+### Internals
+- `MaClient.searchRadios(query, limit)` and
+  `MaClient.getFavoriteRadios(limit)` helpers.
+- `cow-room-dashboard-card` lazily fetches favorite radios on first
+  cinema/drawer open and caches them for the session.
+
 ## [0.8.0] — 2026-05-13
 
 ### Added
