@@ -63,8 +63,13 @@ export class CowDeviceSwiper extends LitElement {
       width: calc(100% / var(--count, 3));
       height: 100%;
       display: flex;
-      align-items: center;
-      justify-content: center;
+      align-items: stretch;
+      justify-content: stretch;
+    }
+    .slide > ::slotted(*) {
+      flex: 1 1 auto;
+      width: 100%;
+      height: 100%;
     }
     .dots {
       position: absolute;

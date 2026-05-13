@@ -36,7 +36,7 @@ import { deriveLightsView } from "./state/lights-state.js";
 
 type DeviceKind = "thermostat" | "blinds" | "lights";
 
-const VERSION = "0.8.12";
+const VERSION = "0.8.13";
 
 @customElement("cow-thermostat-card")
 export class CowThermostatCard extends LitElement implements LovelaceCard {
@@ -54,8 +54,8 @@ export class CowThermostatCard extends LitElement implements LovelaceCard {
         width: 100%;
         height: 100%;
         display: flex;
-        align-items: center;
-        justify-content: center;
+        align-items: stretch;
+        justify-content: stretch;
         padding: 0;
       }
       .error {
