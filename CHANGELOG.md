@@ -4,6 +4,25 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and
 this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.8.3] — 2026-05-13
+
+### Added
+- **`cow-redirect-card`** — a tiny new card that solves the Shelly
+  Wall Display kiosk's habit of always opening `/lovelace` (ignoring
+  HA's per-user `default_panel`). Drop one of these in the Overview
+  dashboard and on mount it reads `hass.user.name` and `replace()`s
+  the URL to the matching room kiosk page (e.g. user `c1` →
+  `/walldisplay-camera-1/0?kiosk`). Admins / unmapped users get a
+  small navigation grid with every room dashboard.
+- Username → URL map embedded in the card mirrors the
+  `ha-fix-displays.mjs` / `ha-merge-lovelace.mjs` scripts. Update all
+  three together when a new display lands.
+
+### Internals
+- `HomeAssistant` type gained an optional `user` field
+  (`{id, name, is_admin?}`) that the HA frontend already injects but
+  wasn't declared in our subset.
+
 ## [0.8.2] — 2026-05-13
 
 ### Fixed

@@ -73,6 +73,16 @@ export interface HomeAssistant {
   ): Promise<{ response?: unknown }>;
   language?: string;
   locale?: { language: string; time_format?: string };
+  /**
+   * Currently-authenticated user. Frontend populates this from the
+   * /api/auth/current_user response. Used by `cow-redirect-card` to
+   * route the kiosk to the right room dashboard.
+   */
+  user?: {
+    id: string;
+    name: string;
+    is_admin?: boolean;
+  };
 }
 
 export interface LovelaceCardConfig {
