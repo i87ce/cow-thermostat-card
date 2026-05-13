@@ -36,7 +36,7 @@ import { deriveLightsView } from "./state/lights-state.js";
 
 type DeviceKind = "thermostat" | "blinds" | "lights";
 
-const VERSION = "0.8.6";
+const VERSION = "0.8.7";
 
 @customElement("cow-thermostat-card")
 export class CowThermostatCard extends LitElement implements LovelaceCard {
@@ -97,23 +97,44 @@ export class CowThermostatCard extends LitElement implements LovelaceCard {
   }
 
   private applyPanelAttr(): void {
-    let node: Node | null = this.parentNode;
-    let host: ParentNode | null = null;
-    while (node) {
+    // Walk the parent chain (across shadow boundaries) looking for
+    // any HA wrapper that signals panel/full-screen mode. We accept a
+    // broad list because the exact element name varies between HA
+    // versions and is sometimes rewritten by community plugins like
+    // kiosk-mode.
+    const panelTags = new Set([
+      "hui-panel-view",
+      "ha-panel-lovelace",
+      "hui-root",
+      "home-assistant-main",
+      "ha-app-layout",
+    ]);
+    const tagChain: string[] = [];
+    let node: Node | null = this.parentNode ?? null;
+    let found = false;
+    let depth = 0;
+    while (node && depth++ < 50) {
       if (node instanceof HTMLElement) {
         const tag = node.tagName.toLowerCase();
-        if (tag === "hui-panel-view" || tag === "ha-panel-lovelace") {
-          host = node;
-          break;
-        }
+        tagChain.push(tag);
+        if (panelTags.has(tag)) found = true;
       }
-      // Cross shadow-DOM boundaries
       const root = (node as Node & { getRootNode?: () => Node }).getRootNode?.();
       node =
         node.parentNode ??
         (root instanceof ShadowRoot ? root.host : null);
     }
-    if (host) {
+    // Debug log first time we run
+    if (!this.hasAttribute("data-debug-logged")) {
+      this.setAttribute("data-debug-logged", "");
+      console.log(
+        "[cow-thermostat-card] ancestor chain:",
+        tagChain.slice(0, 15).join(" > "),
+        "panel-mode:",
+        found,
+      );
+    }
+    if (found) {
       this.setAttribute("panel", "");
     } else {
       this.removeAttribute("panel");

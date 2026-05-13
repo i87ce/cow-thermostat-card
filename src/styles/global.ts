@@ -34,12 +34,20 @@ export const globalShell = css`
    * we promote :host to position absolute + inset 0 so the card
    * paints over the panel-view padding and reaches the screen edges.
    */
+  /*
+   * In panel mode we want the card to fill the viewport regardless of
+   * the wrapper sizing applied by HA. Pinning via vmin is safer than
+   * "position fixed" (which fights kiosk-mode plugin overlays and
+   * Shelly Wall Display's status bar overlay).
+   */
   :host([panel]) {
-    position: fixed;
-    inset: 0;
-    width: auto;
-    height: auto;
-    z-index: 0;
+    width: 100vw;
+    height: 100vh;
+    min-width: 100vw;
+    min-height: 100vh;
+    position: absolute;
+    left: 0;
+    top: 0;
   }
 
   /*
