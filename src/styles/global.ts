@@ -43,14 +43,31 @@ export const globalShell = css`
   }
 
   /*
-   * 1cqmin = 1% of the smaller side of the host. With base 24, font-size
-   * becomes 100/24 cqmin, so 1rem = 100/24 cqmin ≈ 4.166% of the side.
-   * That makes the 384-design-px unit map to 24rem = 100% of the side.
-   * Therefore every Figma value in px can be written verbatim as (px/16)rem.
+   * Sizing strategy — keep the card responsive on any kiosk:
+   *
+   * 1cqmin = 1% of the smaller side of the host (container query).
+   * The cow design grid is 24 rem wide, so font-size: 100cqmin/24
+   * makes 24 rem == 100% of the host's shorter side.
+   *
+   * BUT: the embedded browser on the Shelly Wall Display kiosk
+   * (firmware 2.6.0) does NOT support CSS Container Queries — cqmin
+   * silently resolves to 0 there, font-size collapses to the UA
+   * default 16px and the card paints at a fixed 384x384 inside a
+   * 480x480 panel, leaving a visible 48px gutter. So we use vmin as
+   * the fallback (supported everywhere since 2013) and override with
+   * cqmin only when @supports tells us the engine handles it.
+   *
+   * vmin is fine for kiosks where the dashboard occupies the whole
+   * viewport (which is exactly the panel-mode case we care about).
    */
-  @container cow-card (min-width: 0px) {
-    :host {
-      font-size: calc(100cqmin / 24);
+  :host {
+    font-size: calc(100vmin / 24);
+  }
+  @supports (container-type: size) and (width: 1cqmin) {
+    @container cow-card (min-width: 0px) {
+      :host {
+        font-size: calc(100cqmin / 24);
+      }
     }
   }
 
