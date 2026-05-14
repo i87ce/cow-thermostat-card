@@ -177,13 +177,39 @@ export class CowRoomDashboardCard
     if (!this.hass || !e.detail.service) return;
     const [domain, service] = e.detail.service.split(".");
     if (!domain || !service) return;
+    // Auto-aggregate target entity_ids from the rooms config when the
+    // service domain matches a known device class (light/cover/climate),
+    // so a single scene like "light.turn_on" hits every light in the
+    // dashboard. Falls back to a no-target call for script.* / scene.*.
+    const target = this.aggregateTargetForDomain(domain);
     try {
-      await this.hass.callService(domain, service);
+      await this.hass.callService(domain, service, {}, target);
     } catch (err) {
       // eslint-disable-next-line no-console
       console.warn("[cow-room-dashboard-card] scene call failed", err);
     }
   };
+
+  /** Collect every entity_id of the given domain from the rooms config. */
+  private aggregateTargetForDomain(
+    domain: string,
+  ): { entity_id: string[] } | undefined {
+    if (!this.config) return undefined;
+    const ids: string[] = [];
+    for (const room of this.config.rooms) {
+      if (domain === "light" && room.light) {
+        const arr = Array.isArray(room.light) ? room.light : [room.light];
+        ids.push(...arr);
+      } else if (domain === "cover" && room.cover) {
+        const arr = Array.isArray(room.cover) ? room.cover : [room.cover];
+        ids.push(...arr);
+      } else if (domain === "climate" && room.climate) {
+        ids.push(room.climate);
+      }
+    }
+    if (ids.length === 0) return undefined;
+    return { entity_id: ids };
+  }
 
   /* ───────────────── Music state machine + event handlers ───────────────── */
 
