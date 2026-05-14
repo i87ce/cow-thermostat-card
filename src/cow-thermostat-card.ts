@@ -36,7 +36,7 @@ import { deriveLightsView } from "./state/lights-state.js";
 
 type DeviceKind = "thermostat" | "blinds" | "lights";
 
-const VERSION = "0.8.15";
+const VERSION = "0.8.16";
 
 @customElement("cow-thermostat-card")
 export class CowThermostatCard extends LitElement implements LovelaceCard {
@@ -86,6 +86,12 @@ export class CowThermostatCard extends LitElement implements LovelaceCard {
    * `<hui-panel-view>` (panel mode = should fill the screen) or the
    * document. Toggle a `panel` attribute accordingly so the CSS in
    * `globalShell` can promote :host to `position: absolute; inset: 0`.
+   *
+   * In panel/kiosk mode we also bump the root <html> font-size to
+   * 40px. This is the only reliable way to scale `rem`-positioned
+   * elements that live inside nested shadow roots — `rem` always
+   * resolves against `html`, not the host element, so a `:host
+   * { font-size }` rule never propagates into child custom elements.
    */
   override connectedCallback(): void {
     super.connectedCallback();
@@ -142,8 +148,22 @@ export class CowThermostatCard extends LitElement implements LovelaceCard {
     // identify the wrapper.
     const isKioskUrl =
       typeof window !== "undefined" && /[?&]kiosk(=|&|$)/.test(window.location.search);
-    if (found || isKioskUrl) {
+    const isPanel = found || isKioskUrl;
+    if (isPanel) {
       this.setAttribute("panel", "");
+      // Bump the document root font-size so `rem` units (which always
+      // resolve to `html`'s computed size, regardless of shadow DOM
+      // boundaries) scale up by 40/16 = 2.5x. This is what makes
+      // every panel position/size in the card's rem-based design
+      // grid actually fill a 720x720 kiosk.
+      if (
+        typeof document !== "undefined" &&
+        document.documentElement &&
+        !document.documentElement.dataset.cowKioskFs
+      ) {
+        document.documentElement.style.fontSize = "40px";
+        document.documentElement.dataset.cowKioskFs = "1";
+      }
     } else {
       this.removeAttribute("panel");
     }
