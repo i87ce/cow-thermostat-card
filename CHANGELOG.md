@@ -4,6 +4,27 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and
 this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.1.3] — 2026-05-14
+
+### Fixed — info hidden in compact hero mode
+When the music ribbon is visible the hero shrinks to compact mode
+(23rem → 17.5rem), and previously the CSS hid:
+- the humidity row (`.meteo-desc-2`, with `💧 78%`),
+- the allergen names of the pollen line (`graminacee, betulla,
+  quercia`),
+leaving only the temperature, condition and a bare `🌿 Alta` —
+the actually-useful pollen info disappeared every time you were
+playing music. Both are now kept visible in compact mode, just
+slightly smaller (`0.8125rem` for humidity, `0.75rem` for allergens).
+
+### Changed — pollen specks visible across the whole day/night arc
+Dropped `mix-blend-mode: screen` on `.fx-pollen`. The blend mode
+gave specks a nice glow against a blue daytime sky but the warm
+sunset/dusk gradients (orange / pink / violet) were eating the
+yellow-green particles alive — exactly when the user is most likely
+to be looking at the wall display. Particles now use plain alpha
+compositing so they read consistently against any sky color.
+
 ## [1.1.2] — 2026-05-14
 
 ### Fixed

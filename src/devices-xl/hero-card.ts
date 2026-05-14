@@ -136,7 +136,14 @@ export class CowXLHero extends LitElement {
     }
     :host([compact]) .meteo .temp-big { font-size: 4.5rem; }
     :host([compact]) .meteo .meteo-desc { font-size: 0.9375rem; margin-top: 0.375rem; }
-    :host([compact]) .meteo .meteo-desc-2 { display: none; }
+    /* v1.1.3: previously hid the humidity row when the music ribbon
+       was visible (compact mode). With the pollen line below it the
+       hero feels too sparse without it, and there's still vertical
+       room. Keep visible but slightly smaller. */
+    :host([compact]) .meteo .meteo-desc-2 {
+      margin-top: 0.25rem;
+      font-size: 0.8125rem;
+    }
     :host([compact]) .celestial {
       width: 14rem;
       height: 14rem;
@@ -436,9 +443,13 @@ export class CowXLHero extends LitElement {
     }
     :host([compact]) .meteo-pollen {
       font-size: 0.8125rem;
+      margin-top: 0.25rem;
     }
+    /* v1.1.3: keep the allergen list visible in compact mode too.
+       It's the actually-useful info ("graminacee, betulla, quercia"),
+       not just decoration — hiding it defeats the point of the line. */
     :host([compact]) .meteo-pollen .pollen-names {
-      display: none;
+      font-size: 0.75rem;
     }
 
     /* ─── Pollen FX (airborne specks) ────────────────────────────── */
@@ -446,7 +457,11 @@ export class CowXLHero extends LitElement {
       position: absolute;
       inset: 0;
       pointer-events: none;
-      mix-blend-mode: screen;
+      /* v1.1.3: was mix-blend-mode screen so specks felt glowy on a
+         blue daytime sky, but at sunset/dusk the warm sky gradient
+         (orange/pink/violet) eats yellow-green specks alive. Drop the
+         blend mode so particle alpha behaves predictably across the
+         entire day/night arc. */
     }
     @keyframes cow-pollen-drift {
       from { transform: translate(0, 0);                       opacity: 0; }
