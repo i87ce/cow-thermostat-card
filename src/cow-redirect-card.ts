@@ -138,7 +138,7 @@ export class CowRedirectCard extends LitElement implements LovelaceCard {
       <div class="label-row">Apri una dashboard di stanza</div>
       <div class="grid">
         ${Object.entries(USER_ROUTES).map(
-          ([u, r]) => html`
+          ([, r]) => html`
             <a class="tile" href=${r.url}>
               <span class="ico">${r.icon}</span>
               <span>${r.label}</span>

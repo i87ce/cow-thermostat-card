@@ -4,7 +4,7 @@ import type { HomeAssistant } from "../types/hass.js";
 import type { CowRoomConfig } from "../config-xl.js";
 import { countActiveByCategory } from "../config-xl.js";
 
-import "../molecules/info-badge.js";
+import "../small/components/info-badge.js";
 
 /**
  * XL header row: STANZE label + room chips (left, scrollable if too many),

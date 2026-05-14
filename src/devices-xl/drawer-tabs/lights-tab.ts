@@ -6,9 +6,9 @@ import { buttonReset } from "../../styles/button-reset.js";
 import {
   deriveLightsView,
   brightnessFromPct,
-} from "../../state/lights-state.js";
-import { deriveThermostatView } from "../../state/thermostat-state.js";
-import "../../visuals/bulb-visual.js";
+} from "../../small/state/lights.js";
+import { deriveThermostatView } from "../../small/state/thermostat.js";
+import "../../small/visuals/bulb-visual.js";
 
 /**
  * Lights tab — replicates Figma "11. Mix — Drawer Open" body content.

@@ -6,7 +6,7 @@ import { buttonReset } from "../../styles/button-reset.js";
 import {
   deriveThermostatView,
   bumpTarget,
-} from "../../state/thermostat-state.js";
+} from "../../small/state/thermostat.js";
 
 /**
  * Climate tab — replicates Figma "11. Mix — Drawer Climate" body.

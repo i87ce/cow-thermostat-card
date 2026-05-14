@@ -3,8 +3,8 @@ import { customElement, property } from "lit/decorators.js";
 import type { HomeAssistant } from "../../types/hass.js";
 import type { CowRoomConfig } from "../../config-xl.js";
 import { buttonReset } from "../../styles/button-reset.js";
-import { deriveBlindsView } from "../../state/blinds-state.js";
-import "../../visuals/blind-visual.js";
+import { deriveBlindsView } from "../../small/state/blinds.js";
+import "../../small/visuals/blind-visual.js";
 
 /**
  * Blinds tab — replicates Figma "11. Mix — Drawer Blinds" body.
@@ -207,13 +207,6 @@ export class CowXLBlindsTab extends LitElement {
   private async stop(id: string) {
     await this.hass?.callService("cover", "stop_cover", { entity_id: id });
   }
-  private async setPosition(id: string, pos: number) {
-    await this.hass?.callService("cover", "set_cover_position", {
-      entity_id: id,
-      position: pos,
-    });
-  }
-
   private async masterOpenAll() {
     if (!this.hass) return;
     const ids = this.getCoverIds();
