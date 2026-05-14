@@ -80,15 +80,14 @@ export const globalShell = css`
    * full-screen kiosks: 1 vmin = 1% of the shorter viewport side.
    */
   /*
-   * Card grid is 24rem wide by design. We bump root font-size to 40px
-   * so every Figma-rem element (font, position, gap) scales 2.5x from
-   * the 16px design baseline. Combined with the panel sections being
-   * 100% width/height of the host, this stretches the content over
-   * the full 720x720 kiosk and avoids the previous 37%-empty-bottom.
+   * Root font-size is bumped to 30px on <html> programmatically (see
+   * cow-thermostat-card.ts in applyPanelAttr). rem units inside
+   * nested shadow roots resolve to <html>, so the JS-side bump is
+   * the only reliable way to scale the whole rem-based design grid.
+   * We deliberately do NOT set font-size on :host here — that would
+   * override the inherited rem with a per-host em base and double-
+   * scale child elements.
    */
-  :host {
-    font-size: 40px !important;
-  }
 
   *,
   *::before,
