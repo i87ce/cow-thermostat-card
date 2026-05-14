@@ -53,7 +53,7 @@ import {
   moonPosition,
   type MoonPhase,
 } from "./hero/celestial.js";
-import { weatherFx } from "./hero/weather-fx.js";
+import { weatherFx, cloudCoverageFor } from "./hero/weather-fx.js";
 import { pollenFx } from "./hero/pollen-fx.js";
 
 const MOON_PHASES: ReadonlySet<MoonPhase> = new Set([
@@ -755,8 +755,19 @@ export class CowXLHero extends LitElement {
         : { x: 78, y: 22, visible: true };
 
     // Sun opacity: visible while up, fades through twilight
-    const sunOpacity = sunPos.visible ? Math.max(0, 1 - nightT) : 0;
-    const moonOpacity = showMoon ? Math.min(1, nightT * 1.4) : 0;
+    // Cloud coverage (0..1): dims sun & moon so the celestial body
+    // doesn't shine through a "pouring" / "rainy" / "cloudy" sky.
+    // We keep a small floor (1 - coverage * 0.95) so a fully overcast
+    // partlycloudy day still hints at the sun behind the haze, but a
+    // truly "pouring" sky (coverage = 1) blanks them out entirely.
+    const cloudCoverage = w.raw ? cloudCoverageFor(w.raw) : 0;
+    const skyOpacityMult = 1 - cloudCoverage * 0.95;
+    const sunOpacity = sunPos.visible
+      ? Math.max(0, (1 - nightT) * skyOpacityMult)
+      : 0;
+    const moonOpacity = showMoon
+      ? Math.min(1, nightT * 1.4) * skyOpacityMult
+      : 0;
 
     const tempStr = w.temp != null ? `${Math.round(w.temp)}°` : "--°";
     const descParts: string[] = [];

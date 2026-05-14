@@ -32,6 +32,15 @@ export type WeatherCondition =
   | "exceptional"
   | "unknown";
 
+/**
+ * Cloud coverage (0..1) for a given HA weather state. Exported so the
+ * hero card can dim the sun and moon proportionally — otherwise the
+ * sun shines through a "pouring" sky which looks broken.
+ */
+export function cloudCoverageFor(c: string): number {
+  return bucket(c).clouds;
+}
+
 /** Group raw HA states into the FX bucket we know how to draw. */
 function bucket(c: string): {
   clouds: number; // 0..1 coverage

@@ -4,9 +4,24 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and
 this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [0.10.0] — 2026-05-14
+## [1.1.1] — 2026-05-14
 
-### Added — pollen block in the XL hero
+### Fixed
+- **Sun visible during pouring rain.** The hero card was dimming the
+  sun and moon based on the day/night cycle only, ignoring the cloud
+  coverage implied by the weather state. A `rainy` or `pouring` sky
+  would therefore happily display a giant glowing sun behind drifting
+  clouds — visibly inconsistent with the "Pioggia" text and the rain
+  particle FX. We now multiply both sun and moon opacity by
+  `(1 - coverage * 0.95)` so the celestial body fades to (near-) zero
+  on overcast / rainy / pouring / lightning conditions and stays
+  bright on `sunny` / `clear-night`. Cloud coverage values come from
+  the existing `bucket()` in `weather-fx.ts`, now re-exported as
+  `cloudCoverageFor(condition)`.
+
+## [1.1.0] — 2026-05-14
+
+### Added — pollen block in the XL hero (previously labeled 0.10.0)
 - **`pollen:` config sub-block** (`overall`, `allergens`, `min_level`,
   `pinned`, `max_items`) on `cow-room-dashboard-card`. Designed
   against the Polleninformation EU HACS integration (Austrian Pollen
