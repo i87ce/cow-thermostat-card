@@ -30,13 +30,15 @@ import "./devices/lights-panel.js";
 import "./cow-room-dashboard-card.js";
 // Bundle the per-user redirect card (registers `cow-redirect-card`)
 import "./cow-redirect-card.js";
+// Bundle the dedicated kiosk card (registers `cow-kiosk-card`)
+import "./cow-kiosk-card.js";
 import { deriveThermostatView } from "./state/thermostat-state.js";
 import { deriveBlindsView } from "./state/blinds-state.js";
 import { deriveLightsView } from "./state/lights-state.js";
 
 type DeviceKind = "thermostat" | "blinds" | "lights";
 
-const VERSION = "0.8.19";
+const VERSION = "0.9.0";
 
 @customElement("cow-thermostat-card")
 export class CowThermostatCard extends LitElement implements LovelaceCard {

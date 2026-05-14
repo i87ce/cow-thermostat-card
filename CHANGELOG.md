@@ -18,6 +18,25 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   `:host([panel])` to `position: absolute; inset: 0` so the card
   draws edge-to-edge.
 
+## [0.9.0] — 2026-05-14
+
+### Added — dedicated kiosk card
+- **`cow-kiosk-card`** — a brand-new single-room card sized natively
+  for the Shelly Wall Display 720×720 kiosk. Same YAML schema as
+  `cow-thermostat-card` (room/climate/light/cover/labels/sensors) so
+  dashboards can swap `type:` without touching anything else. Layout
+  is rebuilt against the Figma 480 design grid scaled 1.5× to 720 —
+  control buttons use arrow-only glyphs (▲ ■ ▼) to fit the half-card
+  width cleanly, the value/icon area is bigger, and the right pane
+  is properly distributed top-to-bottom (header, controls, presets,
+  entity selector). Reverted all of the 0.8.4–0.8.20 hacks on the
+  legacy `cow-thermostat-card`; that card stays at the 384-design
+  baseline so existing installs aren't broken.
+- Card uses the same `position: fixed; inset: 0` + `<html>
+  font-size: 30px` trick to fill the kiosk viewport — but it's
+  scoped to `cow-kiosk-card` only and won't fight other cards on the
+  same dashboard.
+
 ## [0.8.4–0.8.14] — 2026-05-13
 
 ### Fixed — kiosk full-screen rendering on Shelly Wall Display
