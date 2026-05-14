@@ -36,7 +36,7 @@ import { deriveLightsView } from "./state/lights-state.js";
 
 type DeviceKind = "thermostat" | "blinds" | "lights";
 
-const VERSION = "0.8.18";
+const VERSION = "0.8.19";
 
 @customElement("cow-thermostat-card")
 export class CowThermostatCard extends LitElement implements LovelaceCard {
@@ -161,12 +161,14 @@ export class CowThermostatCard extends LitElement implements LovelaceCard {
         document.documentElement &&
         !document.documentElement.dataset.cowKioskFs
       ) {
-        // 24rem (design grid) × 30px = 720px = exact match for the
-        // Shelly Wall Display kiosk screenshot grid. Smaller native
-        // displays (480x480) will get a card sized at 720 and crop —
-        // the design fits the 720-axis since the card-host is
-        // position:fixed at 100vw/100vh.
-        document.documentElement.style.fontSize = "30px";
+        // 24rem (design grid) × 26px = 624px painted area inside a
+        // 720px-wide screenshot. We deliberately leave a small (~5%)
+        // gutter so intrinsic widths inside split panels (e.g. the
+        // Open/Stop/Close control row, which sums to ~14rem of pure
+        // content) don't overflow the section. 30px → 720px was a
+        // tight fit and caused "Close" to clip on the right and the
+        // room title to overlap the clock.
+        document.documentElement.style.fontSize = "26px";
         document.documentElement.dataset.cowKioskFs = "1";
       }
     } else {
