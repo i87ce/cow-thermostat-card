@@ -39,7 +39,7 @@ const ACCENT: Record<LightsVariant, AccentSet> = {
     surface: "linear-gradient(180deg,#d19c2e 0%,#a87e23 100%)",
   },
   off: {
-    primary: "#808088",
+    primary: "#6b6b73",
     light: "#a5a5ad",
     active: "#5e5e66",
     surface: "linear-gradient(180deg,#4d4d54 0%,#6b6b73 100%)",
@@ -193,6 +193,8 @@ export class CowLightsPanel extends LitElement {
         height: 75px;
         --cow-action-font-size: 24.375px;
         --cow-action-font-weight: 700;
+        --cow-action-color: #666673;
+        --cow-action-bg: #ebebed;
       }
       .scope-wrap {
         position: absolute;

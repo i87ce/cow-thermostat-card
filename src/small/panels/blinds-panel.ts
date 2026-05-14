@@ -123,7 +123,7 @@ export class CowBlindsPanel extends LitElement {
         top: 45px;
         font-size: 52.5px;
         line-height: 1;
-        color: #fff;
+        color: #1f1f2e;
         ${colorTransition}
       }
       .icon.spin {

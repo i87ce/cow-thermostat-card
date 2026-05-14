@@ -57,26 +57,31 @@ export class CowActionButton extends LitElement {
         box-shadow: none;
         ${colorTransition}
       }
+      /* Variant rules supply defaults via var() fallbacks instead of
+         redefining the custom properties on the inner button. Defining
+         vars locally would shadow any host-level override (cascade:
+         local declarations beat inherited ones), making panel-level
+         CSS vars on .turn / etc. silently inert. */
       :host([variant="arrow"]) button,
       :host([variant="control"]) button {
-        --cow-action-bg: var(--cow-surface-button-bg, #f2f2f5);
-        --cow-action-color: var(--cow-text-button, #4d4d59);
+        background: var(--cow-action-bg, var(--cow-surface-button-bg, #f2f2f5));
+        color: var(--cow-action-color, var(--cow-text-button, #4d4d59));
       }
       :host([variant="control"]) button {
-        --cow-action-font-size: 37.5px;
-        --cow-action-font-weight: 500;
+        font-size: var(--cow-action-font-size, 37.5px);
+        font-weight: var(--cow-action-font-weight, 500);
       }
       :host([variant="arrow"]) button {
-        --cow-action-font-size: 32px;
-        --cow-action-font-weight: 500;
+        font-size: var(--cow-action-font-size, 32px);
+        font-weight: var(--cow-action-font-weight, 500);
       }
       :host([variant="filled"]) button {
-        --cow-action-bg: var(--cow-accent, #1f1f2e);
-        --cow-action-color: #fff;
+        background: var(--cow-action-bg, var(--cow-accent, #1f1f2e));
+        color: var(--cow-action-color, #fff);
       }
       :host([variant="stop"]) button {
-        --cow-action-bg: var(--cow-surface-white, #fff);
-        --cow-action-color: var(--cow-stop, #e74c3c);
+        background: var(--cow-action-bg, var(--cow-surface-white, #fff));
+        color: var(--cow-action-color, var(--cow-stop, #e74c3c));
         box-shadow: inset 0 0 0 1px var(--cow-surface-border, #ebebed);
       }
       button:active {
