@@ -19,6 +19,9 @@ export class CowChip extends LitElement {
   @property({ type: Boolean, reflect: true }) active = false;
   /** Optional override for active background. Defaults to --cow-accent. */
   @property({ type: String }) accent?: string;
+  /** Chip size: "default" (33px) or "large" (56.25px, for preset rows). */
+  @property({ type: String, reflect: true }) size: "default" | "large" =
+    "default";
 
   static override styles = [
     css`
@@ -29,8 +32,8 @@ export class CowChip extends LitElement {
         height: 33px;
         padding: 0 11px;
         border-radius: 10px;
-        background: var(--cow-surface-button-bg, #f0f0f2);
-        color: var(--cow-text-button-muted, #737380);
+        background: var(--cow-surface-button-bg, #f0f0f5);
+        color: var(--cow-text-button-muted, #5c5c6b);
         font-family: inherit;
         font-weight: 600;
         font-size: 14px;
@@ -39,6 +42,13 @@ export class CowChip extends LitElement {
         cursor: pointer;
         user-select: none;
         ${colorTransition}
+      }
+      :host([size="large"]) {
+        height: 56.25px;
+        padding: 0 16px;
+        border-radius: 15px;
+        font-size: 20.625px;
+        color: var(--cow-text-button-muted, #666673);
       }
       :host([active]) {
         background: var(--cow-chip-active-bg, var(--cow-accent, #1f1f2e));

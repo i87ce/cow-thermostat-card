@@ -36,8 +36,8 @@ export class CowVerticalSlider extends LitElement {
       position: relative;
       width: 100%;
       height: 100%;
-      background: var(--cow-surface-button-bg, #f0f0f2);
-      border-radius: 18px;
+      background: var(--cow-surface-button-bg, #ebebed);
+      border-radius: 18.75px;
       overflow: hidden;
       cursor: ns-resize;
     }
@@ -47,7 +47,7 @@ export class CowVerticalSlider extends LitElement {
       right: 0;
       bottom: 0;
       background: var(--cow-accent, #1f1f2e);
-      border-radius: 18px;
+      border-radius: 18.75px;
       transition: height 240ms cubic-bezier(0.22, 1, 0.36, 1),
         background-color 240ms cubic-bezier(0.22, 1, 0.36, 1);
     }

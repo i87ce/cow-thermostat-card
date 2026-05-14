@@ -36,30 +36,30 @@ interface AccentSet {
 const ACCENT: Record<ThermostatVariant, AccentSet> = {
   heating: {
     primary: "#fa6b2e",
-    light: "#ff9a4d",
+    light: "#ff994d",
     active: "#f2612c",
-    surface: "linear-gradient(160deg,#ff8a4d 0%,#fa6b2e 100%)",
+    surface: "linear-gradient(180deg,#fa6b2e 0%,#ff994d 100%)",
     textOnAccent: "#fff",
   },
   cooling: {
     primary: "#2673eb",
     light: "#59a6ff",
     active: "#3380f2",
-    surface: "linear-gradient(160deg,#5da4ff 0%,#2673eb 100%)",
+    surface: "linear-gradient(180deg,#2673eb 0%,#59a6ff 100%)",
     textOnAccent: "#fff",
   },
   off: {
-    primary: "#808088",
-    light: "#a5a5ad",
-    active: "#5e5e66",
-    surface: "linear-gradient(160deg,#9e9ea7 0%,#6c6c75 100%)",
+    primary: "#80858c",
+    light: "#a6abb2",
+    active: "#8c9499",
+    surface: "linear-gradient(180deg,#80858c 0%,#a6abb2 100%)",
     textOnAccent: "#fff",
   },
   idle: {
     primary: "#26a673",
     light: "#40c78c",
-    active: "#33b37a",
-    surface: "linear-gradient(160deg,#4ed299 0%,#26a673 100%)",
+    active: "#33b27a",
+    surface: "linear-gradient(180deg,#26a673 0%,#40c78c 100%)",
     textOnAccent: "#fff",
   },
 };
@@ -95,7 +95,7 @@ export class CowThermostatPanel extends LitElement {
     panelStyles,
     css`
       .left {
-        background: var(--cow-accent-surface, linear-gradient(160deg, #fa6b2e, #ff9a4d));
+        background: var(--cow-accent-surface, linear-gradient(180deg, #fa6b2e, #ff994d));
         ${colorTransition}
         z-index: 0;
       }
@@ -118,25 +118,19 @@ export class CowThermostatPanel extends LitElement {
         left: 45px;
         top: 262.5px;
         font-weight: 500;
-        font-size: 24px;
-        letter-spacing: 4px;
-        opacity: 0.85;
+        font-size: 20.625px;
+        letter-spacing: 4.6875px;
+        opacity: 0.7;
       }
       .display {
         position: absolute;
         left: 37.5px;
         top: 296.25px;
         font-weight: 300;
-        font-size: 145px;
+        font-size: 120px;
         line-height: 1;
-        letter-spacing: -3px;
-      }
-      .display .deg {
-        font-size: 110px;
-        opacity: 0.85;
       }
       .display .dash {
-        font-size: 110px;
         opacity: 0.7;
       }
       .unit {
@@ -144,22 +138,22 @@ export class CowThermostatPanel extends LitElement {
         left: 45px;
         top: 435px;
         font-weight: 400;
-        font-size: 28px;
-        opacity: 0.7;
+        font-size: 22.5px;
+        opacity: 0.6;
       }
       .humidity,
       .outdoor {
         position: absolute;
         top: 637.5px;
         font-weight: 500;
-        font-size: 26px;
-        opacity: 0.85;
+        font-size: 24.375px;
+        opacity: 0.75;
       }
       .humidity {
         left: 45px;
       }
       .outdoor {
-        left: 195px;
+        left: 187.5px;
       }
 
       /* Right pane */
@@ -172,7 +166,7 @@ export class CowThermostatPanel extends LitElement {
         text-overflow: ellipsis;
         white-space: nowrap;
         font-weight: 600;
-        font-size: 30px;
+        font-size: 26.25px;
         color: var(--cow-text-room-name, #262633);
       }
       .time {
@@ -180,15 +174,15 @@ export class CowThermostatPanel extends LitElement {
         left: 622.5px;
         top: 56.25px;
         font-weight: 600;
-        font-size: 28px;
+        font-size: 24.375px;
         color: var(--cow-text-time, #666673);
       }
       .sub {
         position: absolute;
         left: 397.5px;
-        top: 90px;
-        font-weight: 400;
-        font-size: 22px;
+        top: 97.5px;
+        font-weight: 500;
+        font-size: 22.5px;
         color: var(--cow-text-secondary, #8c8c99);
       }
       .set-label {
@@ -196,18 +190,17 @@ export class CowThermostatPanel extends LitElement {
         left: 397.5px;
         top: 135px;
         font-weight: 400;
-        font-size: 26px;
+        font-size: 22.5px;
         color: var(--cow-text-secondary, #8c8c99);
       }
       .target {
         position: absolute;
         left: 397.5px;
-        top: 162px;
+        top: 165px;
         font-weight: 700;
-        font-size: 73px;
+        font-size: 60px;
         line-height: 1;
         color: var(--cow-text-primary, #1f1f2e);
-        letter-spacing: -1px;
       }
       .arrow {
         position: absolute;
@@ -216,37 +209,37 @@ export class CowThermostatPanel extends LitElement {
         height: 78px;
       }
       .arrow.up {
-        top: 272px;
+        top: 271.875px;
       }
       .arrow.down {
-        top: 369px;
+        top: 369.375px;
       }
       .mode-label {
         position: absolute;
         left: 397.5px;
-        top: 478px;
+        top: 478.125px;
         font-weight: 400;
-        font-size: 26px;
+        font-size: 22.5px;
         color: var(--cow-text-secondary, #8c8c99);
       }
       .mode-row {
         position: absolute;
         left: 397.5px;
-        top: 515px;
+        top: 515.625px;
         right: 30px;
       }
       .fan-label {
         position: absolute;
         left: 397.5px;
-        top: 603px;
+        top: 603.75px;
         font-weight: 400;
-        font-size: 26px;
+        font-size: 22.5px;
         color: var(--cow-text-secondary, #8c8c99);
       }
       .fan-row {
         position: absolute;
         left: 397.5px;
-        top: 637px;
+        top: 637.5px;
         right: 30px;
       }
 
@@ -379,7 +372,7 @@ export class CowThermostatPanel extends LitElement {
       <div class="status">${STATUS_LABEL[v.variant]}</div>
       <div class="display">
         ${current != null
-          ? html`${current}<span class="deg">°</span>`
+          ? html`${current}°`
           : html`<span class="dash">—</span>`}
       </div>
       <div class="unit">${v.variant === "off" ? SUB_LABEL.off : "Celsius"}</div>

@@ -30,7 +30,7 @@ export class CowBlindVisual extends LitElement {
     .frame {
       position: absolute;
       inset: 0;
-      border-radius: 12px;
+      border-radius: 7.5px;
       background: rgba(255, 255, 255, 0.16);
       box-shadow: inset 0 0 0 2px rgba(255, 255, 255, 0.22);
       overflow: hidden;
@@ -49,10 +49,18 @@ export class CowBlindVisual extends LitElement {
       gap: 4px;
     }
     .slat {
-      height: 6px;
-      border-radius: 3px;
-      background: rgba(255, 255, 255, 0.85);
+      height: 9.375px;
+      border-radius: 1.875px;
+      background: rgba(255, 255, 255, 0.30);
       animation: cow-slat-down 320ms cubic-bezier(0.22, 1, 0.36, 1) both;
+    }
+    @keyframes cow-glow {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.82; }
+    }
+    @keyframes cow-slat-down {
+      from { transform: translateY(-6px); opacity: 0; }
+      to   { transform: translateY(0);    opacity: 1; }
     }
   `;
 

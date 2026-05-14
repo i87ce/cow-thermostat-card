@@ -1,4 +1,4 @@
-import { LitElement, html, css } from "lit";
+import { LitElement, html, css, svg } from "lit";
 import { customElement, property, state } from "lit/decorators.js";
 import type { HomeAssistant, HassEntity } from "../../types/hass.js";
 import {
@@ -29,25 +29,25 @@ const ACCENT: Record<BlindsVariant, AccentSet> = {
     primary: "#66bfff",
     light: "#99e0ff",
     active: "#4d8cd1",
-    surface: "linear-gradient(160deg,#99e0ff 0%,#66bfff 100%)",
+    surface: "linear-gradient(180deg,#66bfff 0%,#99e0ff 100%)",
   },
   half: {
     primary: "#4d8cd1",
     light: "#7fb0e6",
     active: "#3a6fa8",
-    surface: "linear-gradient(160deg,#7eb6ec 0%,#4d8cd1 100%)",
+    surface: "linear-gradient(180deg,#4d8cd1 0%,#7eb6ec 100%)",
   },
   closed: {
     primary: "#3a3a4a",
     light: "#5a5a6a",
     active: "#1f1f2e",
-    surface: "linear-gradient(160deg,#4a4a5a 0%,#26262f 100%)",
+    surface: "linear-gradient(180deg,#26262f 0%,#4a4a5a 100%)",
   },
   moving: {
     primary: "#e6a626",
     light: "#ffc740",
     active: "#d99a1a",
-    surface: "linear-gradient(160deg,#ffc740 0%,#e6a626 100%)",
+    surface: "linear-gradient(180deg,#e6a626 0%,#ffc740 100%)",
   },
 };
 
@@ -58,11 +58,31 @@ const STATUS: Record<BlindsVariant, string> = {
   moving: "MOVING",
 };
 
-const ICON: Record<BlindsVariant, string> = {
-  open: "☀",
-  half: "◐",
-  closed: "▣",
-  moving: "⟳",
+const iconSun = svg`<svg viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+  <circle cx="12" cy="12" r="5"/>
+  <path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/>
+</svg>`;
+
+const iconHalf = svg`<svg viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2">
+  <circle cx="12" cy="12" r="10"/>
+  <path d="M12 2a10 10 0 0 1 0 20" fill="currentColor" stroke="none"/>
+</svg>`;
+
+const iconClosed = svg`<svg viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round">
+  <rect x="3" y="3" width="18" height="18" rx="2"/>
+  <path d="M3 9h18M3 15h18"/>
+</svg>`;
+
+const iconSpin = svg`<svg viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+  <path d="M1 4v6h6"/>
+  <path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/>
+</svg>`;
+
+const ICON: Record<BlindsVariant, unknown> = {
+  open: iconSun,
+  half: iconHalf,
+  closed: iconClosed,
+  moving: iconSpin,
 };
 
 const SUB: Record<BlindsVariant, string> = {
@@ -101,8 +121,9 @@ export class CowBlindsPanel extends LitElement {
         position: absolute;
         left: 45px;
         top: 45px;
-        font-size: 64px;
+        font-size: 52.5px;
         line-height: 1;
+        color: #fff;
         ${colorTransition}
       }
       .icon.spin {
@@ -115,33 +136,36 @@ export class CowBlindsPanel extends LitElement {
         left: 45px;
         top: 262.5px;
         font-weight: 500;
-        font-size: 24px;
-        letter-spacing: 4px;
-        opacity: 0.85;
+        font-size: 20.625px;
+        letter-spacing: 4.6875px;
+        opacity: 0.7;
+        color: #fff;
       }
       .pct {
         position: absolute;
         left: 37.5px;
         top: 296.25px;
         font-weight: 300;
-        font-size: 145px;
+        font-size: 120px;
         line-height: 1;
         letter-spacing: -3px;
+        color: #fff;
       }
       .sub {
         position: absolute;
         left: 45px;
         top: 435px;
         font-weight: 400;
-        font-size: 28px;
-        opacity: 0.7;
+        font-size: 24.375px;
+        opacity: 0.6;
+        color: #fff;
       }
       .blind-wrap {
         position: absolute;
         left: 45px;
-        top: 540px;
+        top: 570px;
         width: 150px;
-        height: 130px;
+        height: 112.5px;
       }
 
       .room {
@@ -288,8 +312,8 @@ export class CowBlindsPanel extends LitElement {
   };
 
   private movingText(v: BlindsView): string {
-    if (v.movingDir === "closing") return "⟳ Closing...";
-    return "⟳ Moving...";
+    if (v.movingDir === "closing") return "Closing...";
+    return "Moving...";
   }
 
   override render() {
@@ -361,6 +385,7 @@ export class CowBlindsPanel extends LitElement {
         : ""}
       <div class="preset-row">
         <cow-chip-row
+          size="large"
           .items=${presets}
           .activeId=${presetActive}
           .accent=${ACCENT[v.variant].primary}

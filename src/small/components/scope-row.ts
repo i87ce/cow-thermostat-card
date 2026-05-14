@@ -40,7 +40,7 @@ export class CowScopeRow extends LitElement {
       font-family: inherit;
       font-weight: 400;
       font-size: 14px;
-      color: var(--cow-text-secondary, #8c8c99);
+      color: var(--cow-text-secondary, #737380);
     }
     .scope {
       font-family: inherit;

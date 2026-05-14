@@ -153,6 +153,8 @@ export class CowXLLightsTab extends LitElement {
       .lt-bulb {
         width: 5.5rem;
         height: 5.5rem;
+        --cow-accent-light: var(--cow-lights-bright, #ffd966);
+        --cow-accent: var(--cow-lights-bright, #ffc72e);
       }
       .lt-label {
         font-weight: 700;

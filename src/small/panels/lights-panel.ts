@@ -30,25 +30,25 @@ const ACCENT: Record<LightsVariant, AccentSet> = {
     primary: "#ffc72e",
     light: "#ffd966",
     active: "#e6b329",
-    surface: "linear-gradient(160deg,#ffe066 0%,#ffc72e 100%)",
+    surface: "linear-gradient(180deg,#ffe066 0%,#ffc72e 100%)",
   },
   dim: {
     primary: "#cc9933",
     light: "#e6b34d",
     active: "#996b1a",
-    surface: "linear-gradient(160deg,#d19c2e 0%,#a87e23 100%)",
+    surface: "linear-gradient(180deg,#d19c2e 0%,#a87e23 100%)",
   },
   off: {
     primary: "#808088",
     light: "#a5a5ad",
     active: "#5e5e66",
-    surface: "linear-gradient(160deg,#7a7a82 0%,#4f4f5b 100%)",
+    surface: "linear-gradient(180deg,#4d4d54 0%,#6b6b73 100%)",
   },
   night: {
     primary: "#5b6bc5",
     light: "#7b8fe0",
     active: "#3d4a99",
-    surface: "linear-gradient(160deg,#3a2f54 0%,#1f1633 100%)",
+    surface: "linear-gradient(180deg,#3a2f54 0%,#1f1633 100%)",
   },
 };
 
@@ -106,26 +106,26 @@ export class CowLightsPanel extends LitElement {
         left: 45px;
         top: 337.5px;
         font-weight: 500;
-        font-size: 24px;
-        letter-spacing: 4px;
-        opacity: 0.85;
+        font-size: 20.625px;
+        letter-spacing: 4.6875px;
+        opacity: 0.7;
       }
       .pct {
         position: absolute;
         left: 37.5px;
         top: 367.5px;
         font-weight: 300;
-        font-size: 130px;
+        font-size: 105px;
         line-height: 1;
-        letter-spacing: -3px;
+        letter-spacing: 0;
       }
       .sub {
         position: absolute;
         left: 45px;
-        top: 491px;
+        top: 491.25px;
         font-weight: 400;
-        font-size: 28px;
-        opacity: 0.7;
+        font-size: 22.5px;
+        opacity: 0.6;
       }
 
       .room {
@@ -137,7 +137,7 @@ export class CowLightsPanel extends LitElement {
         text-overflow: ellipsis;
         white-space: nowrap;
         font-weight: 600;
-        font-size: 30px;
+        font-size: 26.25px;
         color: var(--cow-text-room-name, #262633);
       }
       .time {
@@ -145,7 +145,7 @@ export class CowLightsPanel extends LitElement {
         left: 622.5px;
         top: 56.25px;
         font-weight: 600;
-        font-size: 28px;
+        font-size: 24.375px;
         color: var(--cow-text-time, #666673);
       }
       .device-sub {
@@ -159,10 +159,10 @@ export class CowLightsPanel extends LitElement {
       .b-label {
         position: absolute;
         left: 397.5px;
-        top: 153px;
-        font-weight: 400;
-        font-size: 26px;
-        color: var(--cow-text-secondary, #8c8c99);
+        top: 153.75px;
+        font-weight: 500;
+        font-size: 22.5px;
+        color: var(--cow-text-secondary, #80808c);
       }
 
       .slider {
@@ -191,12 +191,14 @@ export class CowLightsPanel extends LitElement {
         top: 507px;
         width: 277.5px;
         height: 75px;
+        --cow-action-font-size: 24.375px;
+        --cow-action-font-weight: 700;
       }
       .scope-wrap {
         position: absolute;
         left: 391px;
         right: 31px;
-        top: 620px;
+        top: 635px;
       }
     `,
   ];
@@ -341,7 +343,7 @@ export class CowLightsPanel extends LitElement {
       ></cow-action-button>
       <cow-action-button
         class="turn"
-        variant="filled"
+        variant=${isOff ? "control" : "filled"}
         label=${isOff ? "Turn On" : "Turn Off"}
         @click=${() => this.toggle()}
       ></cow-action-button>

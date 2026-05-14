@@ -26,6 +26,8 @@ export class CowChipRow extends LitElement {
   @property({ type: String }) accent?: string;
   /** Gap in pixels between chips. */
   @property({ type: Number }) gap = 6;
+  /** Chip size propagated to each cow-chip child. */
+  @property({ type: String }) size: "default" | "large" = "default";
 
   static override styles = css`
     :host {
@@ -56,6 +58,7 @@ export class CowChipRow extends LitElement {
           (it) => html`
             <cow-chip
               .label=${it.label}
+              .size=${this.size}
               ?active=${it.id === this.activeId}
               ?disabled=${!!it.disabled}
               .accent=${this.accent}
