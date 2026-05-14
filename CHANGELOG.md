@@ -4,6 +4,27 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and
 this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.1.5] — 2026-05-14
+
+### Added — evening dim scrim on the hero
+The hand-tuned sky palette is great as a *color* reference, but on an
+emissive screen the "golden hour" RGB values blast a dimly-lit living
+room at 8 PM. Added an `eveningDim(elevation)` helper in `sky.ts`
+that returns a 0..0.4 black-scrim opacity peaking at sunset
+(elevation 0°) and fading to zero at both bright noon (≥30°) and
+civil twilight (≤-12°, where the deep-night palette + stars take
+over on their own).
+
+The scrim sits between the FX layers (clouds / rain / pollen /
+celestial body / haze) and the foreground text, so the entire sky
+composition darkens uniformly while the clock and weather text stay
+bright and readable. Triangular curve, 4 s ease transition with the
+existing day/night transitions.
+
+At the user's testing time (≈20:12 in May, sun elevation ≈ +5°) the
+scrim sits at ~0.33 opacity — visibly dimmer without going to "looks
+broken".
+
 ## [1.1.4] — 2026-05-14
 
 ### Fixed

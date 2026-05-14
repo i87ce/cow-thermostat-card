@@ -128,6 +128,34 @@ export function nightOpacity(elevation: number): number {
   return (3 - elevation) / 12;
 }
 
+/**
+ * Evening / late-afternoon screen dimming, 0..0.4.
+ *
+ * The hand-tuned sky keyframes look great as a *color* reference, but
+ * an emissive screen at full brightness with a "golden hour" palette
+ * is visibly too bright at 8 PM in a dimly-lit living room. This
+ * helper layers a soft black scrim that ramps from zero at high sun
+ * (noon) to a peak of 0.4 right around sunset (elevation 0°), then
+ * back to zero once civil twilight is reached and the deep-blue night
+ * palette + stars handle the darkness on their own.
+ *
+ * Triangular curve, simple and stable:
+ *   elevation ≥ 30°  → 0     (bright noon, no dim)
+ *   elevation = 15°  → 0.20  (late afternoon)
+ *   elevation =  0°  → 0.40  (sunset peak dim)
+ *   elevation = -6°  → 0.20  (civil twilight)
+ *   elevation ≤ -12° → 0     (night palette takes over)
+ */
+export function eveningDim(elevation: number): number {
+  const PEAK = 0.4;
+  if (elevation >= 30) return 0;
+  if (elevation <= -12) return 0;
+  if (elevation >= 0) {
+    return PEAK * ((30 - elevation) / 30);
+  }
+  return PEAK * ((elevation + 12) / 12);
+}
+
 /* ──────────────────────────────────────────────────────────────────
  * Star field
  * ────────────────────────────────────────────────────────────────── */

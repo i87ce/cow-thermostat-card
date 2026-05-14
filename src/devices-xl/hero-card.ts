@@ -44,6 +44,7 @@ import {
   skyGradient,
   rgb,
   nightOpacity,
+  eveningDim,
   generateStars,
 } from "./hero/sky.js";
 import {
@@ -187,6 +188,20 @@ export class CowXLHero extends LitElement {
     @keyframes cow-twinkle {
       0%, 100% { opacity: var(--brightness, 0.8); }
       50%      { opacity: calc(var(--brightness, 0.8) * 0.35); }
+    }
+
+    /* ─── Evening dim scrim ──────────────────────────────────────── */
+    /* A soft black overlay that ramps in around sunset so the screen
+       doesn't blast a living room with a fully-bright golden-hour
+       palette at 8 PM. Sits above weather FX / celestial bodies /
+       pollen specks but below the horizon haze and the text. */
+    .evening-dim {
+      position: absolute;
+      inset: 0;
+      background: rgba(0, 0, 0, var(--cow-evening-dim, 0));
+      pointer-events: none;
+      transition: background 4s ease;
+      z-index: 2;
     }
 
     /* ─── Celestial body (sun or moon) ───────────────────────────── */
@@ -750,6 +765,7 @@ export class CowXLHero extends LitElement {
     const w = this.getWeather();
     const palette = skyPaletteFor(sun.elevation);
     const nightT = nightOpacity(sun.elevation);
+    const dimT = eveningDim(sun.elevation);
     const horizonRgb = rgb(palette.horizon);
 
     // Foreground readability: switch the clock+text color toward white
@@ -802,6 +818,7 @@ export class CowXLHero extends LitElement {
         :host {
           --cow-sky: ${skyGradient(palette)};
           --cow-night-opacity: ${nightT};
+          --cow-evening-dim: ${dimT.toFixed(3)};
           --cow-horizon-haze: ${horizonRgb};
           --cow-fg: ${fgColor};
           --cow-fg-shadow: ${fgShadow};
@@ -850,6 +867,11 @@ export class CowXLHero extends LitElement {
 
       <!-- Pollen FX (airborne specks) layered on top of weather FX -->
       ${pollen ? pollenFx(pollen.level, { night: nightT > 0.5 }) : nothing}
+
+      <!-- Evening dim scrim: subtle black overlay that ramps in around
+           sunset so the screen doesn't blast a living room at 8 PM with
+           a fully-bright golden-hour palette. -->
+      <div class="evening-dim"></div>
 
       <!-- Horizon haze on top of FX, below text -->
       <div class="horizon-haze"></div>
