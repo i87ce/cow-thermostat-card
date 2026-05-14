@@ -80,14 +80,14 @@ export const globalShell = css`
    * full-screen kiosks: 1 vmin = 1% of the shorter viewport side.
    */
   /*
-   * Card grid is 24rem wide by design. Hardcoding 1rem = 30px makes
-   * the panels render at a fixed 720x720 — large enough to fill any
-   * Shelly Wall Display kiosk (480x480 native or 720x720 screenshot
-   * scale) without depending on viewport/container queries that the
-   * embedded browser handles inconsistently.
+   * Card grid is 24rem wide by design. We bump root font-size to 40px
+   * so every Figma-rem element (font, position, gap) scales 2.5x from
+   * the 16px design baseline. Combined with the panel sections being
+   * 100% width/height of the host, this stretches the content over
+   * the full 720x720 kiosk and avoids the previous 37%-empty-bottom.
    */
   :host {
-    font-size: 30px !important;
+    font-size: 40px !important;
   }
 
   *,
