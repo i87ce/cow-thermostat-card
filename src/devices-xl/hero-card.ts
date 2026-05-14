@@ -54,6 +54,7 @@ import {
   type MoonPhase,
 } from "./hero/celestial.js";
 import { weatherFx } from "./hero/weather-fx.js";
+import { pollenFx } from "./hero/pollen-fx.js";
 
 const MOON_PHASES: ReadonlySet<MoonPhase> = new Set([
   "new_moon",
@@ -79,6 +80,19 @@ export class CowXLHero extends LitElement {
   /** sensor.moon — drives moon phase (requires `moon:` integration) */
   @property({ type: String }) moonEntity?: string;
   @property({ type: String }) locale?: string;
+
+  /* ─── Pollen inputs (all optional) ────────────────────────────── */
+
+  /** Overall allergy-risk sensor (e.g. `sensor.polleninformation_*_allergy_risk`). */
+  @property({ type: String }) pollenOverall?: string;
+  /** Per-allergen pollen sensors. */
+  @property({ type: Array }) pollenAllergens?: string[];
+  /** Minimum `numeric_state` to surface an allergen in the inline list. */
+  @property({ type: Number }) pollenMinLevel = 1;
+  /** Allergens to always include in the list, regardless of level. */
+  @property({ type: Array }) pollenPinned?: string[];
+  /** Max number of allergens listed inline. */
+  @property({ type: Number }) pollenMaxItems = 3;
   /**
    * Compact mode: when the music ribbon is visible, the hero is squeezed
    * from 23rem tall to ~17.5rem. The clock + sun/moon shrink so the
@@ -386,6 +400,60 @@ export class CowXLHero extends LitElement {
       font-size: 0.875rem;
       opacity: 0.6;
     }
+
+    /* ─── Pollen line (under meteo-desc-2) ───────────────────────── */
+    .meteo-pollen {
+      margin-top: 0.375rem;
+      font-weight: 600;
+      font-size: 0.9375rem;
+      letter-spacing: 0.0125rem;
+      color: var(--cow-pollen-color, #f2c94c);
+      text-shadow: 0 0.125rem 0.5rem rgba(0, 0, 0, var(--cow-fg-shadow, 0));
+      display: inline-flex;
+      align-items: center;
+      gap: 0.375rem;
+      max-width: 100%;
+    }
+    .meteo-pollen .pollen-icon {
+      font-size: 1rem;
+      line-height: 1;
+    }
+    .meteo-pollen .pollen-level {
+      font-weight: 700;
+      text-transform: capitalize;
+    }
+    .meteo-pollen .pollen-names {
+      font-weight: 500;
+      opacity: 0.9;
+    }
+    /* "molto alta" gets a soft pulse so it's hard to miss. */
+    .meteo-pollen[data-pollen-level="4"] {
+      animation: cow-pollen-pulse 2.4s ease-in-out infinite;
+    }
+    @keyframes cow-pollen-pulse {
+      0%, 100% { opacity: 1;   }
+      50%      { opacity: 0.55; }
+    }
+    :host([compact]) .meteo-pollen {
+      font-size: 0.8125rem;
+    }
+    :host([compact]) .meteo-pollen .pollen-names {
+      display: none;
+    }
+
+    /* ─── Pollen FX (airborne specks) ────────────────────────────── */
+    .fx-pollen {
+      position: absolute;
+      inset: 0;
+      pointer-events: none;
+      mix-blend-mode: screen;
+    }
+    @keyframes cow-pollen-drift {
+      from { transform: translate(0, 0);                       opacity: 0; }
+      10%  {                                                   opacity: 1; }
+      90%  {                                                   opacity: 1; }
+      to   { transform: translate(var(--sway, 0), 110vh);      opacity: 0; }
+    }
   `;
 
   override connectedCallback(): void {
@@ -401,6 +469,173 @@ export class CowXLHero extends LitElement {
   }
 
   /* ─── Data extraction ────────────────────────────────────────── */
+
+  /**
+   * Map an Italian or English pollen level label to a 0..4 numeric.
+   * Defensive fallback for sensors that don't expose `numeric_state`.
+   */
+  private parsePollenLevel(state: string): number {
+    const s = state.trim().toLowerCase();
+    switch (s) {
+      case "nessuna":
+      case "none":
+        return 0;
+      case "bassa":
+      case "low":
+        return 1;
+      case "moderata":
+      case "moderate":
+        return 2;
+      case "alta":
+      case "high":
+        return 3;
+      case "molto alta":
+      case "very high":
+        return 4;
+      default: {
+        const n = Number(s);
+        return Number.isFinite(n) ? Math.max(0, Math.min(4, Math.round(n))) : 0;
+      }
+    }
+  }
+
+  /** Italian label for a numeric pollen level. */
+  private pollenLevelLabel(level: number): string {
+    const labels = ["nessuna", "bassa", "moderata", "alta", "molto alta"];
+    return labels[Math.max(0, Math.min(4, Math.round(level)))]!;
+  }
+
+  /**
+   * Strip the "Polleninformation (<Location>) " prefix from a sensor
+   * friendly_name. Falls back to the raw friendly_name or the entity id
+   * suffix when no prefix is present.
+   */
+  private prettyAllergenName(entityId: string, friendlyName?: string): string {
+    if (friendlyName) {
+      const stripped = friendlyName.replace(
+        /^Polleninformation\s*\([^)]+\)\s*/i,
+        "",
+      );
+      if (stripped.length > 0) return stripped;
+    }
+    // Fallback: last segment of the entity id, slugified back to a word.
+    const tail = entityId.split(".").pop() ?? entityId;
+    const last = tail.split("_").pop() ?? tail;
+    return last.charAt(0).toUpperCase() + last.slice(1);
+  }
+
+  private readPollenSensor(entityId: string):
+    | {
+        entity: string;
+        name: string;
+        level: number;
+        levelName: string;
+      }
+    | undefined {
+    if (!this.hass) return undefined;
+    const e = this.hass.states[entityId];
+    if (!e) return undefined;
+    const a = e.attributes as Record<string, unknown>;
+    const numericRaw = a.numeric_state;
+    const level =
+      typeof numericRaw === "number"
+        ? Math.max(0, Math.min(4, Math.round(numericRaw)))
+        : typeof e.state === "string"
+          ? this.parsePollenLevel(e.state)
+          : 0;
+    const levelName =
+      typeof a.named_state === "string"
+        ? (a.named_state as string)
+        : typeof e.state === "string"
+          ? e.state
+          : this.pollenLevelLabel(level);
+    const name = this.prettyAllergenName(
+      entityId,
+      typeof a.friendly_name === "string" ? a.friendly_name : undefined,
+    );
+    return { entity: entityId, name, level, levelName };
+  }
+
+  /**
+   * Build the inline pollen display: overall level (driven by the
+   * optional aggregate sensor or by the max of `allergens`), plus a
+   * short, sorted list of "interesting" allergens (level ≥ min_level,
+   * union pinned allergens, capped to `max_items`, ordered by level
+   * desc and then by name).
+   */
+  private getPollen(): {
+    level: number;
+    levelName: string;
+    items: Array<{ name: string; level: number }>;
+  } | null {
+    const allergenIds = this.pollenAllergens ?? [];
+    if (!this.pollenOverall && allergenIds.length === 0) return null;
+
+    const allergens = allergenIds
+      .map((id) => this.readPollenSensor(id))
+      .filter((r): r is NonNullable<typeof r> => r != null);
+
+    // Overall level: explicit sensor wins, else max across allergens.
+    let level = 0;
+    let levelName = "";
+    if (this.pollenOverall) {
+      const overall = this.readPollenSensor(this.pollenOverall);
+      if (overall) {
+        level = overall.level;
+        levelName = overall.levelName;
+      }
+    }
+    if (level === 0 && allergens.length > 0) {
+      const maxA = allergens.reduce((m, a) => (a.level > m.level ? a : m), {
+        level: 0,
+        levelName: "nessuna",
+      } as { level: number; levelName: string });
+      level = maxA.level;
+      levelName = maxA.levelName;
+    }
+    if (!levelName) levelName = this.pollenLevelLabel(level);
+
+    const pinnedSet = new Set(this.pollenPinned ?? []);
+    const minLevel = this.pollenMinLevel ?? 1;
+    const maxItems = this.pollenMaxItems ?? 3;
+
+    const filtered = allergens.filter(
+      (a) => pinnedSet.has(a.entity) || a.level >= minLevel,
+    );
+    filtered.sort((a, b) => {
+      // Pinned allergens float to the top within their level bucket.
+      if (b.level !== a.level) return b.level - a.level;
+      const ap = pinnedSet.has(a.entity) ? 0 : 1;
+      const bp = pinnedSet.has(b.entity) ? 0 : 1;
+      if (ap !== bp) return ap - bp;
+      return a.name.localeCompare(b.name, this.locale ?? "it-IT");
+    });
+    const items = filtered
+      .slice(0, Math.max(0, maxItems))
+      .map((a) => ({ name: a.name, level: a.level }));
+
+    // If overall is 0 and nothing pinned/filtered would show, hide entirely.
+    if (level === 0 && items.length === 0) return null;
+    return { level, levelName, items };
+  }
+
+  /** Map a 0..4 pollen level to a foreground color (CSS). */
+  private pollenLevelColor(level: number): string {
+    switch (Math.max(0, Math.min(4, Math.round(level)))) {
+      case 0:
+        return "rgba(180, 180, 180, 0.85)";
+      case 1:
+        return "#F2C94C"; // giallo
+      case 2:
+        return "#F2994A"; // arancione
+      case 3:
+        return "#EB5757"; // rosso
+      case 4:
+        return "#C92A2A"; // rosso scuro
+      default:
+        return "#F2C94C";
+    }
+  }
 
   private getSunState(): {
     elevation: number;
@@ -533,6 +768,9 @@ export class CowXLHero extends LitElement {
     const desc2Parts: string[] = [];
     if (w.humidity != null) desc2Parts.push(`💧 ${w.humidity}%`);
 
+    const pollen = this.getPollen();
+    const pollenColor = pollen ? this.pollenLevelColor(pollen.level) : null;
+
     return html`
       <style>
         :host {
@@ -541,6 +779,7 @@ export class CowXLHero extends LitElement {
           --cow-horizon-haze: ${horizonRgb};
           --cow-fg: ${fgColor};
           --cow-fg-shadow: ${fgShadow};
+          ${pollenColor ? `--cow-pollen-color: ${pollenColor};` : ""}
         }
       </style>
 
@@ -583,6 +822,9 @@ export class CowXLHero extends LitElement {
       <!-- Weather FX (clouds drift, rain falls, etc.) -->
       ${w.raw ? weatherFx(w.raw, { night: nightT > 0.5 }) : nothing}
 
+      <!-- Pollen FX (airborne specks) layered on top of weather FX -->
+      ${pollen ? pollenFx(pollen.level, { night: nightT > 0.5 }) : nothing}
+
       <!-- Horizon haze on top of FX, below text -->
       <div class="horizon-haze"></div>
 
@@ -594,6 +836,20 @@ export class CowXLHero extends LitElement {
         ${desc ? html`<div class="meteo-desc">${desc}</div>` : nothing}
         ${desc2Parts.length > 0
           ? html`<div class="meteo-desc-2">${desc2Parts.join("  ·  ")}</div>`
+          : nothing}
+        ${pollen
+          ? html`<div
+              class="meteo-pollen"
+              data-pollen-level=${String(pollen.level)}
+            >
+              <span class="pollen-icon">🌿</span>
+              <span class="pollen-level">${pollen.levelName}</span>
+              ${pollen.items.length > 0
+                ? html`<span class="pollen-names">
+                    · ${pollen.items.map((it) => it.name.toLowerCase()).join(", ")}
+                  </span>`
+                : nothing}
+            </div>`
           : nothing}
       </div>
     `;

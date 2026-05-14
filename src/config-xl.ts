@@ -59,6 +59,50 @@ export interface CowMusicConfig {
   favorite_radios_limit?: number;
 }
 
+/**
+ * Pollen block configuration (hero card text + particle FX).
+ *
+ * Designed against the Polleninformation EU HACS integration, whose
+ * sensors expose:
+ *   - `state` / `attributes.named_state` → Italian level label
+ *     ("nessuna" | "bassa" | "moderata" | "alta" | "molto alta")
+ *   - `attributes.numeric_state` → 0..4 numeric level
+ *   - `attributes.friendly_name` → "Polleninformation (<Location>) <Allergen>"
+ *
+ * Any sensor that exposes a numeric 0..4 level via `numeric_state`
+ * (or whose `state` string matches one of the Italian/English level
+ * labels) will work — the card is not strictly coupled to one
+ * integration.
+ */
+export interface CowPollenConfig {
+  /**
+   * Optional aggregate sensor for the overall allergy risk
+   * (e.g. `sensor.polleninformation_<location>_allergy_risk`).
+   * When present it drives:
+   *   - the level label shown at the start of the pollen line,
+   *   - the color of the line,
+   *   - the density of the airborne-pollen particle FX.
+   * If omitted, the card derives the overall level from the maximum
+   * `numeric_state` across `allergens`.
+   */
+  overall?: string;
+  /** Per-allergen sensors to consider for the inline list. */
+  allergens?: string[];
+  /**
+   * Minimum `numeric_state` an allergen must reach to appear in the
+   * inline list. Defaults to 1 (= "bassa" and above).
+   */
+  min_level?: number;
+  /**
+   * Allergens that should always appear in the inline list regardless
+   * of their level (useful when you're particularly sensitive to a
+   * specific allergen and want to see it even when it's "nessuna").
+   */
+  pinned?: string[];
+  /** Maximum number of allergens to list inline. Defaults to 3. */
+  max_items?: number;
+}
+
 export interface CowRoomDashboardConfig {
   type: "custom:cow-room-dashboard-card";
   /** Rooms shown in the chip-row header. Min 1, max ~10 to fit visually. */
@@ -88,6 +132,8 @@ export interface CowRoomDashboardConfig {
   music_assistant_id?: string;
   /** Optional music-block configuration (radio quick-presets, etc.) */
   music?: CowMusicConfig;
+  /** Optional pollen block (hero text + airborne particle FX). */
+  pollen?: CowPollenConfig;
   /** Optional scene shortcuts row (max 4 fit nicely). */
   scenes?: CowSceneConfig[];
   /** BCP-47 locale for time/date formatting. Defaults to browser language. */
@@ -168,6 +214,25 @@ export function validateXLConfig(input: unknown): CowRoomDashboardConfig {
     };
   }
 
+  // Pollen sub-config
+  let pollen: CowPollenConfig | undefined;
+  if (typeof cfg.pollen === "object" && cfg.pollen !== null) {
+    const p = cfg.pollen as Record<string, unknown>;
+    const allergens = Array.isArray(p.allergens)
+      ? (p.allergens.filter((x) => typeof x === "string") as string[])
+      : undefined;
+    const pinned = Array.isArray(p.pinned)
+      ? (p.pinned.filter((x) => typeof x === "string") as string[])
+      : undefined;
+    pollen = {
+      overall: typeof p.overall === "string" ? p.overall : undefined,
+      allergens,
+      min_level: typeof p.min_level === "number" ? p.min_level : undefined,
+      pinned,
+      max_items: typeof p.max_items === "number" ? p.max_items : undefined,
+    };
+  }
+
   return {
     type: "custom:cow-room-dashboard-card",
     rooms,
@@ -184,6 +249,7 @@ export function validateXLConfig(input: unknown): CowRoomDashboardConfig {
         ? cfg.music_assistant_id
         : undefined,
     music,
+    pollen,
     scenes,
     locale: typeof cfg.locale === "string" ? cfg.locale : undefined,
   };

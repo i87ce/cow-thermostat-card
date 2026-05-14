@@ -8,7 +8,13 @@ import "../small/components/info-badge.js";
 
 /**
  * XL header row: STANZE label + room chips (left, scrollable if too many),
- * weather pill + now-playing pill (right).
+ * room-info pill + now-playing pill (right).
+ *
+ * The right pill shows the *active room's* ambient temperature and
+ * humidity (since v0.9.x — the previous "weather" pill was redundant
+ * with the hero card right below). If the active room has no ambient
+ * sensors configured we fall back to the global `weatherEntity`
+ * attributes so old configs keep something useful in the pill.
  *
  * Emits `cow-room-tap` { index } when a chip is tapped.
  */
@@ -17,6 +23,11 @@ export class CowXLHeader extends LitElement {
   @property({ attribute: false }) hass?: HomeAssistant;
   @property({ type: Array }) rooms: CowRoomConfig[] = [];
   @property({ type: Number }) activeIndex = -1;
+  /**
+   * Backwards-compatible fallback: when no active room is selected
+   * (or the active room exposes no ambient sensors) the pill falls
+   * back to this `weather.*` entity's temperature + humidity.
+   */
   @property({ type: String }) weatherEntity?: string;
   /**
    * Backwards-compatible: a media_player entity_id to render a quick
@@ -66,6 +77,31 @@ export class CowXLHeader extends LitElement {
       font-weight: 500;
       color: var(--cow-text-primary);
       white-space: nowrap;
+    }
+    .room-pill {
+      gap: 0.75rem;
+      padding: 0 1.125rem;
+    }
+    .room-pill-label {
+      font-weight: 600;
+      font-size: 0.75rem;
+      color: var(--cow-text-secondary);
+      letter-spacing: 0.0125rem;
+      max-width: 8rem;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .room-pill-metric {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.25rem;
+      font-weight: 600;
+      font-variant-numeric: tabular-nums;
+    }
+    .room-pill-icon {
+      font-size: 0.875rem;
+      line-height: 1;
+      opacity: 0.85;
     }
     .pill button.play {
       width: 1.75rem;
@@ -233,20 +269,69 @@ export class CowXLHeader extends LitElement {
     return title || (typeof e.state === "string" ? e.state : null);
   }
 
-  private getWeatherText(): string | null {
-    if (!this.weatherEntity || !this.hass) return null;
-    const e = this.hass.states[this.weatherEntity];
-    if (!e) return null;
-    const t = (e.attributes as Record<string, unknown>).temperature as
-      | number
-      | undefined;
-    const h = (e.attributes as Record<string, unknown>).humidity as
-      | number
-      | undefined;
-    const parts: string[] = [];
-    if (t != null) parts.push(`☀ ${Math.round(t)}°C`);
-    if (h != null) parts.push(`💧 ${Math.round(h)}%`);
-    return parts.join("   ");
+  /**
+   * Build the right-side info pill. Priority order:
+   *  1. Active room's `temperature` / `humidity` sensors (or, if the
+   *     room only has a `climate` entity, the climate's
+   *     `current_temperature` + `current_humidity` attributes).
+   *  2. Fallback to the global `weatherEntity`'s `temperature` /
+   *     `humidity` so legacy configs still show something.
+   *
+   * Returns `null` when neither source has any data — in that case the
+   * pill is hidden entirely.
+   */
+  private getInfoPill(): { temp?: number; humidity?: number; label?: string } | null {
+    if (!this.hass) return null;
+    const states = this.hass.states;
+    const room =
+      this.activeIndex >= 0 && this.activeIndex < this.rooms.length
+        ? this.rooms[this.activeIndex]
+        : undefined;
+
+    let temp: number | undefined;
+    let humidity: number | undefined;
+    let label: string | undefined;
+
+    if (room) {
+      const tEntity = room.temperature ? states[room.temperature] : undefined;
+      if (tEntity) {
+        const v = Number(tEntity.state);
+        if (Number.isFinite(v)) temp = v;
+      }
+      const hEntity = room.humidity ? states[room.humidity] : undefined;
+      if (hEntity) {
+        const v = Number(hEntity.state);
+        if (Number.isFinite(v)) humidity = v;
+      }
+      // Climate fallback: many rooms only have a climate entity which
+      // exposes the live ambient via `current_temperature` /
+      // `current_humidity`.
+      if ((temp == null || humidity == null) && room.climate) {
+        const c = states[room.climate];
+        if (c) {
+          const a = c.attributes as Record<string, unknown>;
+          if (temp == null && typeof a.current_temperature === "number") {
+            temp = a.current_temperature;
+          }
+          if (humidity == null && typeof a.current_humidity === "number") {
+            humidity = a.current_humidity;
+          }
+        }
+      }
+      if (temp != null || humidity != null) label = room.name;
+    }
+
+    if (temp == null && humidity == null && this.weatherEntity) {
+      const e = states[this.weatherEntity];
+      if (e) {
+        const a = e.attributes as Record<string, unknown>;
+        if (typeof a.temperature === "number") temp = a.temperature;
+        if (typeof a.humidity === "number") humidity = a.humidity;
+      }
+    }
+
+    if (temp == null && humidity == null) return null;
+    return { temp, humidity, label };
   }
 
   private onChipTap(i: number) {
@@ -289,7 +374,7 @@ export class CowXLHeader extends LitElement {
 
   override render() {
     const states = this.hass?.states ?? {};
-    const weather = this.getWeatherText();
+    const info = this.getInfoPill();
     const media = this.getMediaText();
     const groups = this.buildGroups();
     // Split into 2 rows (first half + remainder). With 4 groups this is a
@@ -343,12 +428,30 @@ export class CowXLHeader extends LitElement {
       </div>
     `;
 
+    const infoPill = info
+      ? html`<div class="pill room-pill">
+          ${info.label
+            ? html`<span class="room-pill-label">${info.label}</span>`
+            : nothing}
+          ${info.temp != null
+            ? html`<span class="room-pill-metric"
+                ><span class="room-pill-icon">🌡</span
+                >${info.temp.toFixed(1).replace(/\.0$/, "")}°C</span
+              >`
+            : nothing}
+          ${info.humidity != null
+            ? html`<span class="room-pill-metric"
+                ><span class="room-pill-icon">💧</span
+                >${Math.round(info.humidity)}%</span
+              >`
+            : nothing}
+        </div>`
+      : nothing;
+
     return html`
       <div class="label">STANZE</div>
       <div class="pills">
-        ${weather
-          ? html`<div class="pill">${weather}</div>`
-          : nothing}
+        ${infoPill}
         ${this.musicPillSlot
           ? this.musicPillSlot
           : media

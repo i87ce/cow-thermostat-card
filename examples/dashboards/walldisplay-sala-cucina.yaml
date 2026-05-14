@@ -25,10 +25,46 @@ views:
     type: panel
     cards:
       - type: custom:cow-room-dashboard-card
-        weather_entity: weather.forecast_home
+        # Pirate Weather (HA core integration). Provides the attributes
+        # the hero card consumes natively: `temperature`,
+        # `apparent_temperature`, `humidity`, `wind_speed` (km/h with
+        # `Units = si`). Replaces the previous Met.no `weather.forecast_home`
+        # which lacked `apparent_temperature` and had coarser resolution.
+        weather_entity: weather.pirateweather
         # Live sky / sun position / moon phases (v0.7.0+).
         sun_entity: sun.sun
         moon_entity: sensor.moon
+
+        # Pollen block (v0.10.0+). Drives both the inline pollen line
+        # in the hero ("🌿 alta · graminacee, betulla") and the airborne
+        # pollen particle FX layered over the sky.
+        #
+        # Sensors come from the Polleninformation EU HACS integration
+        # (Austrian Pollen Information Service, supports Italy). Levels
+        # are 0..4 ("nessuna" / "bassa" / "moderata" / "alta" / "molto alta").
+        #
+        # `pinned` allergens are always listed in the line even at
+        # level 0 — useful for severe personal allergies. `min_level`
+        # controls the threshold for un-pinned allergens; 1 = surface
+        # anything from "bassa" upward.
+        pollen:
+          overall: sensor.polleninformation_tavernerio_allergy_risk
+          allergens:
+            - sensor.polleninformation_tavernerio_grasses
+            - sensor.polleninformation_tavernerio_birch
+            - sensor.polleninformation_tavernerio_quercia
+            - sensor.polleninformation_tavernerio_olive
+            - sensor.polleninformation_tavernerio_ragweed
+            - sensor.polleninformation_tavernerio_alder
+            - sensor.polleninformation_tavernerio_hazel
+            - sensor.polleninformation_tavernerio_mugwort
+            - sensor.polleninformation_tavernerio_plane_tree
+            - sensor.polleninformation_tavernerio_frassino
+          min_level: 1   # mostra anche "bassa"
+          max_items: 3
+          pinned:
+            - sensor.polleninformation_tavernerio_grasses   # graminacee
+            - sensor.polleninformation_tavernerio_mugwort   # artemisia
         # Music block (v0.8.1+). The speaker is the Shelly Wall Display
         # in the kitchen. Music Assistant routes Spotify content
         # through its stream proxy → the speaker. Radios are searched

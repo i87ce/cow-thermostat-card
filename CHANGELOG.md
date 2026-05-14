@@ -4,6 +4,45 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and
 this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.10.0] — 2026-05-14
+
+### Added — pollen block in the XL hero
+- **`pollen:` config sub-block** (`overall`, `allergens`, `min_level`,
+  `pinned`, `max_items`) on `cow-room-dashboard-card`. Designed
+  against the Polleninformation EU HACS integration (Austrian Pollen
+  Information Service — supports Italy and most of central Europe)
+  but works with any sensor exposing a 0–4 `numeric_state` and/or an
+  Italian/English level label as `state` (`nessuna`/`bassa`/
+  `moderata`/`alta`/`molto alta`).
+- **Pollen text line in the hero** below the humidity row: shows the
+  overall allergy risk level + up to 3 active allergens, color-coded
+  by level (giallo → arancio → rosso → rosso-pulsante at "molto
+  alta"). `pinned` allergens stay visible at level 0 — useful when
+  you're particularly sensitive to a specific one and want to see it
+  even on a quiet day.
+- **Pollen FX overlay** in the hero — soft yellow-green specks drift
+  across the sky, density and color shift with the overall level
+  (14 specks at "bassa" → 68 at "molto alta", hue moves from
+  yellow-green to amber). Pure transform/opacity keyframes, same
+  GPU-friendly rules as the existing weather FX (rain, snow, clouds).
+
+### Changed — header pill now shows the active room, not the weather
+- The right-side pill in the XL header has been repurposed: instead
+  of repeating the outdoor weather (which is right below in the hero
+  panel) it now shows the **active room's** ambient temperature and
+  humidity, with the room name as a small label. Sources, in priority
+  order: `temperature` + `humidity` sensors on the room, then the
+  `current_temperature`/`current_humidity` attributes on the room's
+  `climate` entity, then (legacy fallback) the global `weather_entity`
+  attributes.
+
+### Changed — Pirate Weather as the recommended weather provider
+- Example dashboard `walldisplay-sala-cucina.yaml` switched from
+  `weather.forecast_home` (Met.no) to `weather.pirateweather`. Met.no
+  doesn't expose `apparent_temperature`, Pirate Weather does — and
+  with `Units = si` configured it returns native km/h wind speeds,
+  matching the hero's hardcoded units.
+
 ## [0.8.4] — 2026-05-13
 
 ### Fixed

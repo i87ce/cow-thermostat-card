@@ -410,6 +410,11 @@ export class CowRoomDashboardCard
                 .sunEntity=${cfg.sun_entity ?? "sun.sun"}
                 .moonEntity=${cfg.moon_entity ?? "sensor.moon"}
                 .locale=${heroLocale}
+                .pollenOverall=${cfg.pollen?.overall}
+                .pollenAllergens=${cfg.pollen?.allergens ?? []}
+                .pollenMinLevel=${cfg.pollen?.min_level ?? 1}
+                .pollenPinned=${cfg.pollen?.pinned ?? []}
+                .pollenMaxItems=${cfg.pollen?.max_items ?? 3}
                 ?compact=${showRibbon}
               ></cow-xl-hero>
             </div>`}
