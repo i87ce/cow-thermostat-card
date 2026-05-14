@@ -73,12 +73,16 @@ export const shellStyles = css`
  * Internal panel layout (used by every panel root). Renders the
  * 360+360 split inside the 720x720 stage, with absolute-positioned
  * children so we mirror Figma frames 1:1.
+ *
+ * IMPORTANT: the panel host uses width/height + position relative to
+ * its slide parent (which has `position: relative`). Do NOT use
+ * `inset: 0` here — it would resolve against the swiper viewport and
+ * cause every panel to stack at the same coordinates.
  */
 export const panelStyles = css`
   :host {
     display: block;
-    position: absolute;
-    inset: 0;
+    position: relative;
     width: 720px;
     height: 720px;
     overflow: hidden;

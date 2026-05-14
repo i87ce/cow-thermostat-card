@@ -26,7 +26,7 @@ import "./cow-redirect-card.js";
 
 type Kind = "thermostat" | "lights" | "blinds";
 
-const VERSION = "1.0.1";
+const VERSION = "1.0.2";
 
 const ACCENT_DOT: Record<Kind, (cfg: CowConfig, hass?: HomeAssistant) => string> =
   {

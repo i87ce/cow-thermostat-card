@@ -167,6 +167,10 @@ export class CowThermostatPanel extends LitElement {
         position: absolute;
         left: 397.5px;
         top: 52.5px;
+        max-width: 200px;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
         font-weight: 600;
         font-size: 30px;
         color: var(--cow-text-room-name, #262633);

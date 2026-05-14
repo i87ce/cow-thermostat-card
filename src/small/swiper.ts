@@ -55,6 +55,8 @@ export class CowSwiper extends LitElement {
       display: flex;
       align-items: stretch;
       justify-content: stretch;
+      position: relative;
+      overflow: hidden;
     }
     .slide > ::slotted(*) {
       flex: 1 1 auto;
