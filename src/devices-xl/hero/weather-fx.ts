@@ -140,22 +140,28 @@ function cloudShape(): TemplateResult {
  * ────────────────────────────────────────────────────────────────── */
 
 function rainLayer(intensity: 1 | 2): TemplateResult {
-  const count = intensity === 2 ? 70 : 35;
-  const baseOpacity = intensity === 2 ? 0.85 : 0.65;
+  // Drop count tuned for the XL hero (≈1000×368 on a wall display).
+  // Below ~60 the rain reads as "a few dots" rather than rain.
+  const count = intensity === 2 ? 130 : 75;
+  const baseOpacity = intensity === 2 ? 0.95 : 0.85;
   const drops: TemplateResult[] = [];
-  // Deterministic-ish pseudo random via index
   for (let i = 0; i < count; i++) {
     const x = (i * 13.371) % 100;
     const delay = -((i * 0.0917) % 1).toFixed(3);
     const dur = (0.55 + ((i * 0.0731) % 0.45)).toFixed(2);
-    const op = (baseOpacity * (0.55 + ((i * 0.181) % 0.45))).toFixed(2);
+    const op = (baseOpacity * (0.65 + ((i * 0.181) % 0.35))).toFixed(2);
+    // Longer streaks (y2 38 vs 22) so each drop reads as actual rain
+    // and not a stray pixel. Stroke uses `vector-effect: non-scaling-stroke`
+    // so the line stays a consistent ~1.4px regardless of aspect ratio
+    // (preserveAspectRatio="none" otherwise crushes the stroke width).
     drops.push(svg`
       <line
-        x1=${x.toFixed(2)} y1="-5"
-        x2=${(x - 2.5).toFixed(2)} y2="22"
-        stroke="rgba(190, 220, 255, ${op})"
-        stroke-width="0.45"
+        x1=${x.toFixed(2)} y1="-8"
+        x2=${(x - 3).toFixed(2)} y2="38"
+        stroke="rgba(150, 190, 235, ${op})"
+        stroke-width="1.4"
         stroke-linecap="round"
+        vector-effect="non-scaling-stroke"
         style=${`animation: cow-rain-fall ${dur}s linear infinite ${delay}s`}
       />
     `);

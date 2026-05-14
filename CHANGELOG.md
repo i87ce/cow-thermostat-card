@@ -4,6 +4,25 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and
 this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.1.2] — 2026-05-14
+
+### Fixed
+- **Rain animation barely visible** on the XL hero. The drop count
+  (35 / 70 for `rainy` / `pouring`) was tuned for a phone-sized
+  canvas; on a wall-display-wide hero it read as "a few stray dots"
+  instead of actual rain. Four changes:
+  - Drop count doubled: 35 → 75 (`rainy`), 70 → 130 (`pouring`).
+  - Opacity floor lifted: 0.35 minimum → 0.55 minimum, so even the
+    faintest streaks are readable against a bright sky.
+  - Streaks lengthened from 27 to 46 viewBox units so each drop
+    looks like rain and not a stray pixel.
+  - Added `vector-effect: non-scaling-stroke` at 1.4 CSS px so the
+    stroke width stays consistent regardless of aspect ratio
+    (`preserveAspectRatio="none"` was crushing the original 0.45
+    viewBox-unit stroke).
+  - Color shifted from `rgba(190, 220, 255)` to `rgba(150, 190, 235)`
+    so drops have more contrast against a bright daytime sky.
+
 ## [1.1.1] — 2026-05-14
 
 ### Fixed
