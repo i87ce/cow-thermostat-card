@@ -32,6 +32,15 @@ export interface HassClimateAttributes {
 export interface HassLightAttributes {
   brightness?: number; // 0-255
   color_mode?: string;
+  /**
+   * HA ≥ 2021.4 light entities expose every mode the platform supports.
+   * A purely on/off light reports `["onoff"]`; anything else (`brightness`,
+   * `color_temp`, `xy`, `rgb`, …) signals the bulb can be dimmed. We rely
+   * on this rather than the legacy `supported_features` bitfield because
+   * the bitfield was deprecated in 2021.4 and most modern integrations
+   * report `0` even for fully dimmable lights.
+   */
+  supported_color_modes?: string[];
   supported_features?: number;
 }
 

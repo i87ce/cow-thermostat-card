@@ -5,6 +5,7 @@ import {
   aggregateLightsView,
   brightnessFromPct,
   deriveLightsView,
+  isDimmable,
   type LightsVariant,
   type LightsView,
 } from "../state/lights.js";
@@ -13,9 +14,7 @@ import { panelStyles } from "../styles/shell.js";
 import { animKeyframes, animTokens, colorTransition } from "../styles/anim.js";
 import { formatTime } from "../../utils/format.js";
 
-import "../components/action-button.js";
-import "../components/scope-row.js";
-import "../components/vertical-slider.js";
+import "../components/light-tile.js";
 import "../visuals/bulb-visual.js";
 
 interface AccentSet {
@@ -59,13 +58,43 @@ const STATUS: Record<LightsVariant, string> = {
   night: "ON",
 };
 
-const SUB: Record<LightsVariant, string> = {
-  bright: "Full brightness",
-  dim: "Dimmed",
-  off: "Light is off",
-  night: "Night mode",
-};
+/** Tap-vs-drag threshold in real (post-scale) pixels. */
+const TAP_THRESHOLD_PX = 8;
+/**
+ * Fraction of the visible left-panel height that maps to a full 0→100
+ * brightness sweep. 0.6 means dragging across ~60% of the panel covers
+ * the entire range — comfortable for a thumb-sized swipe, leaves slack
+ * at the edges so users can't accidentally lock to 0 or 100.
+ */
+const DRAG_RANGE_RATIO = 0.6;
 
+/**
+ * `cow-lights-panel` — Figma "Proposta B" small Lights card.
+ *
+ *  +--------------------+--------------------+
+ *  |                    | Soggiorno   14:32  |
+ *  |     💡 (glow)      | 4 luci · 1 dimmer  |
+ *  |                    | Apparecchi  TUTTE  |
+ *  |   ON               | +-------+-------+  |
+ *  |   72 %             | |Soff.  |Tavolo |  |
+ *  |   Tutte (media)    | +-------+-------+  |
+ *  |                    | |LED    |Lamp.  |  |
+ *  |  Tap = on/off      | +-------+-------+  |
+ *  |  Swipe ↕ = dimmer  | [Tutte (master)]   |
+ *  +--------------------+--------------------+
+ *
+ * Interaction model:
+ *   - Tap on the yellow left panel → toggle on/off on the current scope
+ *   - Swipe ↕ on the left panel    → brightness (only if scope dimmable)
+ *   - Tap on a tile                → set that light as the scope
+ *   - Tap on the master button     → set scope = whole group
+ *
+ * Dimmer-awareness:
+ *   - `setBrightness` only fans out `brightness:` to dimmable entities;
+ *     pure on/off bulbs in the same scope are turned on/off without it.
+ *   - When the scope contains zero dimmers, the swipe gesture is inert
+ *     and the big number is replaced by `ON`/`OFF`.
+ */
 @customElement("cow-lights-panel")
 export class CowLightsPanel extends LitElement {
   @property({ attribute: false }) hass?: HomeAssistant;
@@ -74,9 +103,20 @@ export class CowLightsPanel extends LitElement {
   /** "all" | entity_id of a single light */
   @state() private scope: string = "all";
   @state() private now = new Date();
-  /** Local optimistic value while dragging the slider. */
+  /** Optimistic value while dragging the left-panel surface. */
   @state() private dragPct: number | null = null;
+  /**
+   * Y position of the touch in internal (720×720) panel coordinates,
+   * tracked only while a drag is in progress. Drives the fingertip
+   * indicator overlay so the user gets feedback that the gesture is
+   * being captured even when their finger covers the dot itself.
+   */
+  @state() private dragTouchY: number | null = null;
   private timer?: number;
+
+  private dragStartY: number | null = null;
+  private dragStartPct = 0;
+  private dragMoved = false;
 
   static override styles = [
     animTokens,
@@ -87,45 +127,117 @@ export class CowLightsPanel extends LitElement {
         background: var(--cow-accent-surface);
         ${colorTransition}
         z-index: 0;
+        cursor: pointer;
+        /* Prevent the browser from claiming vertical pan gestures so
+           our pointermove handler can drive the brightness slider. */
+        touch-action: none;
+        -webkit-user-select: none;
+        user-select: none;
       }
       .right {
         z-index: 0;
       }
       :host > :not(.left):not(.right) {
         z-index: 1;
+        pointer-events: none;
+      }
+      :host > .grid,
+      :host > .master {
+        pointer-events: auto;
       }
       .bulb-wrap {
         position: absolute;
         left: 67.5px;
-        top: 112.5px;
+        top: 95px;
         width: 225px;
         height: 225px;
       }
       .status {
         position: absolute;
         left: 45px;
-        top: 337.5px;
+        top: 320px;
         font-weight: 500;
         font-size: 20.625px;
         letter-spacing: 4.6875px;
+        color: var(--cow-on-accent, #fff);
         opacity: 0.7;
       }
       .pct {
         position: absolute;
         left: 37.5px;
-        top: 367.5px;
+        top: 350px;
         font-weight: 300;
         font-size: 105px;
         line-height: 1;
         letter-spacing: 0;
+        color: var(--cow-on-accent, #fff);
       }
       .sub {
         position: absolute;
         left: 45px;
-        top: 491.25px;
+        top: 474px;
         font-weight: 400;
         font-size: 22.5px;
+        color: var(--cow-on-accent, #fff);
         opacity: 0.6;
+      }
+
+      .hint {
+        position: absolute;
+        left: 40px;
+        top: 557px;
+        width: 272px;
+        height: 71px;
+        background: rgba(0, 0, 0, 0.18);
+        border-radius: 24px;
+        padding: 10px 20px;
+        box-sizing: border-box;
+        color: var(--cow-on-accent, #fff);
+        transition: opacity var(--cow-dur-base) var(--cow-ease-out);
+      }
+      .hint.dragging {
+        /* Recede into the background while the user is performing the
+           gesture — keeps the hint readable as context but stops it
+           competing with the live % and fingertip indicator. */
+        opacity: 0.55;
+      }
+      .hint-tap {
+        font-weight: 600;
+        font-size: 19px;
+        line-height: 1.4;
+      }
+      .hint-swipe {
+        font-weight: 400;
+        font-size: 16px;
+        line-height: 1.4;
+        opacity: 0.85;
+      }
+      .hint-swipe.inactive {
+        opacity: 0.45;
+      }
+
+      .fingertip {
+        position: absolute;
+        left: 150px;
+        width: 60px;
+        height: 60px;
+        border-radius: 50%;
+        background: rgba(255, 255, 255, 0.35);
+        pointer-events: none;
+        /* Smoothly trail the finger as it moves; 80ms is short enough
+           to feel responsive but long enough to avoid jitter from
+           noisy pointer events on cheap touch panels. */
+        transition: top 80ms linear, opacity var(--cow-dur-base) var(--cow-ease-out);
+      }
+      .fingertip-arrow {
+        position: absolute;
+        left: 220px;
+        font-weight: 400;
+        font-size: 28px;
+        line-height: 1;
+        color: rgba(255, 255, 255, 0.6);
+        pointer-events: none;
+        transition: top 80ms linear, opacity var(--cow-dur-base) var(--cow-ease-out);
       }
 
       .room {
@@ -156,51 +268,67 @@ export class CowLightsPanel extends LitElement {
         font-size: 22px;
         color: var(--cow-text-secondary, #8c8c99);
       }
-      .b-label {
+
+      .apparecchi {
         position: absolute;
         left: 397.5px;
-        top: 153.75px;
-        font-weight: 500;
-        font-size: 22.5px;
-        color: var(--cow-text-secondary, #80808c);
+        top: 145px;
+        font-weight: 400;
+        font-size: 14px;
+        color: var(--cow-text-secondary, #737380);
+      }
+      .scope-active {
+        position: absolute;
+        right: 17px;
+        top: 145px;
+        font-weight: 700;
+        font-size: 14px;
+        letter-spacing: 1.5px;
+        text-transform: uppercase;
+        color: var(--cow-accent, #1f1f2e);
+        text-align: right;
+        ${colorTransition}
       }
 
-      .slider {
+      .grid {
         position: absolute;
-        left: 416px;
-        top: 187.5px;
-        width: 67.5px;
-        height: 262.5px;
+        left: 383px;
+        top: 180px;
+        width: 320px;
+        display: grid;
+        grid-template-columns: 154px 154px;
+        column-gap: 12px;
+        row-gap: 10px;
       }
-      .plus,
-      .minus {
+      .grid > cow-light-tile {
+        height: 80px;
+      }
+
+      .master {
         position: absolute;
-        left: 510px;
-        width: 183.75px;
-        height: 71.25px;
+        left: 383px;
+        top: var(--cow-master-top, 470px);
+        width: 320px;
+        height: 56px;
+        border: 0;
+        margin: 0;
+        padding: 0;
+        font: inherit;
+        font-family: inherit;
+        font-weight: 700;
+        font-size: 18px;
+        border-radius: 18px;
+        background: var(--cow-surface-button-bg, #f5f5f7);
+        color: var(--cow-text-button-muted, #595966);
+        cursor: pointer;
+        ${colorTransition}
       }
-      .plus {
-        top: 187.5px;
+      .master.active {
+        background: var(--cow-master-active-bg, #2e2e38);
+        color: #fff;
       }
-      .minus {
-        top: 379px;
-      }
-      .turn {
-        position: absolute;
-        left: 397.5px;
-        top: 507px;
-        width: 277.5px;
-        height: 75px;
-        --cow-action-font-size: 24.375px;
-        --cow-action-font-weight: 700;
-        --cow-action-color: #666673;
-        --cow-action-bg: #ebebed;
-      }
-      .scope-wrap {
-        position: absolute;
-        left: 391px;
-        right: 31px;
-        top: 635px;
+      .master:active {
+        transform: scale(0.985);
       }
     `,
   ];
@@ -224,9 +352,14 @@ export class CowLightsPanel extends LitElement {
     return [this.scope];
   }
 
+  /** Return the subset of `targets()` that can accept `brightness:`. */
+  private dimmerTargets(): string[] {
+    return this.targets().filter((id) => isDimmable(this.getEntity(id)));
+  }
+
   private view(): LightsView {
     if (this.devices.length === 0) {
-      return { variant: "off", brightnessPct: 0, raw: "unavailable" };
+      return { variant: "off", brightnessPct: 0, raw: "unavailable", dimmable: false };
     }
     if (this.scope === "all") {
       return aggregateLightsView(
@@ -236,6 +369,38 @@ export class CowLightsPanel extends LitElement {
     return deriveLightsView(this.getEntity(this.scope));
   }
 
+  /** Number of dimmable entities in the full group (used in device-sub). */
+  private groupDimmerCount(): number {
+    let n = 0;
+    for (const d of this.devices) {
+      if (isDimmable(this.getEntity(d.entity))) n++;
+    }
+    return n;
+  }
+
+  private deviceSubText(): string {
+    if (this.devices.length === 0) return "";
+    if (this.devices.length === 1) return this.devices[0].label;
+    const dimmers = this.groupDimmerCount();
+    return dimmers > 0
+      ? `${this.devices.length} luci · ${dimmers} dimmer`
+      : `${this.devices.length} luci`;
+  }
+
+  private subText(v: LightsView): string {
+    if (v.variant === "off") return "Light is off";
+    if (!v.dimmable) return "On / off only";
+    if (this.scope === "all") return "Tutte (media dimmer)";
+    const dev = this.devices.find((d) => d.entity === this.scope);
+    return dev ? `${dev.label} attiva` : "";
+  }
+
+  private activeScopeLabel(): string {
+    if (this.scope === "all") return "Tutte";
+    const dev = this.devices.find((d) => d.entity === this.scope);
+    return dev ? dev.label : "—";
+  }
+
   override willUpdate(): void {
     const v = this.view();
     const a = ACCENT[v.variant];
@@ -243,22 +408,37 @@ export class CowLightsPanel extends LitElement {
     this.style.setProperty("--cow-accent-light", a.light);
     this.style.setProperty("--cow-accent-active", a.active);
     this.style.setProperty("--cow-accent-surface", a.surface);
+    // Compute master button top position so it always sits below the grid.
+    const n = this.devices.length;
+    const rows = Math.max(1, Math.ceil(n / 2));
+    const gridBottom = 180 + rows * 80 + (rows - 1) * 10;
+    this.style.setProperty("--cow-master-top", `${gridBottom + 20}px`);
   }
 
   private async setBrightness(pct: number): Promise<void> {
     if (!this.hass) return;
-    const t = this.targets();
-    if (t.length === 0) return;
+    const all = this.targets();
+    if (all.length === 0) return;
+    // Drag to zero = turn the whole scope off (both dimmers and on/off).
     if (pct === 0) {
-      await this.hass.callService("light", "turn_off", {}, { entity_id: t });
-    } else {
-      await this.hass.callService(
-        "light",
-        "turn_on",
-        { brightness: brightnessFromPct(pct) },
-        { entity_id: t },
-      );
+      await this.hass.callService("light", "turn_off", {}, { entity_id: all });
+      return;
     }
+    const dimmable = this.dimmerTargets();
+    if (dimmable.length === 0) {
+      // Scope has no dimmer entities — fall back to a plain turn_on so
+      // the gesture isn't completely inert (rare: would mean the user
+      // managed to drag on a non-dimmer scope, which the UI normally
+      // prevents, but we still want a safe fallback).
+      await this.hass.callService("light", "turn_on", {}, { entity_id: all });
+      return;
+    }
+    await this.hass.callService(
+      "light",
+      "turn_on",
+      { brightness: brightnessFromPct(pct) },
+      { entity_id: dimmable },
+    );
   }
 
   private async toggle(): Promise<void> {
@@ -266,99 +446,197 @@ export class CowLightsPanel extends LitElement {
     const t = this.targets();
     if (t.length === 0) return;
     const v = this.view();
-    const on = v.variant === "off";
+    const turnOn = v.variant === "off";
     await this.hass.callService(
       "light",
-      on ? "turn_on" : "turn_off",
+      turnOn ? "turn_on" : "turn_off",
       {},
       { entity_id: t },
     );
   }
 
-  private bump(delta: number) {
-    const v = this.view();
-    const next = Math.max(0, Math.min(100, v.brightnessPct + delta));
-    void this.setBrightness(next);
+  /**
+   * Map a real-pixel `clientY` to the panel's 0..720 internal Y axis.
+   * The host applies a `transform: scale(--cow-scale)` from the shell;
+   * `getBoundingClientRect().height` already reflects that scale, so we
+   * can derive the internal Y from a simple ratio.
+   */
+  private toInternalY(clientY: number, rect: DOMRect): number {
+    if (rect.height <= 0) return 0;
+    const ratio = (clientY - rect.top) / rect.height;
+    return Math.max(30, Math.min(690, ratio * 720));
   }
 
-  private onSliderInput = (e: CustomEvent<{ value: number }>) => {
-    this.dragPct = e.detail.value;
-  };
-  private onSliderChange = (e: CustomEvent<{ value: number }>) => {
-    this.dragPct = null;
-    void this.setBrightness(e.detail.value);
+  private onLeftPointerDown = (e: PointerEvent): void => {
+    const target = e.currentTarget as HTMLElement;
+    target.setPointerCapture(e.pointerId);
+    this.dragStartY = e.clientY;
+    this.dragStartPct = this.view().brightnessPct;
+    this.dragMoved = false;
+    // We don't set dragTouchY yet — only once the gesture crosses the
+    // tap threshold and becomes an actual drag. Otherwise every tap
+    // would briefly flash the fingertip indicator.
   };
 
-  private onScopePick = (e: CustomEvent<{ id: string }>) => {
+  private onLeftPointerMove = (e: PointerEvent): void => {
+    if (this.dragStartY == null) return;
+    const dy = this.dragStartY - e.clientY; // up = positive (brighter)
+    if (!this.dragMoved && Math.abs(dy) > TAP_THRESHOLD_PX) {
+      this.dragMoved = true;
+    }
+    if (!this.dragMoved) return;
+    if (!this.view().dimmable) return; // swipe inert on non-dimmer scope
+    const target = e.currentTarget as HTMLElement;
+    const rect = target.getBoundingClientRect();
+    const range = Math.max(60, rect.height * DRAG_RANGE_RATIO);
+    const deltaP = Math.round((dy / range) * 100);
+    const next = Math.max(0, Math.min(100, this.dragStartPct + deltaP));
+    this.dragPct = next;
+    this.dragTouchY = this.toInternalY(e.clientY, rect);
+  };
+
+  private onLeftPointerUp = (e: PointerEvent): void => {
+    if (this.dragStartY == null) return;
+    const target = e.currentTarget as HTMLElement;
+    try {
+      target.releasePointerCapture(e.pointerId);
+    } catch {
+      /* pointer may already have been released by the browser */
+    }
+    if (this.dragMoved) {
+      if (this.view().dimmable && this.dragPct != null) {
+        void this.setBrightness(this.dragPct);
+      }
+    } else {
+      void this.toggle();
+    }
+    this.dragPct = null;
+    this.dragTouchY = null;
+    this.dragStartY = null;
+    this.dragMoved = false;
+  };
+
+  private onLeftPointerCancel = (e: PointerEvent): void => {
+    const target = e.currentTarget as HTMLElement;
+    try {
+      target.releasePointerCapture(e.pointerId);
+    } catch {
+      /* noop */
+    }
+    this.dragPct = null;
+    this.dragTouchY = null;
+    this.dragStartY = null;
+    this.dragMoved = false;
+  };
+
+  private onTileSelect = (e: CustomEvent<{ id: string }>): void => {
     this.scope = e.detail.id;
   };
+
+  private onMasterSelect = (): void => {
+    this.scope = "all";
+  };
+
+  private tileState(ent: HassEntity | undefined, dimmer: boolean): string {
+    if (!ent || ent.state !== "on") return "OFF";
+    if (!dimmer) return "ON";
+    const view = deriveLightsView(ent);
+    return `${view.brightnessPct}% · dim`;
+  }
 
   override render() {
     const v = this.view();
     const pct = this.dragPct != null ? this.dragPct : v.brightnessPct;
-    const isOff = v.variant === "off";
-    const items =
-      this.devices.length > 1
-        ? [
-            { id: "all", label: "Tutte" },
-            ...this.devices.map((d) => ({ id: d.entity, label: d.label })),
-          ]
-        : [];
+    const showAsToggle = !v.dimmable;
+    const pctDisplay = showAsToggle
+      ? v.variant === "off"
+        ? "OFF"
+        : "ON"
+      : `${pct}%`;
+    // While a drag is in progress, replace the contextual sub with an
+    // explicit progress label so the user understands the % they see
+    // is provisional. The actual commit happens on pointerup.
+    const dragging = this.dragPct != null;
+    const sub = dragging ? "Drag in corso" : this.subText(v);
+    const swipeLabel = v.dimmable ? "Swipe ↕ = dimmer" : "Swipe ↕ non attivo";
+
+    const hasGrid = this.devices.length > 1;
 
     return html`
-      <div class="left"></div>
+      <div
+        class="left"
+        @pointerdown=${this.onLeftPointerDown}
+        @pointermove=${this.onLeftPointerMove}
+        @pointerup=${this.onLeftPointerUp}
+        @pointercancel=${this.onLeftPointerCancel}
+      ></div>
       <div class="right"></div>
+
       <div class="bulb-wrap">
         <cow-bulb-visual
           .variant=${v.variant}
           .brightnessPct=${pct}
+          ?dragging=${dragging}
         ></cow-bulb-visual>
       </div>
       <div class="status">${STATUS[v.variant]}</div>
-      <div class="pct">${pct}%</div>
-      <div class="sub">${SUB[v.variant]}</div>
+      <div class="pct">${pctDisplay}</div>
+      <div class="sub">${sub}</div>
+
+      <div class="hint ${dragging ? "dragging" : ""}">
+        <div class="hint-tap">Tap = on / off</div>
+        <div class="hint-swipe ${showAsToggle ? "inactive" : ""}">${swipeLabel}</div>
+      </div>
+
+      ${dragging && this.dragTouchY != null
+        ? html`
+            <div
+              class="fingertip"
+              style="top: ${this.dragTouchY - 30}px"
+            ></div>
+            <div
+              class="fingertip-arrow"
+              style="top: ${this.dragTouchY - 17}px"
+            >
+              ↕
+            </div>
+          `
+        : ""}
 
       <div class="room">${this.roomName}</div>
       <div class="time">${formatTime(this.now, this.hass?.locale?.language)}</div>
-      <div class="device-sub">
-        ${this.devices.length > 1 ? `${this.devices.length} luci` : "Lampada"}
-      </div>
-      <div class="b-label">Brightness</div>
-      <div class="slider">
-        <cow-vertical-slider
-          .value=${pct}
-          @cow-slider-input=${this.onSliderInput}
-          @cow-slider-change=${this.onSliderChange}
-        ></cow-vertical-slider>
-      </div>
-      <cow-action-button
-        class="plus"
-        variant="control"
-        label="+"
-        @click=${() => this.bump(10)}
-      ></cow-action-button>
-      <cow-action-button
-        class="minus"
-        variant="control"
-        label="−"
-        @click=${() => this.bump(-10)}
-      ></cow-action-button>
-      <cow-action-button
-        class="turn"
-        variant=${isOff ? "control" : "filled"}
-        label=${isOff ? "Turn On" : "Turn Off"}
-        @click=${() => this.toggle()}
-      ></cow-action-button>
-      ${items.length > 0
+      <div class="device-sub">${this.deviceSubText()}</div>
+
+      ${hasGrid
         ? html`
-            <div class="scope-wrap">
-              <cow-scope-row
-                .items=${items}
-                .activeId=${this.scope}
-                .accent=${ACCENT[v.variant].primary}
-                @cow-chip-select=${this.onScopePick}
-              ></cow-scope-row>
+            <div class="apparecchi">Apparecchi</div>
+            <div class="scope-active">${this.activeScopeLabel()}</div>
+            <div class="grid">
+              ${this.devices.map((d) => {
+                const ent = this.getEntity(d.entity);
+                const dimmer = isDimmable(ent);
+                const isOn = ent?.state === "on";
+                return html`
+                  <cow-light-tile
+                    .tileId=${d.entity}
+                    .label=${d.label}
+                    .state=${this.tileState(ent, dimmer)}
+                    ?isOn=${isOn}
+                    ?isDimmer=${dimmer}
+                    ?selected=${this.scope === d.entity}
+                    @cow-tile-select=${this.onTileSelect}
+                  ></cow-light-tile>
+                `;
+              })}
             </div>
+            <button
+              class="master ${this.scope === "all" ? "active" : ""}"
+              @click=${this.onMasterSelect}
+            >
+              ${this.scope === "all"
+                ? "Tutte (master) — ATTIVO"
+                : "Tutte (master)"}
+            </button>
           `
         : ""}
     `;
