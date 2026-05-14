@@ -36,7 +36,7 @@ import { deriveLightsView } from "./state/lights-state.js";
 
 type DeviceKind = "thermostat" | "blinds" | "lights";
 
-const VERSION = "0.8.16";
+const VERSION = "0.8.17";
 
 @customElement("cow-thermostat-card")
 export class CowThermostatCard extends LitElement implements LovelaceCard {
@@ -161,7 +161,12 @@ export class CowThermostatCard extends LitElement implements LovelaceCard {
         document.documentElement &&
         !document.documentElement.dataset.cowKioskFs
       ) {
-        document.documentElement.style.fontSize = "40px";
+        // 24rem (design grid) × 30px = 720px = exact match for the
+        // Shelly Wall Display kiosk screenshot grid. Smaller native
+        // displays (480x480) will get a card sized at 720 and crop —
+        // the design fits the 720-axis since the card-host is
+        // position:fixed at 100vw/100vh.
+        document.documentElement.style.fontSize = "30px";
         document.documentElement.dataset.cowKioskFs = "1";
       }
     } else {

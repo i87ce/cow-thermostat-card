@@ -44,18 +44,19 @@ export class CowBlindsPanel extends LitElement {
       position: relative;
     }
 
+    /* Redistributed for 24rem effective vertical space (vs 17rem before). */
     .visual-wrap {
       position: absolute;
       left: 50%;
-      top: 1.75rem;
+      top: 2.5rem;
       transform: translateX(-50%);
-      width: 5.5rem;
-      height: 5.5rem;
+      width: 8rem;
+      height: 8rem;
     }
     .status-label {
       position: absolute;
       left: 1.5rem;
-      top: 8.75rem;
+      top: 13rem;
       font-weight: 500;
       font-size: var(--cow-font-status);
       color: var(--cow-surface-white);
@@ -67,7 +68,7 @@ export class CowBlindsPanel extends LitElement {
     .display-value {
       position: absolute;
       left: 1.25rem;
-      top: 9.875rem;
+      top: 14.5rem;
       font-weight: 300;
       font-size: var(--cow-font-display);
       line-height: 1;
@@ -77,17 +78,18 @@ export class CowBlindsPanel extends LitElement {
     .display-unit {
       position: absolute;
       left: 1.5rem;
-      top: 14.5rem;
+      top: 21rem;
       font-weight: 400;
       font-size: var(--cow-font-caption);
       color: var(--cow-surface-white);
       opacity: 0.6;
     }
 
+    /* Right column — redistributed for 24rem effective height. */
     .room {
       position: absolute;
-      left: 0.75rem;
-      top: 1.75rem;
+      left: 1rem;
+      top: 2rem;
       font-weight: 600;
       font-size: var(--cow-font-room);
       color: var(--cow-text-room-name);
@@ -95,16 +97,16 @@ export class CowBlindsPanel extends LitElement {
     .time {
       position: absolute;
       right: 1rem;
-      top: 1.875rem;
+      top: 2rem;
       font-weight: 600;
       font-size: var(--cow-font-time);
       color: var(--cow-text-time);
     }
     .scope-label {
       position: absolute;
-      left: 0.75rem;
-      top: 4.25rem;
-      right: 0.75rem;
+      left: 1rem;
+      top: 5rem;
+      right: 1rem;
       text-align: right;
       font-weight: 600;
       font-size: 0.625rem;
@@ -114,35 +116,35 @@ export class CowBlindsPanel extends LitElement {
     }
     .controls-label {
       position: absolute;
-      left: 0.75rem;
-      top: 4.25rem;
+      left: 1rem;
+      top: 5rem;
       font-weight: 400;
       font-size: var(--cow-font-caption);
       color: var(--cow-text-secondary);
     }
     .controls-row {
       position: absolute;
-      left: 0.75rem;
-      right: 0.75rem;
-      top: 5.75rem;
+      left: 1rem;
+      right: 1rem;
+      top: 7rem;
       display: flex;
-      gap: 0.375rem;
+      gap: 0.5rem;
     }
     .presets-label {
       position: absolute;
-      left: 0.75rem;
-      top: 10rem;
+      left: 1rem;
+      top: 13rem;
       font-weight: 400;
       font-size: var(--cow-font-caption);
       color: var(--cow-text-secondary);
     }
     .presets-row {
       position: absolute;
-      left: 0.75rem;
-      right: 0.75rem;
-      top: 11.5rem;
+      left: 1rem;
+      right: 1rem;
+      top: 15rem;
       display: flex;
-      gap: 0.375rem;
+      gap: 0.5rem;
       flex-wrap: wrap;
     }
     .selector-wrap {
