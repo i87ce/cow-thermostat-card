@@ -97,9 +97,14 @@ export class CowThermostatPanel extends LitElement {
       .left {
         background: var(--cow-accent-surface, linear-gradient(160deg, #fa6b2e, #ff9a4d));
         ${colorTransition}
+        z-index: 0;
       }
       .right {
         background: var(--cow-surface-background, #f7f7fa);
+        z-index: 0;
+      }
+      :host > :not(.left):not(.right) {
+        z-index: 1;
       }
 
       /* Left pane — absolute coords from Figma */
@@ -361,68 +366,67 @@ export class CowThermostatPanel extends LitElement {
     }));
 
     return html`
-      <div class="left">
-        <cow-thermostat-icon
-          class="icon"
-          .variant=${v.variant}
-        ></cow-thermostat-icon>
-        <div class="status">${STATUS_LABEL[v.variant]}</div>
-        <div class="display">
-          ${current != null
-            ? html`${current}<span class="deg">°</span>`
-            : html`<span class="dash">—</span>`}
-        </div>
-        <div class="unit">${v.variant === "off" ? SUB_LABEL.off : "Celsius"}</div>
-        ${hum ? html`<div class="humidity">${hum}</div>` : ""}
-        ${out ? html`<div class="outdoor">${out}</div>` : ""}
+      <div class="left"></div>
+      <div class="right"></div>
+      <cow-thermostat-icon
+        class="icon"
+        .variant=${v.variant}
+      ></cow-thermostat-icon>
+      <div class="status">${STATUS_LABEL[v.variant]}</div>
+      <div class="display">
+        ${current != null
+          ? html`${current}<span class="deg">°</span>`
+          : html`<span class="dash">—</span>`}
       </div>
-      <div class="right">
-        <div class="room">${this.roomName}</div>
-        <div class="time">${formatTime(this.now, this.hass?.locale?.language)}</div>
-        <div class="sub">${SUB_LABEL[v.variant]}</div>
-        <div class="set-label">Set to</div>
-        <div class="target">
-          ${v.variant === "off" ? "—" : target != null ? `${target}°C` : "—"}
-        </div>
-        <cow-action-button
-          class="arrow up"
-          variant="arrow"
-          label="▲"
-          ?disabled=${v.variant === "off"}
-          @click=${() => this.bump(1)}
-        ></cow-action-button>
-        <cow-action-button
-          class="arrow down"
-          variant="arrow"
-          label="▼"
-          ?disabled=${v.variant === "off"}
-          @click=${() => this.bump(-1)}
-        ></cow-action-button>
-        <div class="mode-label">Mode</div>
-        <div class="mode-row">
-          <cow-chip-row
-            .items=${modes}
-            .activeId=${v.mode === "heat_cool" ? "heat_cool" : v.mode}
-            .accent=${ACCENT[v.variant].primary}
-            @cow-chip-select=${(e: CustomEvent<{ id: string }>) =>
-              this.setMode(e.detail.id)}
-          ></cow-chip-row>
-        </div>
-        ${fanItems.length > 1
-          ? html`
-              <div class="fan-label">Fan</div>
-              <div class="fan-row">
-                <cow-chip-row
-                  .items=${fanItems}
-                  .activeId=${v.fan}
-                  .accent=${ACCENT[v.variant].primary}
-                  @cow-chip-select=${(e: CustomEvent<{ id: string }>) =>
-                    this.setFan(e.detail.id)}
-                ></cow-chip-row>
-              </div>
-            `
-          : ""}
+      <div class="unit">${v.variant === "off" ? SUB_LABEL.off : "Celsius"}</div>
+      ${hum ? html`<div class="humidity">${hum}</div>` : ""}
+      ${out ? html`<div class="outdoor">${out}</div>` : ""}
+
+      <div class="room">${this.roomName}</div>
+      <div class="time">${formatTime(this.now, this.hass?.locale?.language)}</div>
+      <div class="sub">${SUB_LABEL[v.variant]}</div>
+      <div class="set-label">Set to</div>
+      <div class="target">
+        ${v.variant === "off" ? "—" : target != null ? `${target}°C` : "—"}
       </div>
+      <cow-action-button
+        class="arrow up"
+        variant="arrow"
+        label="▲"
+        ?disabled=${v.variant === "off"}
+        @click=${() => this.bump(1)}
+      ></cow-action-button>
+      <cow-action-button
+        class="arrow down"
+        variant="arrow"
+        label="▼"
+        ?disabled=${v.variant === "off"}
+        @click=${() => this.bump(-1)}
+      ></cow-action-button>
+      <div class="mode-label">Mode</div>
+      <div class="mode-row">
+        <cow-chip-row
+          .items=${modes}
+          .activeId=${v.mode === "heat_cool" ? "heat_cool" : v.mode}
+          .accent=${ACCENT[v.variant].primary}
+          @cow-chip-select=${(e: CustomEvent<{ id: string }>) =>
+            this.setMode(e.detail.id)}
+        ></cow-chip-row>
+      </div>
+      ${fanItems.length > 1
+        ? html`
+            <div class="fan-label">Fan</div>
+            <div class="fan-row">
+              <cow-chip-row
+                .items=${fanItems}
+                .activeId=${v.fan}
+                .accent=${ACCENT[v.variant].primary}
+                @cow-chip-select=${(e: CustomEvent<{ id: string }>) =>
+                  this.setFan(e.detail.id)}
+              ></cow-chip-row>
+            </div>
+          `
+        : ""}
     `;
   }
 }

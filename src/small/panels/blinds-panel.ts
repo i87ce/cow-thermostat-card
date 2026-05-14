@@ -89,6 +89,13 @@ export class CowBlindsPanel extends LitElement {
       .left {
         background: var(--cow-accent-surface);
         ${colorTransition}
+        z-index: 0;
+      }
+      .right {
+        z-index: 0;
+      }
+      :host > :not(.left):not(.right) {
+        z-index: 1;
       }
       .icon {
         position: absolute;
@@ -305,70 +312,69 @@ export class CowBlindsPanel extends LitElement {
     ).id;
 
     return html`
-      <div class="left">
-        <div class="icon ${v.variant === "moving" ? "spin" : ""}">
-          ${ICON[v.variant]}
-        </div>
-        <div class="status">${STATUS[v.variant]}</div>
-        <div class="pct">${v.position}%</div>
-        <div class="sub">${v.variant === "moving" ? this.subForMoving(v) : SUB[v.variant]}</div>
-        <div class="blind-wrap">
-          <cow-blind-visual
-            .variant=${v.variant}
-            .position=${v.position}
-          ></cow-blind-visual>
-        </div>
+      <div class="left"></div>
+      <div class="right"></div>
+      <div class="icon ${v.variant === "moving" ? "spin" : ""}">
+        ${ICON[v.variant]}
       </div>
-      <div class="right">
-        <div class="room">${this.roomName}</div>
-        <div class="time">${formatTime(this.now, this.hass?.locale?.language)}</div>
-        <div class="device-sub">
-          ${this.devices.length > 1
-            ? `${this.devices.length} tapparelle`
-            : "Roller blind"}
-        </div>
-        <cow-action-button
-          class="open"
-          variant="control"
-          label="▲ Open"
-          @click=${() => this.open()}
-        ></cow-action-button>
-        <cow-action-button
-          class="stop"
-          variant="stop"
-          label="■ Stop"
-          @click=${() => this.stop()}
-        ></cow-action-button>
-        <cow-action-button
-          class="close"
-          variant="control"
-          label="▼ Close"
-          @click=${() => this.close()}
-        ></cow-action-button>
-        ${v.variant === "moving"
-          ? html`<div class="moving-row">${this.movingText(v)}</div>`
-          : ""}
-        <div class="preset-row">
-          <cow-chip-row
-            .items=${presets}
-            .activeId=${presetActive}
-            .accent=${ACCENT[v.variant].primary}
-            @cow-chip-select=${this.onPresetPick}
-          ></cow-chip-row>
-        </div>
-        ${items.length > 0
-          ? html`
-              <div class="scope-wrap">
-                <cow-scope-row
-                  .items=${items}
-                  .activeId=${this.scope}
-                  .accent=${ACCENT[v.variant].primary}
-                  @cow-chip-select=${this.onScopePick}
-                ></cow-scope-row>
-              </div>
-            `
-          : ""}
+      <div class="status">${STATUS[v.variant]}</div>
+      <div class="pct">${v.position}%</div>
+      <div class="sub">${v.variant === "moving" ? this.subForMoving(v) : SUB[v.variant]}</div>
+      <div class="blind-wrap">
+        <cow-blind-visual
+          .variant=${v.variant}
+          .position=${v.position}
+        ></cow-blind-visual>
       </div>
+
+      <div class="room">${this.roomName}</div>
+      <div class="time">${formatTime(this.now, this.hass?.locale?.language)}</div>
+      <div class="device-sub">
+        ${this.devices.length > 1
+          ? `${this.devices.length} tapparelle`
+          : "Roller blind"}
+      </div>
+      <cow-action-button
+        class="open"
+        variant="control"
+        label="▲ Open"
+        @click=${() => this.open()}
+      ></cow-action-button>
+      <cow-action-button
+        class="stop"
+        variant="stop"
+        label="■ Stop"
+        @click=${() => this.stop()}
+      ></cow-action-button>
+      <cow-action-button
+        class="close"
+        variant="control"
+        label="▼ Close"
+        @click=${() => this.close()}
+      ></cow-action-button>
+      ${v.variant === "moving"
+        ? html`<div class="moving-row">${this.movingText(v)}</div>`
+        : ""}
+      <div class="preset-row">
+        <cow-chip-row
+          .items=${presets}
+          .activeId=${presetActive}
+          .accent=${ACCENT[v.variant].primary}
+          @cow-chip-select=${this.onPresetPick}
+        ></cow-chip-row>
+      </div>
+      ${items.length > 0
+        ? html`
+            <div class="scope-wrap">
+              <cow-scope-row
+                .items=${items}
+                .activeId=${this.scope}
+                .accent=${ACCENT[v.variant].primary}
+                @cow-chip-select=${this.onScopePick}
+              ></cow-scope-row>
+            </div>
+          `
+        : ""}
     `;
   }
 

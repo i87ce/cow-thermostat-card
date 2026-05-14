@@ -86,6 +86,13 @@ export class CowLightsPanel extends LitElement {
       .left {
         background: var(--cow-accent-surface);
         ${colorTransition}
+        z-index: 0;
+      }
+      .right {
+        z-index: 0;
+      }
+      :host > :not(.left):not(.right) {
+        z-index: 1;
       }
       .bulb-wrap {
         position: absolute;
@@ -291,62 +298,61 @@ export class CowLightsPanel extends LitElement {
         : [];
 
     return html`
-      <div class="left">
-        <div class="bulb-wrap">
-          <cow-bulb-visual
-            .variant=${v.variant}
-            .brightnessPct=${pct}
-          ></cow-bulb-visual>
-        </div>
-        <div class="status">${STATUS[v.variant]}</div>
-        <div class="pct">${pct}%</div>
-        <div class="sub">${SUB[v.variant]}</div>
+      <div class="left"></div>
+      <div class="right"></div>
+      <div class="bulb-wrap">
+        <cow-bulb-visual
+          .variant=${v.variant}
+          .brightnessPct=${pct}
+        ></cow-bulb-visual>
       </div>
-      <div class="right">
-        <div class="room">${this.roomName}</div>
-        <div class="time">${formatTime(this.now, this.hass?.locale?.language)}</div>
-        <div class="device-sub">
-          ${this.devices.length > 1 ? `${this.devices.length} luci` : "Lampada"}
-        </div>
-        <div class="b-label">Brightness</div>
-        <div class="slider">
-          <cow-vertical-slider
-            .value=${pct}
-            @cow-slider-input=${this.onSliderInput}
-            @cow-slider-change=${this.onSliderChange}
-          ></cow-vertical-slider>
-        </div>
-        <cow-action-button
-          class="plus"
-          variant="control"
-          label="+"
-          @click=${() => this.bump(10)}
-        ></cow-action-button>
-        <cow-action-button
-          class="minus"
-          variant="control"
-          label="−"
-          @click=${() => this.bump(-10)}
-        ></cow-action-button>
-        <cow-action-button
-          class="turn"
-          variant="filled"
-          label=${isOff ? "Turn On" : "Turn Off"}
-          @click=${() => this.toggle()}
-        ></cow-action-button>
-        ${items.length > 0
-          ? html`
-              <div class="scope-wrap">
-                <cow-scope-row
-                  .items=${items}
-                  .activeId=${this.scope}
-                  .accent=${ACCENT[v.variant].primary}
-                  @cow-chip-select=${this.onScopePick}
-                ></cow-scope-row>
-              </div>
-            `
-          : ""}
+      <div class="status">${STATUS[v.variant]}</div>
+      <div class="pct">${pct}%</div>
+      <div class="sub">${SUB[v.variant]}</div>
+
+      <div class="room">${this.roomName}</div>
+      <div class="time">${formatTime(this.now, this.hass?.locale?.language)}</div>
+      <div class="device-sub">
+        ${this.devices.length > 1 ? `${this.devices.length} luci` : "Lampada"}
       </div>
+      <div class="b-label">Brightness</div>
+      <div class="slider">
+        <cow-vertical-slider
+          .value=${pct}
+          @cow-slider-input=${this.onSliderInput}
+          @cow-slider-change=${this.onSliderChange}
+        ></cow-vertical-slider>
+      </div>
+      <cow-action-button
+        class="plus"
+        variant="control"
+        label="+"
+        @click=${() => this.bump(10)}
+      ></cow-action-button>
+      <cow-action-button
+        class="minus"
+        variant="control"
+        label="−"
+        @click=${() => this.bump(-10)}
+      ></cow-action-button>
+      <cow-action-button
+        class="turn"
+        variant="filled"
+        label=${isOff ? "Turn On" : "Turn Off"}
+        @click=${() => this.toggle()}
+      ></cow-action-button>
+      ${items.length > 0
+        ? html`
+            <div class="scope-wrap">
+              <cow-scope-row
+                .items=${items}
+                .activeId=${this.scope}
+                .accent=${ACCENT[v.variant].primary}
+                @cow-chip-select=${this.onScopePick}
+              ></cow-scope-row>
+            </div>
+          `
+        : ""}
     `;
   }
 }
