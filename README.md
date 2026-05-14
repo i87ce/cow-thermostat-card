@@ -1,42 +1,112 @@
 # cow-thermostat-card
 
-> **Cave of Wonders** room card for Home Assistant — Thermostat, Lights, Blinds in one pixel-perfect Lovelace card built for the Shelly Wall Display.
+> **One pixel-perfect card per room** for Home Assistant — thermostat, lights and blinds in a single Lovelace tile, sized for small square touch displays.
 
-A single Lovelace card per room, with a horizontal swipe between three device views (thermostat, blinds, lights), each rendering one of 12 visual states 1:1 with the source Figma. Built specifically for the **Shelly Wall Display SAWD1** (4" square touch) but scales to any square viewport via container queries.
+[![Release](https://img.shields.io/github/v/release/i87ce/cow-thermostat-card?style=flat-square)](https://github.com/i87ce/cow-thermostat-card/releases/latest)
+[![License](https://img.shields.io/github/license/i87ce/cow-thermostat-card?style=flat-square)](./LICENSE)
+[![HACS](https://img.shields.io/badge/HACS-Custom-orange.svg?style=flat-square)](https://hacs.xyz)
+[![Built for Shelly Wall Display](https://img.shields.io/badge/built%20for-Shelly%20Wall%20Display-blue.svg?style=flat-square)](https://www.shelly.com/products/shelly-wall-display)
+
+<p align="center">
+  <img src="docs/screenshots/lights-bright.png" alt="cow-thermostat-card — Lights master scope at 80%" width="540">
+</p>
+
+`cow-thermostat-card` replaces an entire Lovelace dashboard with **one card per room**: a horizontal swipe between three pixel-perfect views (thermostat · lights · blinds), each tracking the live state of your Home Assistant entities. Built specifically for the **Shelly Wall Display SAWD1** (4" 720×720) but scales to any square viewport.
 
 ## Why
 
-Shelly Wall Display ships with a generic firmware UI; the only good way to drive a richer experience is to host an HA Lovelace dashboard. Existing custom cards either don't fit the 4" square form factor or look like generic HA tiles. This card replaces the entire dashboard with one pixel-perfect view per room.
+Generic Lovelace tiles look out of place on a wall-mounted touch panel. This card is sized natively for 720×720, optimized for the MTK6580 SoC's WebView (no `filter: blur`, no canvas, no animation libraries) and works fully offline (Inter font embedded, no CDN calls). One YAML block per room, replicate across every wall display.
 
-## Features
+---
+
+## Highlights
 
 | | |
 |---|---|
-| Pixel-perfect | All offsets in `rem` derived from the Figma `o61NCf1Pdc2ErT26eH2PHX` source — 1 rem == 16 design-px |
-| Scales | Container query maps the 384-px design canvas to 100% of any square viewport |
-| Self-contained fonts | Inter Light / Regular / Medium / SemiBold / Bold ship inside the HACS plugin folder — no external CDN |
-| Lightweight | ~70 KB minified bundle, no animation libraries, no `filter: blur` (MTK6580-friendly) |
-| Real HA controls | Calls `climate.set_temperature/set_hvac_mode/set_fan_mode`, `cover.open/close/stop/set_position`, `light.turn_on/off` directly |
-| Swipe between devices | Pointer-events based, snaps to nearest, with state-coloured dot indicators |
+| 🎨 **Pixel-perfect** | Every offset, color and font weight derived 1:1 from the [Figma source](https://www.figma.com/design/o61NCf1Pdc2ErT26eH2PHX) |
+| 🤏 **Gesture-driven lights** *(v1.2.0)* | Tap the yellow panel to toggle, swipe ↕ to dim. Brightness routes only to dimmable bulbs — no more "this on/off light goes to 100% when I drag the slider" |
+| 🎯 **Multi-entity** | Each panel handles a group of lights or covers, with a tile-grid scope picker and a master "Tutte" button |
+| 🌐 **Offline** | The 5 Inter font weights ship inlined in the bundle. No internet, no CDN, works on a LAN-only kiosk |
+| 🪶 **Lightweight** | ~1 MB single-file release (fonts included), no `filter: blur`, no canvas, no heavy JS — runs on the cheapest touch SoCs |
+| 🛠️ **Real HA services** | Calls `climate.set_temperature` / `set_hvac_mode` / `set_fan_mode`, `cover.open/close/stop/set_position`, `light.turn_on/off` directly — no helpers, no scripts |
+| 📱 **Scales** | One bundle covers Shelly Wall Display SAWD1 (480×480), Shelly X2i (720×720) and any 1:1 viewport via CSS `transform: scale` |
 
-## The 12 variants
+---
 
-Each maps to one Figma frame in page **"Split Panel — All States"**:
+## Screenshots
 
-```
-Thermostat:  Heating  / Cooling  / Off    / Idle
-Blinds:      Open     / Half     / Closed / Moving
-Lights:      Bright   / Dim      / Off    / Night
-```
+### Lights — gesture-driven left panel + tile grid scope picker
+
+<table>
+  <tr>
+    <td><img src="docs/screenshots/lights-bright.png" alt="Master scope, bright" width="360"></td>
+    <td><img src="docs/screenshots/lights-mid-drag.png" alt="Mid-drag interaction" width="360"></td>
+  </tr>
+  <tr>
+    <td align="center"><b>Master · 80%</b><br><sub>Average across dimmer bulbs only</sub></td>
+    <td align="center"><b>Mid-drag</b><br><sub>Live halo + fingertip indicator</sub></td>
+  </tr>
+  <tr>
+    <td><img src="docs/screenshots/lights-non-dimmer-off.png" alt="Non-dimmer light selected, off" width="360"></td>
+    <td><img src="docs/screenshots/lights-many.png" alt="Six lights in a 2x3 grid" width="360"></td>
+  </tr>
+  <tr>
+    <td align="center"><b>Non-dimmer · OFF</b><br><sub>Swipe disabled, big ON/OFF instead of %</sub></td>
+    <td align="center"><b>Six lights, 2×3 grid</b><br><sub>Scales without wrapping or scrolling</sub></td>
+  </tr>
+</table>
+
+**Interaction model**
+
+- **Tap** the yellow panel → toggle on/off on the current scope
+- **Swipe ↕** the yellow panel → brightness (only if the scope can be dimmed)
+- **Tap a tile** → set that light as the current scope
+- **Tap `Tutte (master)`** → control the whole group
+
+A ring around the tile dot is the canonical sign for "this light is dimmable" — no ring means swipe will be inert when that tile is the scope.
+
+### Thermostat
+
+<table>
+  <tr>
+    <td><img src="docs/screenshots/thermostat-heating.png" alt="Heating" width="360"></td>
+    <td><img src="docs/screenshots/thermostat-cooling.png" alt="Cooling" width="360"></td>
+  </tr>
+  <tr>
+    <td align="center"><b>Heating</b><br><sub>21° · setpoint 24°C · auto fan</sub></td>
+    <td align="center"><b>Cooling</b><br><sub>26° · setpoint 22°C · fan 2</sub></td>
+  </tr>
+</table>
+
+`▲` / `▼` adjust the setpoint, the `Cool` / `Heat` / `Off` row swaps HVAC mode, `Auto` / `1` / `2` / `3` picks the fan mode — every action is a direct `climate.*` service call.
+
+### Blinds
+
+<table>
+  <tr>
+    <td><img src="docs/screenshots/blinds-open.png" alt="Fully open" width="360"></td>
+    <td><img src="docs/screenshots/blinds-half.png" alt="Half open" width="360"></td>
+  </tr>
+  <tr>
+    <td align="center"><b>Fully Open</b><br><sub>Bedroom roller blind at 100%</sub></td>
+    <td align="center"><b>Half Open</b><br><sub>Partial position with slat preview</sub></td>
+  </tr>
+</table>
+
+`▲ Open` / `■ Stop` / `▼ Close` plus `0%` / `50%` / `100%` quick presets for any `cover.*` entity.
+
+---
 
 ## Install
 
-### Via HACS (Custom Repository)
+### Via HACS (recommended)
 
-1. HACS → Integrations → ⋮ → **Custom repositories**
-2. Repository: `https://github.com/<your-account>/cow-thermostat-card` — Category: **Lovelace**
-3. **Install**, then refresh
-4. If you're in YAML mode, add to `configuration.yaml`:
+1. HACS → ⋮ → **Custom repositories**
+2. Repository: `https://github.com/i87ce/cow-thermostat-card`
+3. Category: **Lovelace**
+4. **Install**, refresh
+5. If you're in YAML mode, add to `configuration.yaml`:
+
    ```yaml
    frontend:
      extra_module_url:
@@ -45,9 +115,16 @@ Lights:      Bright   / Dim      / Off    / Night
 
 ### Manual
 
-1. `npm install && npm run build` — outputs `dist/cow-thermostat-card.js` and the 5 woff2 fonts
-2. Copy `dist/*` to `<ha-config>/www/cow-thermostat-card/`
-3. Settings → Dashboards → Resources → add `/local/cow-thermostat-card/cow-thermostat-card.js` (JavaScript Module)
+```bash
+git clone https://github.com/i87ce/cow-thermostat-card
+cd cow-thermostat-card
+npm install
+npm run build         # outputs dist/cow-thermostat-card.js (~1 MB, fonts inlined)
+```
+
+Copy `dist/cow-thermostat-card.js` to `<ha-config>/www/cow-thermostat-card/`, then add it as a resource: **Settings → Dashboards → Resources → Add → `/local/cow-thermostat-card/cow-thermostat-card.js` (JavaScript Module)**.
+
+---
 
 ## Configure
 
@@ -55,69 +132,86 @@ Per-room YAML:
 
 ```yaml
 type: custom:cow-thermostat-card
-room: "Living Room"
-climate: climate.living_thermostat        # optional
-light: light.living_main                  # optional
-cover: cover.living_blinds                # optional
-outdoor_temp: sensor.weather_temperature  # optional
-local_temp: sensor.shelly_walldisplay_living_temperature   # optional
-local_humidity: sensor.shelly_walldisplay_living_humidity  # optional
-initial_view: thermostat                  # thermostat | lights | blinds (default: first available panel)
+room: "Soggiorno"
+climate: climate.living_thermostat
+lights:
+  - { entity: light.living_ceiling, label: "Soffitto" }
+  - { entity: light.living_table,   label: "Tavolo" }
+  - { entity: light.living_led,     label: "LED Strip" }
+  - { entity: light.living_lamp,    label: "Lampada" }
+covers:
+  - { entity: cover.living_blind_left,  label: "Sinistra" }
+  - { entity: cover.living_blind_right, label: "Destra" }
+outdoor_temp:   sensor.weather_temperature
+local_temp:     sensor.shelly_walldisplay_living_temperature
+local_humidity: sensor.shelly_walldisplay_living_humidity
+initial_view: thermostat   # thermostat | lights | blinds
 ```
 
-At least one of `climate`, `light`, or `cover` must be set. The swiper renders only the panels you configure — drop `climate` and you get a 2-panel card (lights + blinds), drop two of them and you get a single-panel card with no swipe.
+**Rules**
 
-Full per-room dashboards examples are in [`examples/dashboards/`](./examples/dashboards/).
+- At least one of `climate`, `lights`, `covers` must be set
+- The swiper renders only the panels you configured — drop `climate` and you get a 2-panel card, drop two of them and the card becomes a single-panel view without swipe
+- `lights` and `covers` accept any number of entities — the panels switch from a single big visual to a tile-grid scope picker as soon as you configure 2 or more
+- `initial_view` defaults to the first available panel (`thermostat` → `lights` → `blinds`)
+
+**Legacy v1 schema** (still supported for back-compat):
+
+```yaml
+light:        [light.living_ceiling, light.living_table]
+light_labels: ["Soffitto", "Tavolo"]
+cover:        [cover.living_blind]
+cover_labels: ["Tapparella"]
+```
+
+Full per-room dashboard examples are in [`examples/dashboards/`](./examples/dashboards/).
+
+---
 
 ## Setup guide
 
-Full step-by-step:
+Step-by-step docs:
 
-1. [HA Model Context Protocol Server + Cursor](./docs/01-ha-mcp-setup.md)
-2. [Lovelace dashboard + kiosk-mode](./docs/02-lovelace-dashboard.md)
+1. [Home Assistant MCP Server + Cursor](./docs/01-ha-mcp-setup.md)
+2. [Lovelace dashboard + kiosk mode](./docs/02-lovelace-dashboard.md)
 3. [Shelly Wall Display configuration](./docs/03-shelly-wall-display.md)
-4. [Visual verification of the 12 variants](./docs/04-visual-verification.md)
+4. [Visual verification of every variant](./docs/04-visual-verification.md)
+5. [Push configuration from HA to the Wall Display](./docs/05-push-configuration-from-ha.md)
+
+---
 
 ## Develop
 
 ```bash
 npm install
 npm run lint    # tsc --noEmit
-npm run build   # rollup -> dist/cow-thermostat-card.js (+ 5 woff2)
+npm run build   # rollup → dist/cow-thermostat-card.js
 npm run watch   # rollup --watch
 ```
 
-Then open `examples/preview.html` in a browser to cycle through all 12 variants without HA.
+Open `examples/preview.html` in a browser to cycle through every variant without a Home Assistant instance attached.
 
-## Source files
+---
 
-```
-src/
-  cow-thermostat-card.ts    Card root + customCards registration
-  config.ts                 Validated YAML config schema
-  styles/
-    tokens.ts               27 colors + 5 radii + accent helpers (Figma "Atoms")
-    typography.ts           @font-face Inter + 11-step type scale
-    global.ts               Container-query rem scaling (1cqmin -> 1/24)
-  state/
-    thermostat-state.ts     4 variants from climate.* attrs
-    blinds-state.ts         4 variants from cover.current_position
-    lights-state.ts         4 variants from light.brightness
-  devices/
-    thermostat-panel.ts     Pixel-perfect replica of Figma 50:5/7/9/11
-    blinds-panel.ts         Pixel-perfect replica of Figma 50:14/16/18/20
-    lights-panel.ts         Pixel-perfect replica of Figma 50:23/25/27/29
-  components/
-    split-panel.ts          12 + 12 = 24 rem split, 16-rem radius (Figma 67:51)
-    device-swiper.ts        Pointer-events horizontal snap swiper
-  molecules/                8 reusable Figma molecules
-  visuals/                  blind-visual.ts, bulb-visual.ts (SVG)
-  utils/format.ts           formatTemp / formatTime
-  types/hass.ts             Minimal HA types (no @types deps)
-assets/                     5 Inter woff2 (rsms.me/inter v4.0)
-examples/                   preview.html, dashboards/, configuration-snippet.yaml
-docs/                       4 setup docs
-```
+## Hardware
+
+This card was designed against the **Shelly Wall Display SAWD1** — a 4" 720×720 touch panel running a stripped-down Chromium on an MTK6580 SoC. The performance budget reflects that target:
+
+- No `filter: blur` / `backdrop-filter` (the SoC drops to 5 fps with either enabled)
+- No canvas, no WebGL, no animation libraries
+- Touch gestures use `pointer-events` directly, no Hammer.js / no `passive: false` listeners
+- Inter font ships inlined as base64 `woff2` so the kiosk works on a LAN with no internet at all
+- Single-file bundle (`cow-thermostat-card.js`, ~1 MB) loaded once at boot, cached forever by the WebView
+
+If you have a different square-ish touch panel running a recent-ish Chromium and `aspect-ratio: 1/1` works on it, this card will work too.
+
+---
+
+## Bonus: `cow-room-dashboard-card`
+
+The same bundle ships a second custom element for the **Shelly Wall Display XL** (10.1" landscape, 1280×800): a multi-room dashboard with a live-sky hero (live sun/moon/weather), per-room chip navigator with active-device badges, music player wired to Music Assistant, and pollen tracking. Not the focus of this README — see [`examples/dashboards/`](./examples/dashboards/) for a complete configuration.
+
+---
 
 ## License
 

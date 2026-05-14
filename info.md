@@ -1,31 +1,33 @@
 # Cave of Wonders Room Card
 
-A pixel-perfect, single-card Lovelace replacement for small square Home Assistant kiosks (Shelly Wall Display SAWD1 and similar). One card per room — controls **thermostat**, **lights**, and **blinds** with a horizontal swipe between them.
+One pixel-perfect Lovelace card per room — thermostat, lights and blinds in a single tile, designed for small square touch displays like the **Shelly Wall Display SAWD1** (4" 720×720).
 
-## Why
+## Highlights
 
-Built for the **Shelly Wall Display SAWD1** (4" square touch). The card scales itself to any square viewport using container queries, so the same build works on 480×480 and on a desktop window equally well.
-
-## Features
-
-- **12 visual states** matching the Figma source (4 thermostat / 4 blinds / 4 lights)
-- **Horizontal swipe** between the three devices, with state-coloured dot indicators
-- **Inter font embedded** — no external font CDN required (works on a LAN-only display)
-- **Built for ES2017** WebView (Shelly's MTK6580 SoC) — no `filter: blur`, no heavy JS
-- **One YAML block per room** — easily replicated across Wall Displays
+- **Gesture-driven lights** *(v1.2.0)* — tap to toggle, swipe ↕ to dim. Brightness routes only to dimmable bulbs, so mixed dimmer + on/off groups stop misbehaving.
+- **Tile grid scope picker** — scales cleanly from 1 to ~10 lights per room without wrapping.
+- **Pixel-perfect** — every offset and color derived 1:1 from the Figma source.
+- **Offline** — Inter font embedded in the bundle, no CDN calls, works on LAN-only kiosks.
+- **Lightweight** — single ~1 MB JS file, no `filter: blur`, no canvas, runs smoothly on cheap MTK6580 touch SoCs.
+- **Real HA services** — `climate.set_temperature` / `set_hvac_mode`, `cover.open/close/stop/set_position`, `light.turn_on/off` direct.
 
 ## Configure
 
 ```yaml
 type: custom:cow-thermostat-card
-room: "Living Room"
+room: "Soggiorno"
 climate: climate.living_thermostat
-light: light.living_main
-cover: cover.living_blinds
-outdoor_temp: sensor.weather_temperature
-local_temp: sensor.shelly_walldisplay_living_temperature
+lights:
+  - { entity: light.living_ceiling, label: "Soffitto" }
+  - { entity: light.living_lamp,    label: "Lampada" }
+covers:
+  - { entity: cover.living_blind, label: "Tapparella" }
+outdoor_temp:   sensor.weather_temperature
+local_temp:     sensor.shelly_walldisplay_living_temperature
 local_humidity: sensor.shelly_walldisplay_living_humidity
-initial_view: thermostat
+initial_view: thermostat   # thermostat | lights | blinds
 ```
 
-See [README](README.md) for the full setup guide and Wall Display configuration.
+At least one of `climate`, `lights` or `covers` must be configured.
+
+See [README](README.md) for screenshots, setup guide, Wall Display configuration, and the full per-room dashboard examples.

@@ -4,6 +4,66 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and
 this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.2.0] — 2026-05-14
+
+### Changed — small Lights card completely redesigned (Proposta B)
+The small Lights panel switches from a left-pane visual + right-pane
+vertical slider + chip-row scope picker to a **gesture-driven left
+half + tile grid scope picker on the right**. Resolves two long-running
+issues with the previous design:
+
+1. `brightness:` was being fanned out to every entity in the scope,
+   including pure on/off bulbs that either reject it or treat it as a
+   plain `turn_on`. The new `isDimmable()` helper reads
+   `supported_color_modes` and filters service calls so brightness is
+   sent only to dimmer bulbs, while `turn_on` / `turn_off` keep
+   targeting the whole scope.
+2. The old chip-row wrapped to two rows once a room had 4+ lights,
+   making chips visually overlap on the small Wall Display LCD.
+   Replaced by a 2-column tile grid that scales cleanly up to 10
+   lights without wrapping or scrolling.
+
+### Added
+- **Tap on the left panel** → toggles the current scope on/off
+- **Swipe ↕ on the left panel** → brightness, with optimistic preview
+  (the `%` updates live during the gesture, the actual service call
+  fires on `pointerup`). Inert and visually muted when the scope can't
+  be dimmed.
+- **Tile grid** on the right — each tile shows a dot (on/off colour),
+  a ring (only when the light is dimmable), the name, and the live
+  state (`80% · dim` / `ON` / `OFF`). Tap a tile to set it as scope.
+- **Master "Tutte" button** under the grid — tap to control the whole
+  group. Dark fill when active.
+- **Mid-drag feedback** — an extra 300×300 halo behind the bulb, a
+  white fingertip indicator + ↕ arrow that follow the touch, the hint
+  pill recedes to 55% opacity, the sub label becomes "Drag in corso".
+- **Non-dimmer scope state** — the big `%` is replaced by a `ON`/`OFF`
+  rendered at the same `font-size: 105` weight, the swipe gesture is
+  disabled, and the hint switches to "Swipe ↕ non attivo" at 0.45
+  opacity. Visually unambiguous on a touch panel.
+- **`docs/screenshots/`** — 8 reference renders (lights master, mid-drag,
+  non-dimmer off, many lights, thermostat heating/cooling, blinds
+  open/half) exported 1:1 from the Figma source and embedded in the
+  README.
+
+### Internal
+- New Lit component `cow-light-tile` (`src/small/components/light-tile.ts`)
+  used by the Lights panel. Single source of truth for the dot/ring/
+  selected-bg visual conventions; the `selected` state uses
+  `color-mix(in srgb, var(--cow-accent) 22%, white)` so it tints
+  automatically when the panel variant changes (bright/dim/off/night).
+- `state/lights.ts` adds `isDimmable(entity)` and a `dimmable: boolean`
+  field on `LightsView`. The aggregate brightness % now averages **only
+  dimmers that are on**, never the whole group.
+- `cow-bulb-visual` accepts a `dragging` boolean prop and renders an
+  extra `inset: -16.5%` halo at 0.45 opacity when set, matching the
+  Figma "Glow Halo" node in the Mid-Drag mock.
+- `HassLightAttributes.supported_color_modes?: string[]` typed.
+- Production code is 1:1 with the new Figma section "Proposta B —
+  Lights States" (11 reference frames covering Bright / Dim / Off /
+  Night variants + scope=single dimmer/non-dimmer × on/off + edge
+  cases: 1 light only, 6 lights grid, mid-drag interaction).
+
 ## [1.1.5] — 2026-05-14
 
 ### Added — evening dim scrim on the hero
