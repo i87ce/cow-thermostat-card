@@ -160,18 +160,22 @@ export class CowKioskCard extends LitElement implements LovelaceCard {
       /* RIGHT pane — header + controls + presets + selector */
       .room {
         position: absolute;
-        left: 1rem;
-        top: 2rem;
+        left: 0.875rem;
+        top: 1.75rem;
         font-weight: 600;
-        font-size: 1.1rem;
+        font-size: 0.85rem;
         color: var(--cow-text-room-name);
+        white-space: nowrap;
+        max-width: 7rem;
+        overflow: hidden;
+        text-overflow: ellipsis;
       }
       .time {
         position: absolute;
-        right: 1rem;
-        top: 2rem;
+        right: 0.875rem;
+        top: 1.75rem;
         font-weight: 600;
-        font-size: 1rem;
+        font-size: 0.8rem;
         color: var(--cow-text-time);
       }
       .scope-label {
