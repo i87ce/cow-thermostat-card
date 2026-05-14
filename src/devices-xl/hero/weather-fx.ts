@@ -140,26 +140,29 @@ function cloudShape(): TemplateResult {
  * ────────────────────────────────────────────────────────────────── */
 
 function rainLayer(intensity: 1 | 2): TemplateResult {
-  // Drop count tuned for the XL hero (≈1000×368 on a wall display).
-  // Below ~60 the rain reads as "a few dots" rather than rain.
-  const count = intensity === 2 ? 130 : 75;
-  const baseOpacity = intensity === 2 ? 0.95 : 0.85;
+  // Drop count + stroke tuned for a 10.1" Shelly Wall Display
+  // (1280×800, DPR 1) where the hero ends up roughly 1100×300 in CSS
+  // pixels. v1.1.2 used 1.4 px strokes which rendered as 1–2 physical
+  // pixels and were invisible at viewing distance. v1.1.4 bumps the
+  // stroke to 3 px and uses a darker, more saturated color so each
+  // drop reads against both daytime blue and sunset orange skies.
+  const count = intensity === 2 ? 180 : 110;
+  const baseOpacity = intensity === 2 ? 1.0 : 0.95;
   const drops: TemplateResult[] = [];
   for (let i = 0; i < count; i++) {
     const x = (i * 13.371) % 100;
     const delay = -((i * 0.0917) % 1).toFixed(3);
-    const dur = (0.55 + ((i * 0.0731) % 0.45)).toFixed(2);
-    const op = (baseOpacity * (0.65 + ((i * 0.181) % 0.35))).toFixed(2);
-    // Longer streaks (y2 38 vs 22) so each drop reads as actual rain
-    // and not a stray pixel. Stroke uses `vector-effect: non-scaling-stroke`
-    // so the line stays a consistent ~1.4px regardless of aspect ratio
-    // (preserveAspectRatio="none" otherwise crushes the stroke width).
+    const dur = (0.6 + ((i * 0.0731) % 0.45)).toFixed(2);
+    const op = (baseOpacity * (0.78 + ((i * 0.181) % 0.22))).toFixed(2);
+    // Streaks now span 55 viewBox units (was 46) so each drop is
+    // clearly a falling line, not a dot. stroke-width 3 + non-scaling
+    // keeps a constant 3 CSS-pixel line regardless of aspect.
     drops.push(svg`
       <line
-        x1=${x.toFixed(2)} y1="-8"
-        x2=${(x - 3).toFixed(2)} y2="38"
-        stroke="rgba(150, 190, 235, ${op})"
-        stroke-width="1.4"
+        x1=${x.toFixed(2)} y1="-10"
+        x2=${(x - 3.5).toFixed(2)} y2="45"
+        stroke="rgba(110, 155, 215, ${op})"
+        stroke-width="3"
         stroke-linecap="round"
         vector-effect="non-scaling-stroke"
         style=${`animation: cow-rain-fall ${dur}s linear infinite ${delay}s`}

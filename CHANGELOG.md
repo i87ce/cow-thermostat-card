@@ -4,6 +4,20 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and
 this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.1.4] — 2026-05-14
+
+### Fixed
+- **Rain still too thin at viewing distance.** v1.1.2 used a 1.4 px
+  stroke which, on the 10.1" Shelly Wall Display at DPR 1, rendered
+  as just 1–2 physical pixels per drop and disappeared at the typical
+  ~1 m viewing distance. Tripled the stroke to 3 px (still backed by
+  `vector-effect: non-scaling-stroke` so aspect-ratio stretch doesn't
+  crush it), bumped the count again (75→110 rainy, 130→180 pouring),
+  lifted the opacity floor (0.55→0.74) and swapped to a more
+  saturated rgba(110, 155, 215) so drops contrast against both
+  daytime blue and sunset orange skies. Streaks lengthened from 46
+  to 55 viewBox units for extra "this is rain" clarity.
+
 ## [1.1.3] — 2026-05-14
 
 ### Fixed — info hidden in compact hero mode
