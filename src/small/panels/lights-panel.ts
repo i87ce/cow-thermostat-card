@@ -137,12 +137,20 @@ export class CowLightsPanel extends LitElement {
       .right {
         z-index: 0;
       }
-      :host > :not(.left):not(.right) {
+      /* IMPORTANT: do NOT include .grid / .master in this disabler.
+         A previous version was ":not(.left):not(.right)" and that
+         disabled pointer events on .grid too — because the negation
+         chain has higher specificity (0,3,0) than ":host > .grid"
+         (0,2,0), the later auto-override silently lost the cascade.
+         Result: tap on a tile bubbled to the underlying .right base,
+         not to the tile click handler. */
+      :host > :not(.left):not(.right):not(.grid):not(.master) {
         z-index: 1;
         pointer-events: none;
       }
       :host > .grid,
       :host > .master {
+        z-index: 1;
         pointer-events: auto;
       }
       .bulb-wrap {
@@ -276,7 +284,10 @@ export class CowLightsPanel extends LitElement {
       .apparecchi {
         position: absolute;
         left: 397.5px;
-        top: 145px;
+        /* Pulled 12 px up from the previous 145px so the grid sits
+           closer to the room-name block and there's less dead space
+           visually concentrating the controls in the upper half. */
+        top: 133px;
         font-weight: 400;
         font-size: 14px;
         color: var(--cow-text-secondary, #737380);
@@ -284,7 +295,7 @@ export class CowLightsPanel extends LitElement {
       .scope-active {
         position: absolute;
         right: 17px;
-        top: 145px;
+        top: 133px;
         font-weight: 700;
         font-size: 14px;
         letter-spacing: 1.5px;
@@ -297,7 +308,9 @@ export class CowLightsPanel extends LitElement {
       .grid {
         position: absolute;
         left: 383px;
-        top: 180px;
+        /* Moved up from 180 → 162 so the first tile row sits ~12 px
+           below the "Apparecchi" header (was ~18 px gap, felt floaty). */
+        top: 162px;
         width: 320px;
         display: grid;
         grid-template-columns: 154px 154px;
@@ -413,9 +426,10 @@ export class CowLightsPanel extends LitElement {
     this.style.setProperty("--cow-accent-active", a.active);
     this.style.setProperty("--cow-accent-surface", a.surface);
     // Compute master button top position so it always sits below the grid.
+    // Origin (162) must match the `.grid { top: ... }` CSS rule above.
     const n = this.devices.length;
     const rows = Math.max(1, Math.ceil(n / 2));
-    const gridBottom = 180 + rows * 80 + (rows - 1) * 10;
+    const gridBottom = 162 + rows * 80 + (rows - 1) * 10;
     this.style.setProperty("--cow-master-top", `${gridBottom + 20}px`);
   }
 

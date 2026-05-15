@@ -4,6 +4,43 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and
 this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.2.6] — 2026-05-15
+
+### Fixed — tile tap was silently dropped (CSS specificity bug)
+Tapping a light tile in the right-hand grid did nothing — the tap
+bubbled to the underlying `.right` base layer instead of triggering
+the tile's `@click` handler. Confirmed by opening the kiosk URL
+through the browser MCP: the tool reported the tile div had
+`pointer-events: none` and could not receive clicks.
+
+Root cause: a CSS specificity miscount in `lights-panel.ts`:
+
+```css
+:host > :not(.left):not(.right)        /* specificity 0,3,0 */
+  { pointer-events: none }
+:host > .grid                          /* specificity 0,2,0 — LOSES */
+  { pointer-events: auto }
+```
+
+The negation chain has higher specificity than the single class
+selector, so `.grid` (and by propagation every tile inside it)
+ended up with `pointer-events: none`. The intended `auto` override
+was silently dropped by the cascade.
+
+Fix: explicit exclusion in the disabler — `:not(.grid):not(.master)`
+keeps `.grid` and `.master` out of the negation set entirely. Tile
+taps now reach `onPick` → `cow-tile-select` event → scope update.
+
+### Changed — tile grid sits 18 px higher
+The `Apparecchi`/`TUTTE` header was at `top: 145px` and the first
+tile row at `top: 180px`, leaving ~18 px of empty space between
+the header and the grid. On a wall display it looked like the whole
+"appliances" block was floating in the middle of the right pane.
+Pulled both up: header at `top: 133px`, grid at `top: 162px` —
+header-to-grid gap reduced to ~12 px. The master button position
+is computed dynamically from `grid.top + rows * 80 + ...` so it
+stays correctly aligned for any light count (2..10).
+
 ## [1.2.5] — 2026-05-15
 
 ### Fixed — dimmer ring not centered on the on/off dot
