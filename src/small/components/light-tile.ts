@@ -101,6 +101,11 @@ export class CowLightTile extends LitElement {
         height: 22px;
         border-radius: 50%;
         border: 2px solid var(--cow-accent, #ffc72e);
+        /* Without border-box, the 2px border would add to the 22px
+           width/height — making the real ring 26×26, shifted 2px
+           down-right of the 14×14 dot. With border-box the 22px is
+           the *outer* size so the ring is concentric with the dot. */
+        box-sizing: border-box;
         opacity: 0.38;
       }
       .label {

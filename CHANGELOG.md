@@ -4,6 +4,25 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and
 this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.2.5] — 2026-05-15
+
+### Fixed — dimmer ring not centered on the on/off dot
+The dimmer indicator ring inside `cow-light-tile` was offset 2px
+down-right of the on/off dot it was supposed to surround. Visible
+in the screenshot of Camera Padronale on the "Letto" tile: the
+yellow ring sat below-right of the grey dot instead of being
+concentric.
+
+Root cause: the ring used `width: 22px` + `border: 2px` with the
+default `box-sizing: content-box`, so the *real* size of the ring
+element was 22+4 = 26×26 px, and the `left/top: -4px` offset
+(designed for a 22×22 outer box) only compensated for the top-left
+edge — leaving the bottom-right protruding by 2px.
+
+Added `box-sizing: border-box` to `.ring` so the 22×22 declaration
+is now the *outer* size of the ring, perfectly concentric with the
+14×14 dot. One-line CSS fix.
+
 ## [1.2.4] — 2026-05-15
 
 ### Fixed — bulb visual overshot the glow disc
