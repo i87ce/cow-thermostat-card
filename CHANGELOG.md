@@ -4,6 +4,31 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and
 this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.2.10] — 2026-05-15
+
+### Fixed — brightness drag really really really doesn't snap back now
+Final root cause of the Shelly-Wall-Display-only flicker: the
+Chromium on the MTK6580 touch panel sometimes delivers a
+`pointercancel` event where a regular `pointerup` would be expected
+at the end of a drag — a known quirk of the touch driver. The
+existing `onLeftPointerCancel` handler discarded `dragPct` without
+committing the brightness, so on those panels every drag visually
+"snapped back" to the pre-drag value at the moment the finger lifted.
+
+Unified `pointerup` and `pointercancel` through a single
+`finalizeGesture(cancelled)` path:
+- Committed drag (moved + dimmable + dragPct set) → always fire
+  `setBrightness`, regardless of whether we got `up` or `cancel`.
+  This is the case the user was hitting.
+- Tap-shaped gesture (no movement) → toggle ONLY on a clean `up`.
+  On a `cancel` we skip the toggle to avoid accidental on/off
+  flips when the touch driver bails mid-tap.
+
+Confirmed via HA WS probe in the previous iteration that brightness
+echoes round-trip in ~800 ms (218 ms callService + ~600 ms Zigbee),
+so the optimistic `dragPct` clears cleanly on the next render once
+HA's state lands.
+
 ## [1.2.9] — 2026-05-15
 
 ### Fixed — brightness drag flicker on the Shelly Wall Display

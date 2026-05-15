@@ -536,7 +536,7 @@ export class CowLightsPanel extends LitElement {
     this.dragTouchY = this.toInternalY(e.clientY, rect);
   };
 
-  private onLeftPointerUp = (e: PointerEvent): void => {
+  private finalizeGesture(e: PointerEvent, cancelled: boolean): void {
     if (this.dragStartY == null) return;
     const target = e.currentTarget as HTMLElement;
     try {
@@ -545,9 +545,6 @@ export class CowLightsPanel extends LitElement {
       /* pointer may already have been released by the browser */
     }
 
-    // Snapshot gesture state — we reset most of it immediately so a
-    // brand-new drag can start, but we hold on to dragPct as the
-    // optimistic UI value until HA echoes back the new brightness.
     const wasMoved = this.dragMoved;
     const pendingPct = this.dragPct;
     const wasDimmable = this.view().dimmable;
@@ -557,33 +554,40 @@ export class CowLightsPanel extends LitElement {
     this.dragMoved = false;
 
     if (wasMoved && wasDimmable && pendingPct != null) {
-      // Keep `dragPct` set as the optimistic UI value forever — until
-      // either (a) `willUpdate` sees `v.brightnessPct` catch up to it
-      // (HA state echo via WS), or (b) the next pointerdown starts a
-      // new gesture and clears it. NO safety timer: on a kiosk Wall
-      // Display the WebSocket can be slow or temporarily silent, and
-      // we'd rather show the user's committed value indefinitely than
-      // snap back to the pre-drag state because of a missed echo.
+      // Commit the drag — keep `dragPct` set as the optimistic UI
+      // value forever until either (a) `willUpdate` sees
+      // `v.brightnessPct` catch up to it (HA state echo via WS), or
+      // (b) the next pointerdown starts a new gesture and clears it.
+      // NO safety timer: on a kiosk Wall Display the WebSocket can be
+      // slow or temporarily silent, and we'd rather show the user's
+      // committed value indefinitely than snap back to the pre-drag
+      // state because of a missed echo.
       void this.setBrightness(pendingPct);
     } else {
       this.dragPct = null;
-      if (!wasMoved) {
+      // Only toggle on a clean release (not on system-level cancel).
+      // A `pointercancel` for a tap-shaped gesture is usually a
+      // touch-driver quirk; we don't want it to flip the light by
+      // accident.
+      if (!wasMoved && !cancelled) {
         void this.toggle();
       }
     }
+  }
+
+  private onLeftPointerUp = (e: PointerEvent): void => {
+    this.finalizeGesture(e, false);
   };
 
+  // Some touch panels (notably the MTK6580 Chromium on the Shelly Wall
+  // Display) deliver a `pointercancel` where a regular `pointerup`
+  // would be expected at the end of a drag. Previously we discarded
+  // `dragPct` on cancel, so every drag on those panels looked like it
+  // "snapped back" to the pre-drag value. Treat cancel as up for
+  // committed drags — for tap-shaped cancels we still skip the toggle
+  // (see `finalizeGesture`).
   private onLeftPointerCancel = (e: PointerEvent): void => {
-    const target = e.currentTarget as HTMLElement;
-    try {
-      target.releasePointerCapture(e.pointerId);
-    } catch {
-      /* noop */
-    }
-    this.dragPct = null;
-    this.dragTouchY = null;
-    this.dragStartY = null;
-    this.dragMoved = false;
+    this.finalizeGesture(e, true);
   };
 
   private onTileSelect = (e: CustomEvent<{ id: string }>): void => {
