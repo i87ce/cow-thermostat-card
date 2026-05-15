@@ -8,7 +8,9 @@
 [![Built for Shelly Wall Display](https://img.shields.io/badge/built%20for-Shelly%20Wall%20Display-blue.svg?style=flat-square)](https://www.shelly.com/products/shelly-wall-display)
 
 <p align="center">
-  <img src="docs/screenshots/lights-bright.png" alt="cow-thermostat-card — Lights master scope at 80%" width="540">
+  <img src="docs/screenshots/lights-bright.png" alt="cow-thermostat-card — Lights master scope, 4 lights with 1 dimmer, Cabina turned on" width="540">
+  <br>
+  <sub><em>Screenshot from a real Shelly Wall Display SAWD1 running v1.2.x</em></sub>
 </p>
 
 `cow-thermostat-card` replaces an entire Lovelace dashboard with **one card per room**: a horizontal swipe between three pixel-perfect views (thermostat · lights · blinds), each tracking the live state of your Home Assistant entities. Built specifically for the **Shelly Wall Display SAWD1** (4" 720×720) but scales to any square viewport.
@@ -39,20 +41,26 @@ Generic Lovelace tiles look out of place on a wall-mounted touch panel. This car
 
 <table>
   <tr>
-    <td><img src="docs/screenshots/lights-bright.png" alt="Master scope, bright" width="360"></td>
-    <td><img src="docs/screenshots/lights-mid-drag.png" alt="Mid-drag interaction" width="360"></td>
+    <td><img src="docs/screenshots/lights-bright.png" alt="Master scope, 4 lights with 1 dimmer, one light ON" width="360"></td>
+    <td><img src="docs/screenshots/lights-master-off.png" alt="Master scope, 2 non-dimmer lights, all off" width="360"></td>
   </tr>
   <tr>
-    <td align="center"><b>Master · 80%</b><br><sub>Average across dimmer bulbs only</sub></td>
-    <td align="center"><b>Mid-drag</b><br><sub>Live halo + fingertip indicator</sub></td>
+    <td align="center"><b>Master scope · mixed group</b><br><sub>Real Wall Display screenshot · ring around the dot marks the dimmer</sub></td>
+    <td align="center"><b>Master scope · all off (non-dimmer group)</b><br><sub>Big <code>OFF</code> instead of <code>0%</code>, swipe gesture muted</sub></td>
   </tr>
   <tr>
-    <td><img src="docs/screenshots/lights-non-dimmer-off.png" alt="Non-dimmer light selected, off" width="360"></td>
+    <td><img src="docs/screenshots/lights-single-light.png" alt="Single light only — no grid, no master" width="360"></td>
     <td><img src="docs/screenshots/lights-many.png" alt="Six lights in a 2x3 grid" width="360"></td>
   </tr>
   <tr>
-    <td align="center"><b>Non-dimmer · OFF</b><br><sub>Swipe disabled, big ON/OFF instead of %</sub></td>
+    <td align="center"><b>Single light room</b><br><sub>No tile grid, no master button — the bulb visual does everything</sub></td>
     <td align="center"><b>Six lights, 2×3 grid</b><br><sub>Scales without wrapping or scrolling</sub></td>
+  </tr>
+  <tr>
+    <td colspan="2"><img src="docs/screenshots/lights-mid-drag.png" alt="Mid-drag interaction" width="540"></td>
+  </tr>
+  <tr>
+    <td colspan="2" align="center"><b>Mid-drag</b> · live halo around the bulb + fingertip indicator + <code>↕</code> arrow following the finger</td>
   </tr>
 </table>
 
