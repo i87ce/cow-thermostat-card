@@ -4,6 +4,45 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and
 this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.2.2] — 2026-05-15
+
+### Changed — incandescent-style bulb icon
+The bulb icon in `cow-bulb-visual` was a 24×24 line-art SVG (just an
+outline + base hint). Replaced by two photo-realistic incandescent
+bulbs sourced from clker.com public-domain clipart:
+
+- **`bulbOnSvg`** — yellow-tinted lit glass with visible filament,
+  metallic socket (used for variant=bright/dim/night)
+- **`bulbOffSvg`** — same anatomy, clear/unlit glass (used for
+  variant=off)
+
+The bulb visual now reads at a glance — the warm yellow glass on the
+yellow panel + glow gives the small Lights card a real "this light is
+ON" signal that the line-art outline never quite managed.
+
+### Internal
+- New asset module `src/small/visuals/bulb-svg-assets.ts` exports the
+  two SVG strings, kept verbatim so future re-optimisations are a
+  one-shot SVGO pass instead of a manual rewrite.
+- SVGO multipass + `floatPrecision=1` + per-file `prefixIds` (`b1-` /
+  `b2-`) so the two `<defs>` blocks coexist in the same shadow root
+  without `url(#linearGradient3587)` collisions. 143 KiB → 53 KiB
+  combined (63% reduction).
+- `bulb-visual.ts` injects the SVG body via `unsafeSVG()` from
+  `lit/directives/unsafe-svg.js` (avoids re-implementing every
+  `<linearGradient>` stop manually).
+- The bulb element auto-scales to 60% of its wrap height with
+  `preserveAspectRatio` keeping the portrait viewBox intact — sits
+  centered in the 225×225 glow disc on every variant.
+
+### Notes
+- The two SVGs include `<feGaussianBlur>` filters for inner-glass glow
+  and micro-shadows. Native SVG filters are GPU-cached on Chromium
+  after the first paint and measurably cheaper than the CSS
+  `filter: blur` we explicitly avoid on the MTK6580 Wall Display.
+- Bundle grew from ~992 KB to ~1.05 MB (+53 KB, ~5%). Caching is
+  unchanged — HACS still serves a single immutable file.
+
 ## [1.2.1] — 2026-05-15
 
 ### Fixed
