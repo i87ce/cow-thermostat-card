@@ -4,6 +4,17 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and
 this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.2.4] — 2026-05-15
+
+### Fixed — bulb visual overshot the glow disc
+The new incandescent SVG bulb (v1.2.2-1.2.3) was sized at
+`.bulb { height: 60%; max-height: 165px }`. With a portrait
+viewBox (659.8×1124.2, aspect ~1.7) the metal socket extended
+~30 px below the 225 px glow disc — visually the bulb escaped its
+halo on every variant. Capped to `48% / 110px max` so the whole
+bulb (glass + socket) sits inside the glow circle on bright, dim,
+off and night equally.
+
 ## [1.2.3] — 2026-05-15
 
 ### Fixed — bulb-on / bulb-off SVGs were swapped

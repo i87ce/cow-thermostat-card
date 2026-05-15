@@ -98,12 +98,14 @@ export class CowBulbVisual extends LitElement {
     }
     .bulb {
       position: relative;
-      /* Native bulb viewBox is 659.8×1124.2 (portrait). We cap height
-         and let preserveAspectRatio keep the proportions intact so the
-         glass + socket sit nicely centred in the 225×225 wrap. */
+      /* Native bulb viewBox is 659.8×1124.2 (portrait, aspect ~1.7).
+         At height: 60% / max-height: 165px the bulb's socket overshot
+         the bottom of the 225×225 glow disc — visually escaping the
+         halo. Capped to 48% / 110px so the whole bulb (glass + socket)
+         fits comfortably inside the glow circle on every variant. */
       width: auto;
-      height: 60%;
-      max-height: 165px;
+      height: 48%;
+      max-height: 110px;
       display: flex;
       align-items: center;
       justify-content: center;
