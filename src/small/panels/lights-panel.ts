@@ -117,13 +117,6 @@ export class CowLightsPanel extends LitElement {
   private dragStartY: number | null = null;
   private dragStartPct = 0;
   private dragMoved = false;
-  /**
-   * Safety timer that clears a stuck optimistic `dragPct` if HA never
-   * echoes our committed value back — e.g. because the bulb is offline
-   * and the Zigbee round-trip never completes. Without this, a single
-   * failed commit would leave the panel showing a phantom % forever.
-   */
-  private dragCommitTimer?: number;
 
   static override styles = [
     animTokens,
@@ -364,7 +357,6 @@ export class CowLightsPanel extends LitElement {
   override disconnectedCallback(): void {
     super.disconnectedCallback();
     if (this.timer) window.clearInterval(this.timer);
-    if (this.dragCommitTimer) window.clearTimeout(this.dragCommitTimer);
   }
 
   private getEntity(id?: string): HassEntity | undefined {
@@ -454,10 +446,6 @@ export class CowLightsPanel extends LitElement {
     // already equal.
     if (this.dragPct != null && Math.abs(v.brightnessPct - this.dragPct) <= 1) {
       this.dragPct = null;
-      if (this.dragCommitTimer) {
-        window.clearTimeout(this.dragCommitTimer);
-        this.dragCommitTimer = undefined;
-      }
     }
   }
 
@@ -516,6 +504,13 @@ export class CowLightsPanel extends LitElement {
   private onLeftPointerDown = (e: PointerEvent): void => {
     const target = e.currentTarget as HTMLElement;
     target.setPointerCapture(e.pointerId);
+    // A fresh gesture starts from the current *real* HA state. Any
+    // leftover optimistic dragPct from a previous commit that never
+    // got echoed back (e.g. on a degraded kiosk WebSocket) gets
+    // discarded here — otherwise we'd anchor the new gesture to a
+    // stale optimistic baseline and the user would feel the panel
+    // "jumping" between values.
+    this.dragPct = null;
     this.dragStartY = e.clientY;
     this.dragStartPct = this.view().brightnessPct;
     this.dragMoved = false;
@@ -562,23 +557,13 @@ export class CowLightsPanel extends LitElement {
     this.dragMoved = false;
 
     if (wasMoved && wasDimmable && pendingPct != null) {
-      // Keep `dragPct` set as the optimistic UI value. Don't tie its
-      // lifetime to the service-call Promise — that resolves when HA
-      // *accepts* the call (~100 ms), not when the new state echoes
-      // back via WS (~300-700 ms on Zigbee). Clearing too early would
-      // briefly snap the panel back to the OLD `v.brightnessPct`,
-      // which is the flicker the user reads as "value not taken".
-      //
-      // The actual cleanup lives in `willUpdate()` — it clears
-      // `dragPct` the first time `v.brightnessPct` matches our
-      // committed value (the moment HA's echo lands). The timer below
-      // is just a safety net for the case where the echo never comes
-      // (bulb offline, integration unhealthy, etc).
-      if (this.dragCommitTimer) window.clearTimeout(this.dragCommitTimer);
-      this.dragCommitTimer = window.setTimeout(() => {
-        if (this.dragPct === pendingPct) this.dragPct = null;
-        this.dragCommitTimer = undefined;
-      }, 3000);
+      // Keep `dragPct` set as the optimistic UI value forever — until
+      // either (a) `willUpdate` sees `v.brightnessPct` catch up to it
+      // (HA state echo via WS), or (b) the next pointerdown starts a
+      // new gesture and clears it. NO safety timer: on a kiosk Wall
+      // Display the WebSocket can be slow or temporarily silent, and
+      // we'd rather show the user's committed value indefinitely than
+      // snap back to the pre-drag state because of a missed echo.
       void this.setBrightness(pendingPct);
     } else {
       this.dragPct = null;

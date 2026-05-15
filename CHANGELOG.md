@@ -4,6 +4,30 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and
 this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.2.9] — 2026-05-15
+
+### Fixed — brightness drag flicker on the Shelly Wall Display
+Confirmed via HA WS probe that the brightness echo arrives in
+~800 ms (218 ms callService accept + ~600 ms Zigbee round-trip).
+v1.2.8's 3-second safety timer should have been plenty — but on the
+Shelly Wall Display kiosk the user still saw the panel snap back to
+the pre-drag value. Root cause: the kiosk's WebSocket connection
+delivers state pushes less reliably than the admin browser session,
+so sometimes the echo never makes it to the panel within the
+safety window, the timer fires, `dragPct` clears, and the next
+render falls back to the (still-stale) `v.brightnessPct`.
+
+Removed the safety timer entirely. `dragPct` now lives until one
+of two events happens: (a) `willUpdate` sees `v.brightnessPct`
+catch up to it via a real HA echo, or (b) the next `pointerdown`
+starts a fresh drag and discards the orphaned optimistic value.
+
+Trade-off: on a permanently-broken integration the optimistic value
+will stay on screen until the next gesture, instead of snapping
+back to the old one. Considered safer — the user committed a
+specific value, they should see that value reflected, not a phantom
+revert to a state they didn't ask for.
+
 ## [1.2.8] — 2026-05-15
 
 ### Fixed — brightness drag flicker (real fix this time)
