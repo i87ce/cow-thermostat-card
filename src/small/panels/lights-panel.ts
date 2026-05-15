@@ -521,17 +521,40 @@ export class CowLightsPanel extends LitElement {
     } catch {
       /* pointer may already have been released by the browser */
     }
-    if (this.dragMoved) {
-      if (this.view().dimmable && this.dragPct != null) {
-        void this.setBrightness(this.dragPct);
-      }
-    } else {
-      void this.toggle();
-    }
-    this.dragPct = null;
+
+    // Snapshot gesture state — we reset most of it immediately so a
+    // brand-new drag can start, but we hold on to dragPct as the
+    // optimistic UI value until HA echoes back the new brightness.
+    const wasMoved = this.dragMoved;
+    const pendingPct = this.dragPct;
+    const wasDimmable = this.view().dimmable;
+
     this.dragTouchY = null;
     this.dragStartY = null;
     this.dragMoved = false;
+
+    if (wasMoved && wasDimmable && pendingPct != null) {
+      // Keep `dragPct` set until the service call resolves. If we
+      // cleared it right away, the next render would fall back to
+      // `v.brightnessPct` — which is still the *old* value until the
+      // HA state push arrives ~200-500ms later — and the panel would
+      // visibly flicker back to the previous % before settling on
+      // the new one. The user reads that flicker as "my drag value
+      // wasn't accepted", which is exactly what we want to avoid.
+      void this.setBrightness(pendingPct).finally(() => {
+        // Only clear if we're still showing *this* drag's value.
+        // If the user started another drag in the meantime, that
+        // newer drag's dragPct is now in play — leave it alone.
+        if (this.dragPct === pendingPct) {
+          this.dragPct = null;
+        }
+      });
+    } else {
+      this.dragPct = null;
+      if (!wasMoved) {
+        void this.toggle();
+      }
+    }
   };
 
   private onLeftPointerCancel = (e: PointerEvent): void => {

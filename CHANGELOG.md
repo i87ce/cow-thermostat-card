@@ -4,6 +4,31 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and
 this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.2.7] — 2026-05-15
+
+### Fixed — brightness drag commit appeared to "lose" its value
+On the Wall Display, dragging the left panel to set a new brightness
+worked optically while the finger was down (the `%` followed the
+gesture), but the moment the user lifted the finger the display
+briefly flickered back to the *previous* brightness before settling
+on the new one. The flicker is enough that the user reads it as
+"the value didn't take" — and on a slow MTK6580 the flash can last
+the better part of a second.
+
+Root cause: `onLeftPointerUp` was clearing `this.dragPct = null`
+immediately after firing the (async) `setBrightness` call. The next
+Lit render then fell back to `v.brightnessPct`, which is still the
+*old* state until the HA service round-trip + state push completes
+(~200-500ms). So the panel briefly painted the old %, then snapped
+to the new one once the state pushed in.
+
+Fix: hold `dragPct` as the optimistic UI value until the
+`setBrightness` Promise resolves, then clear it. While in-flight,
+the render keeps showing the drag-committed value, so the panel
+never flickers backwards. A second drag started during the
+round-trip safely re-takes ownership (the cleanup only resets
+`dragPct` if it's still the same reference we committed).
+
 ## [1.2.6] — 2026-05-15
 
 ### Fixed — tile tap was silently dropped (CSS specificity bug)
