@@ -244,7 +244,11 @@ export class CowLightsPanel extends LitElement {
         position: absolute;
         left: 397.5px;
         top: 52.5px;
-        max-width: 200px;
+        /* Stretched from 200 → 235 to fit "Camera Padronale" without
+           ellipsis. The right edge now butts up against the time text,
+           which is right-anchored so the layout stays locale-safe
+           (12h vs 24h time strings don't shift the room name). */
+        max-width: 235px;
         overflow: hidden;
         text-overflow: ellipsis;
         white-space: nowrap;
@@ -254,7 +258,7 @@ export class CowLightsPanel extends LitElement {
       }
       .time {
         position: absolute;
-        left: 622.5px;
+        right: 30px;
         top: 56.25px;
         font-weight: 600;
         font-size: 24.375px;

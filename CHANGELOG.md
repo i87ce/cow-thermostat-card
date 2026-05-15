@@ -4,6 +4,25 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and
 this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.2.1] — 2026-05-15
+
+### Fixed
+- **Room name truncated** on rooms with names longer than ~14 chars
+  (`Camera Padronale`, `Soggiorno Cucina`, `Studio Chiara`…). The
+  `.room` label had `max-width: 200px` and the `.time` next to it was
+  pinned at `left: 622.5px`, wasting ~35px of right-side gutter. Two
+  changes:
+  - `.room { max-width: 235px }` — stretches the room name into all
+    the space available before the time text starts.
+  - `.time { right: 30px; left: auto }` — right-anchored instead of
+    left-positioned, so 12h locale strings (`11:30 PM`) and 24h
+    strings (`14:32`) both align to the same right edge without
+    shifting the room name.
+- Applied identically across all three small panels: lights, blinds,
+  thermostat. Room names up to ~18 chars now render fully without
+  ellipsis. Cases above that (rare in real-world room naming) still
+  truncate cleanly.
+
 ## [1.2.0] — 2026-05-14
 
 ### Changed — small Lights card completely redesigned (Proposta B)
