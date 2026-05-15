@@ -4,6 +4,25 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and
 this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.2.8] — 2026-05-15
+
+### Fixed — brightness drag flicker (real fix this time)
+The v1.2.7 fix tied `dragPct` cleanup to the `setBrightness` Promise
+resolving. That was wrong: the Promise resolves when HA *accepts*
+the service call (~100 ms), not when the new state echoes back via
+WS (~300-700 ms on Zigbee). Result: the flicker the user reported
+still happened — same root cause, slightly later in the timeline.
+
+The actual cleanup now lives in `willUpdate`: every render, if
+`dragPct` is set and `v.brightnessPct` has caught up to it (±1 pt
+for rounding), we clear `dragPct`. So the optimistic value stays
+on screen until HA's echo lands, at which point both values are
+equal and there's no visible jump anywhere.
+
+Added a 3-second safety timer on top so a never-arriving echo
+(bulb offline, integration unhealthy) doesn't leave a phantom
+optimistic value frozen on the panel forever.
+
 ## [1.2.7] — 2026-05-15
 
 ### Fixed — brightness drag commit appeared to "lose" its value

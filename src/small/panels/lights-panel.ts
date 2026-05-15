@@ -117,6 +117,13 @@ export class CowLightsPanel extends LitElement {
   private dragStartY: number | null = null;
   private dragStartPct = 0;
   private dragMoved = false;
+  /**
+   * Safety timer that clears a stuck optimistic `dragPct` if HA never
+   * echoes our committed value back — e.g. because the bulb is offline
+   * and the Zigbee round-trip never completes. Without this, a single
+   * failed commit would leave the panel showing a phantom % forever.
+   */
+  private dragCommitTimer?: number;
 
   static override styles = [
     animTokens,
@@ -357,6 +364,7 @@ export class CowLightsPanel extends LitElement {
   override disconnectedCallback(): void {
     super.disconnectedCallback();
     if (this.timer) window.clearInterval(this.timer);
+    if (this.dragCommitTimer) window.clearTimeout(this.dragCommitTimer);
   }
 
   private getEntity(id?: string): HassEntity | undefined {
@@ -431,6 +439,26 @@ export class CowLightsPanel extends LitElement {
     const rows = Math.max(1, Math.ceil(n / 2));
     const gridBottom = 162 + rows * 80 + (rows - 1) * 10;
     this.style.setProperty("--cow-master-top", `${gridBottom + 20}px`);
+
+    // ── Optimistic dragPct cleanup ────────────────────────────────────
+    // When `dragPct` is non-null we're holding an optimistic value
+    // committed by the last drag gesture. HA accepts the service call
+    // in ~100 ms but the *state* echo via WS comes only after the
+    // bulb has physically confirmed (~300-700 ms on Zigbee). If we
+    // clear dragPct when the service Promise resolves, the panel
+    // briefly snaps back to v.brightnessPct (still the OLD value) and
+    // the user reads that as "my value wasn't taken". So instead we
+    // wait here, every render, until v.brightnessPct catches up to
+    // our committed value (±1 pt for rounding), then clear dragPct
+    // — at which point there's no visible jump because the two are
+    // already equal.
+    if (this.dragPct != null && Math.abs(v.brightnessPct - this.dragPct) <= 1) {
+      this.dragPct = null;
+      if (this.dragCommitTimer) {
+        window.clearTimeout(this.dragCommitTimer);
+        this.dragCommitTimer = undefined;
+      }
+    }
   }
 
   private async setBrightness(pct: number): Promise<void> {
@@ -534,21 +562,24 @@ export class CowLightsPanel extends LitElement {
     this.dragMoved = false;
 
     if (wasMoved && wasDimmable && pendingPct != null) {
-      // Keep `dragPct` set until the service call resolves. If we
-      // cleared it right away, the next render would fall back to
-      // `v.brightnessPct` — which is still the *old* value until the
-      // HA state push arrives ~200-500ms later — and the panel would
-      // visibly flicker back to the previous % before settling on
-      // the new one. The user reads that flicker as "my drag value
-      // wasn't accepted", which is exactly what we want to avoid.
-      void this.setBrightness(pendingPct).finally(() => {
-        // Only clear if we're still showing *this* drag's value.
-        // If the user started another drag in the meantime, that
-        // newer drag's dragPct is now in play — leave it alone.
-        if (this.dragPct === pendingPct) {
-          this.dragPct = null;
-        }
-      });
+      // Keep `dragPct` set as the optimistic UI value. Don't tie its
+      // lifetime to the service-call Promise — that resolves when HA
+      // *accepts* the call (~100 ms), not when the new state echoes
+      // back via WS (~300-700 ms on Zigbee). Clearing too early would
+      // briefly snap the panel back to the OLD `v.brightnessPct`,
+      // which is the flicker the user reads as "value not taken".
+      //
+      // The actual cleanup lives in `willUpdate()` — it clears
+      // `dragPct` the first time `v.brightnessPct` matches our
+      // committed value (the moment HA's echo lands). The timer below
+      // is just a safety net for the case where the echo never comes
+      // (bulb offline, integration unhealthy, etc).
+      if (this.dragCommitTimer) window.clearTimeout(this.dragCommitTimer);
+      this.dragCommitTimer = window.setTimeout(() => {
+        if (this.dragPct === pendingPct) this.dragPct = null;
+        this.dragCommitTimer = undefined;
+      }, 3000);
+      void this.setBrightness(pendingPct);
     } else {
       this.dragPct = null;
       if (!wasMoved) {
