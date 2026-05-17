@@ -4,6 +4,41 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and
 this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.3.5] — 2026-05-18
+
+### Changed — mobile dashboard summary moved above the room grid
+The four whole-house quick actions (Spegni/Accendi tutte le luci,
+Chiudi/Apri tutte le tapparelle) used to live at the very bottom of
+the card, below seven room tiles. With more rooms wired in (Studio,
+Terrazza, Servizi — see the dashboard config patch below) the user
+had to scroll past ~10 tiles just to reach the "go-to-bed" button,
+which defeats the whole point of a single-tap good-night control.
+
+Moved the summary chip to sit directly under the hero, so the four
+action buttons stay in thumb reach on any phone. The room grid now
+follows, scrolling as a single uninterrupted list.
+
+### Added — mobile dashboard config now covers the rest of the house
+Migrated the stored `dashboard-mobile` config in HA to wire up the
+entities that were sitting in the entity registry without a tile.
+No card-side changes; this is a data migration:
+
+- **Sala & Cucina** now also exposes `light.luce_tavolo_sala`,
+  `light.led_calda_sala`, `light.led_sala_fredda`, and
+  `light.led_cucina` as accent rows in the quick-control drawer.
+- **Bagno Padronale** now lists `cover.tapparella_bagno_padronale`,
+  which was missing despite being one of the most-used rollers.
+- **Studio** (💻) — new room. Three lights (warm, cool, outdoor) +
+  one cover (roller shutter). No climate or temp/humid sensor in
+  this room, so the tile shows just the name and the active badge.
+- **Terrazza** (🌳) — new room. `light.led_terrazzo` and
+  `light.led_esterno_p1` as accent outdoor LEDs, plus the two
+  terrace-facing rollers `cover.tapparella_sala_terrazza` and
+  `cover.tapparella_cucina_terrazza`.
+- **Servizi** (🧰) — new room. Catch-all for lights that don't
+  belong to any "real" room: `light.luce_box` (garage / box) and
+  `light.led_corridoio_p1` (corridor LED). No covers, no climate.
+
 ## [1.3.4] — 2026-05-18
 
 ### Fixed — mobile drawer left a sliver visible when closed

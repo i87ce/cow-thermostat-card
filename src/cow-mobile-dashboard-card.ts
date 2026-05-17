@@ -14,14 +14,14 @@
  *   │  🏠 Alessio · 🚶 Koma      │  picks day / sunset / night based
  *   │  🔒 Inserita totalmente    │  on sun.sun elevation.
  *   ├────────────────────────────┤
- *   │ 2-col grid of room tiles   │  Tap a tile = open the modal
- *   │  (icon + name + temp +     │  Quick Control drawer for that
- *   │   humid + active badge)    │  room.
- *   ├────────────────────────────┤
  *   │ Summary chip + 4 actions   │  "N luci accese · M tapparelle"
- *   │ [Spegni/Accendi luci]      │  with whole-house quick actions.
- *   │ [Chiudi/Apri tapparelle]   │
- *   └────────────────────────────┘
+ *   │ [Spegni/Accendi luci]      │  with whole-house quick actions
+ *   │ [Chiudi/Apri tapparelle]   │  — sits up here so it stays in
+ *   ├────────────────────────────┤  thumb reach above the long room
+ *   │ 2-col grid of room tiles   │  grid.
+ *   │  (icon + name + temp +     │  Tap a tile = open the modal
+ *   │   humid + active badge)    │  Quick Control drawer for that
+ *   └────────────────────────────┘  room.
  *
  * Config schema (Lovelace YAML):
  *
@@ -869,9 +869,14 @@ export class CowMobileDashboardCard
 
   override render() {
     if (!this.config) return html`<div>Loading…</div>`;
+    // Order: hero → whole-house quick actions (summary) → per-room
+    // tiles. The summary now sits directly under the hero so the
+    // four big buttons (Spegni/Accendi tutte luci, Chiudi/Apri tutte
+    // tapparelle) are reachable with a thumb without scrolling past
+    // the room grid.
     return html`
       <div class="card">
-        ${this.renderHero()} ${this.renderRooms()} ${this.renderSummary()}
+        ${this.renderHero()} ${this.renderSummary()} ${this.renderRooms()}
       </div>
       ${this.renderDrawer()}
     `;
