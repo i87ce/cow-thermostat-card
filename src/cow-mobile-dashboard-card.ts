@@ -7,29 +7,21 @@
  * canvas-based wallpaper of the XL card — see the user decision
  * "2 simple" recorded in the Cave of Wonders changelog).
  *
- *   ┌───────────────────────────┐
- *   │ gradient hero             │  Big clock, date, outdoor temp.
- *   │  09:47                    │  Gradient pick: day / sunset /
- *   │  Dom 17 Mag · 🌞 21°      │  night, based on sun.sun elevation.
- *   ├───────────────────────────┤
- *   │ 2-col grid of room tiles  │  Tap a tile = expand the inline
- *   │  (icon + name + temp +    │  Quick Control panel below the
- *   │   humid + active badge)   │  grid for that room.
- *   ├───────────────────────────┤
- *   │ Quick Control (expanded)  │  Lights row (toggle + brightness
- *   │  for the selected room    │  slider when dimmable) + covers
- *   │                           │  row (▲/■/▼ buttons + position
- *   │                           │  bar).
- *   ├───────────────────────────┤
- *   │ Summary chip              │  "N luci accese · M tapparelle"
- *   │ [Spegni tutto] [Chiudi]   │  with two global quick actions.
- *   ├───────────────────────────┤
- *   │ Music ribbon (if playing) │  Conditional — only when the
- *   │                           │  configured media_player is
- *   │                           │  playing or paused.
- *   ├───────────────────────────┤
- *   │ Alarm row (if configured) │  Just status + link.
- *   └───────────────────────────┘
+ *   ┌────────────────────────────┐
+ *   │ gradient hero              │  Big clock, date, outdoor temp,
+ *   │  09:47                     │  presence chips (in casa / fuori)
+ *   │  Dom 17 Mag · 🌞 21°       │  and alarm status pill. Gradient
+ *   │  🏠 Alessio · 🚶 Koma      │  picks day / sunset / night based
+ *   │  🔒 Inserita totalmente    │  on sun.sun elevation.
+ *   ├────────────────────────────┤
+ *   │ 2-col grid of room tiles   │  Tap a tile = open the modal
+ *   │  (icon + name + temp +     │  Quick Control drawer for that
+ *   │   humid + active badge)    │  room.
+ *   ├────────────────────────────┤
+ *   │ Summary chip + 4 actions   │  "N luci accese · M tapparelle"
+ *   │ [Spegni/Accendi luci]      │  with whole-house quick actions.
+ *   │ [Chiudi/Apri tapparelle]   │
+ *   └────────────────────────────┘
  *
  * Config schema (Lovelace YAML):
  *
@@ -37,7 +29,9 @@
  *   weather: weather.pirateweather
  *   sun: sun.sun
  *   alarm: alarm_control_panel.casa
- *   media_player: media_player.music_assistant
+ *   persons:
+ *     - person.alessio_vigilante
+ *     - { entity: person.koma, label: "Koma" }
  *   rooms:
  *     - name: "Sala & Cucina"
  *       icon: "🛋"
@@ -81,6 +75,11 @@ export interface CowMobileRoom {
   covers?: Array<string | CowMobileDeviceEntry>;
 }
 
+export interface CowMobilePersonEntry {
+  entity: string;
+  label?: string;
+}
+
 export interface CowMobileDashboardConfig extends LovelaceCardConfig {
   type: "custom:cow-mobile-dashboard-card";
   title?: string;
@@ -88,7 +87,12 @@ export interface CowMobileDashboardConfig extends LovelaceCardConfig {
   sun?: string;
   outdoor_temp?: string;
   alarm?: string;
-  media_player?: string;
+  /**
+   * `person.*` entities shown as presence chips in the hero. Strings
+   * are accepted as a shorthand; pass `{ entity, label }` to override
+   * the short name (default uses the friendly_name's first word).
+   */
+  persons?: Array<string | CowMobilePersonEntry>;
   rooms: CowMobileRoom[];
 }
 
@@ -411,6 +415,76 @@ export class CowMobileDashboardCard
       }
       .hero-weather {
         font-size: 18px;
+      }
+
+      /* ── Hero: people & alarm chips ──────────────────────────── */
+      .hero-persons {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 6px;
+        margin-top: 16px;
+      }
+      .person-chip {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        padding: 5px 10px 5px 8px;
+        border-radius: 999px;
+        font-size: 13px;
+        font-weight: 600;
+        line-height: 1.2;
+        background: rgba(255, 255, 255, 0.18);
+        backdrop-filter: blur(6px);
+        -webkit-backdrop-filter: blur(6px);
+      }
+      .person-chip.is-away {
+        background: rgba(0, 0, 0, 0.22);
+        opacity: 0.85;
+      }
+      .person-ico {
+        font-size: 14px;
+        line-height: 1;
+      }
+      .hero-alarm {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        margin-top: 10px;
+        padding: 8px 14px 8px 10px;
+        border-radius: 999px;
+        font-size: 13px;
+        font-weight: 600;
+        text-decoration: none;
+        color: inherit;
+        background: rgba(255, 255, 255, 0.16);
+        backdrop-filter: blur(6px);
+        -webkit-backdrop-filter: blur(6px);
+        align-self: flex-start;
+        transition: background 0.18s ease;
+      }
+      .hero-alarm[data-armed] {
+        background: rgba(255, 180, 80, 0.32);
+      }
+      .hero-alarm[data-transitioning] {
+        background: rgba(255, 220, 90, 0.32);
+        animation: alarmPulse 1.4s ease-in-out infinite;
+      }
+      .hero-alarm[data-triggered] {
+        background: rgba(255, 90, 90, 0.55);
+        animation: alarmPulse 0.8s ease-in-out infinite;
+      }
+      @keyframes alarmPulse {
+        0%,
+        100% {
+          filter: brightness(1);
+        }
+        50% {
+          filter: brightness(1.25);
+        }
+      }
+      .alarm-ico {
+        font-size: 15px;
+        line-height: 1;
       }
 
       /* ── Section header ──────────────────────────────────────── */
@@ -770,93 +844,11 @@ export class CowMobileDashboardCard
         box-shadow: inset 0 0 0 1.5px rgba(76, 184, 255, 0.42);
       }
 
-      /* ── Music ribbon ────────────────────────────────────────── */
-      .music {
-        margin: 0 8px;
-        padding: 12px 14px;
-        background: linear-gradient(120deg, #2b1855, #5b3290);
-        color: #fff;
-        border-radius: 18px;
-        display: flex;
-        gap: 12px;
-        align-items: center;
-      }
-      .music-meta {
-        flex: 1;
-        min-width: 0;
-      }
-      .music-title {
-        font-size: 14px;
-        font-weight: 600;
-        line-height: 1.2;
-        white-space: nowrap;
-        overflow: hidden;
-        text-overflow: ellipsis;
-      }
-      .music-artist {
-        font-size: 12px;
-        opacity: 0.8;
-        margin-top: 2px;
-        white-space: nowrap;
-        overflow: hidden;
-        text-overflow: ellipsis;
-      }
-      .music-transport {
-        display: flex;
-        gap: 4px;
-      }
-      .music-transport button {
-        appearance: none;
-        border: 0;
-        background: rgba(255, 255, 255, 0.15);
-        color: #fff;
-        width: 36px;
-        height: 36px;
-        border-radius: 50%;
-        font-size: 14px;
-        cursor: pointer;
-      }
-      .music-transport button:active {
-        transform: scale(0.92);
-      }
-
-      /* ── Alarm row ───────────────────────────────────────────── */
-      .alarm {
-        margin: 0 8px;
-        padding: 12px 14px;
-        background: var(--card-background-color, #fff);
-        border-radius: 18px;
-        box-shadow: 0 1px 4px rgba(31, 31, 46, 0.06);
-        display: flex;
-        align-items: center;
-        gap: 10px;
-        text-decoration: none;
-        color: inherit;
-        font-size: 14px;
-      }
-      .alarm-state {
-        margin-left: auto;
-        font-weight: 600;
-        font-size: 13px;
-        padding: 4px 10px;
-        border-radius: 999px;
-      }
-      .alarm-state[data-armed] {
-        background: rgba(231, 76, 60, 0.15);
-        color: #b03326;
-      }
-      .alarm-state:not([data-armed]) {
-        background: rgba(31, 31, 46, 0.06);
-        color: inherit;
-        opacity: 0.7;
-      }
-
       /* ── Dark mode tweaks ────────────────────────────────────── */
       @media (prefers-color-scheme: dark) {
         .room-tile,
         .qc,
-        .summary,
-        .alarm {
+        .summary {
           background: var(--card-background-color, #1c1c24);
           box-shadow: 0 1px 4px rgba(0, 0, 0, 0.3);
         }
@@ -869,7 +861,6 @@ export class CowMobileDashboardCard
     return html`
       <div class="card">
         ${this.renderHero()} ${this.renderRooms()} ${this.renderSummary()}
-        ${this.renderMusic()} ${this.renderAlarm()}
       </div>
       ${this.renderDrawer()}
     `;
@@ -900,7 +891,92 @@ export class CowMobileDashboardCard
                 <span class="hero-weather">${wIcon} ${wTemp}</span>`
             : nothing}
         </div>
+        ${this.renderHeroPersons()} ${this.renderHeroAlarm()}
       </div>
+    `;
+  }
+
+  private personEntries(): CowMobilePersonEntry[] {
+    const raw = this.config?.persons;
+    if (!Array.isArray(raw)) return [];
+    return raw.map((p) =>
+      typeof p === "string" ? { entity: p } : { entity: p.entity, label: p.label },
+    );
+  }
+
+  /**
+   * Use the configured label first; otherwise derive a short, friendly
+   * label from the `person.*` entity attributes — first name only when
+   * the friendly_name is "Firstname Lastname", to keep the chips tight
+   * on a phone-sized screen.
+   */
+  private personLabel(p: CowMobilePersonEntry, e?: HassEntity): string {
+    if (p.label) return p.label;
+    const fn = (e?.attributes?.friendly_name as string | undefined) ?? p.entity;
+    const first = fn.split(/\s+/, 1)[0] ?? fn;
+    return first.charAt(0).toUpperCase() + first.slice(1);
+  }
+
+  private renderHeroPersons() {
+    const entries = this.personEntries();
+    if (entries.length === 0) return nothing;
+    const home: string[] = [];
+    const away: string[] = [];
+    for (const p of entries) {
+      const e = this.getEnt(p.entity);
+      const label = this.personLabel(p, e);
+      if (!e || e.state === "unknown" || e.state === "unavailable") continue;
+      // Treat any `home` (or zone="home") as "in casa"; everything else
+      // (not_home, work, school, geofenced zone names…) ends up in the
+      // "fuori" group. This intentionally collapses multi-zone tracking
+      // because the hero is a one-glance overview, not a presence map.
+      if (e.state === "home") home.push(label);
+      else away.push(label);
+    }
+    if (home.length === 0 && away.length === 0) return nothing;
+    return html`
+      <div class="hero-persons">
+        ${home.length > 0
+          ? html`
+              <span class="person-chip is-home">
+                <span class="person-ico" aria-hidden="true">🏠</span>
+                <span>${home.join(", ")}</span>
+              </span>
+            `
+          : nothing}
+        ${away.length > 0
+          ? html`
+              <span class="person-chip is-away">
+                <span class="person-ico" aria-hidden="true">🚶</span>
+                <span>${away.join(", ")}</span>
+              </span>
+            `
+          : nothing}
+      </div>
+    `;
+  }
+
+  private renderHeroAlarm() {
+    if (!this.config?.alarm) return nothing;
+    const a = this.getEnt(this.config.alarm);
+    if (!a) return nothing;
+    const armed = a.state.startsWith("armed");
+    const triggered = a.state === "triggered";
+    const transitioning = ["arming", "disarming", "pending"].includes(a.state);
+    const label = ALARM_STATE_LABEL[a.state] ?? a.state;
+    return html`
+      <a
+        class="hero-alarm"
+        href="/lovelace/alarm"
+        ?data-armed=${armed}
+        ?data-triggered=${triggered}
+        ?data-transitioning=${transitioning}
+      >
+        <span class="alarm-ico" aria-hidden="true"
+          >${triggered ? "⚠" : armed ? "🔒" : "🔓"}</span
+        >
+        <span>${label}</span>
+      </a>
     `;
   }
 
@@ -1199,61 +1275,6 @@ export class CowMobileDashboardCard
     `;
   }
 
-  // ── Music ────────────────────────────────────────────────────────
-
-  private renderMusic() {
-    if (!this.config?.media_player) return nothing;
-    const mp = this.getEnt(this.config.media_player);
-    if (!mp) return nothing;
-    if (mp.state !== "playing" && mp.state !== "paused") return nothing;
-    const playing = mp.state === "playing";
-    const title =
-      (mp.attributes?.media_title as string) ||
-      (mp.attributes?.friendly_name as string) ||
-      "Music Assistant";
-    const artist =
-      (mp.attributes?.media_artist as string) ||
-      (mp.attributes?.app_name as string) ||
-      "";
-    const ent = mp.entity_id;
-    const call = (svc: string) =>
-      void this.hass?.callService("media_player", svc, {}, { entity_id: ent });
-    return html`
-      <div class="music">
-        <div class="music-meta">
-          <div class="music-title">${title}</div>
-          ${artist ? html`<div class="music-artist">${artist}</div>` : nothing}
-        </div>
-        <div class="music-transport">
-          <button @click=${() => call("media_previous_track")} aria-label="Indietro">⏮</button>
-          <button
-            @click=${() => call(playing ? "media_pause" : "media_play")}
-            aria-label=${playing ? "Pausa" : "Play"}
-          >
-            ${playing ? "⏸" : "▶"}
-          </button>
-          <button @click=${() => call("media_next_track")} aria-label="Avanti">⏭</button>
-        </div>
-      </div>
-    `;
-  }
-
-  // ── Alarm ────────────────────────────────────────────────────────
-
-  private renderAlarm() {
-    if (!this.config?.alarm) return nothing;
-    const a = this.getEnt(this.config.alarm);
-    if (!a) return nothing;
-    const armed = a.state.startsWith("armed");
-    const label = ALARM_STATE_LABEL[a.state] ?? a.state;
-    return html`
-      <a class="alarm" href="/lovelace/alarm" tabindex="0">
-        <span>🔒</span>
-        <span>Casa</span>
-        <span class="alarm-state" ?data-armed=${armed}>${label}</span>
-      </a>
-    `;
-  }
 }
 
 const ALARM_STATE_LABEL: Record<string, string> = {

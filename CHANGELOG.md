@@ -4,6 +4,43 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and
 this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.3.3] — 2026-05-17
+
+### Changed — mobile dashboard hero, no more bottom ribbons
+The hero used to be just a clock + date + outdoor temp, with two
+independent ribbons stacked below the summary chip: a purple "Music
+Assistant" transport bar (`media_player`) and a separate "Casa:
+inserita / disinserita" alarm row. They duplicated information you
+already glance at elsewhere (the music transport is one tap away in
+the HA app, and the alarm chip didn't need its own block). The hero
+also told you nothing about *who's home*, which is the single most
+useful piece of "at a glance" information on a phone dashboard.
+
+New layout, all inside the gradient hero so it stays the
+one-screen-no-scroll glance card:
+
+- A row of two presence chips: `🏠 Alessio` (everyone currently
+  `state === "home"`) and `🚶 Koma, Chiara` (everyone tracked but
+  not at home). `unknown` / `unavailable` persons are silently
+  dropped — no fake "fuori" badge for an unconfigured phone.
+- Below it, the alarm pill: a small rounded chip with a 🔒/🔓
+  icon and the human-readable state. The pill is tinted orange
+  when armed (any `armed_*` variant), pulsing yellow during
+  `arming`/`disarming`/`pending`, and pulsing red when
+  `triggered`. Tapping it still routes to `/lovelace/alarm`.
+- Music ribbon: removed.
+- Bottom alarm row: removed.
+
+New config field: `persons: Array<string | { entity, label }>`.
+Strings are the shorthand; pass the object form to override the
+short name displayed in the chip (default uses the friendly_name's
+first word so "Alessio Vigilante" becomes "Alessio"). `media_player`
+is gone from the config schema.
+
+The mobile dashboard's stored Lovelace config in HA was migrated
+in-place to add the `persons` array and drop `media_player`, so
+you don't need to touch the YAML manually.
+
 ## [1.3.2] — 2026-05-17
 
 ### Fixed — modal drawer was invisible (shadow-DOM stacking trap)
