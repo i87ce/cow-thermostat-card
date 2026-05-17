@@ -584,8 +584,17 @@ export class CowMobileDashboardCard
       /* The browser renders <dialog> in the top layer with showModal,
          which escapes every stacking context — the only reliable way
          to draw above HA Lovelace's nested "contain: layout" wrappers.
-         We override the user-agent centering and pin it to the bottom. */
-      dialog.drawer {
+         We override the user-agent centering and pin it to the bottom.
+         IMPORTANT: all layout-affecting styles (display, position,
+         padding, background, shadow…) live on 'dialog.drawer[open]',
+         NOT on the bare 'dialog.drawer' selector. The UA stylesheet's
+         'dialog:not([open]) { display: none }' rule has the same
+         specificity as ours, but author origin beats UA origin, so a
+         plain 'dialog.drawer { display: flex }' would force the sheet
+         to render even when closed — visible as a thin strip pinned
+         to the bottom of the card. Scoping styles to '[open]' keeps
+         the UA hide-when-closed default intact. */
+      dialog.drawer[open] {
         position: fixed;
         left: 0;
         right: 0;
@@ -604,9 +613,10 @@ export class CowMobileDashboardCard
         display: flex;
         flex-direction: column;
         box-sizing: border-box;
-      }
-      dialog.drawer[open] {
         animation: drawer-up 260ms cubic-bezier(0.22, 1, 0.36, 1);
+      }
+      dialog.drawer:not([open]) {
+        display: none;
       }
       dialog.drawer::backdrop {
         background: rgba(0, 0, 0, 0.45);
@@ -622,9 +632,10 @@ export class CowMobileDashboardCard
       }
       /* Dark-mode tile elevation so the sheet stands out from the
          dimmed backdrop. Without this the drawer painted the same
-         near-black as the backdrop and looked invisible. */
+         near-black as the backdrop and looked invisible. Scoped to
+         [open] for the same reason as the base styles above. */
       @media (prefers-color-scheme: dark) {
-        dialog.drawer {
+        dialog.drawer[open] {
           background: var(--ha-card-background, #1f1f2a);
           border-top: 1px solid rgba(255, 255, 255, 0.06);
         }

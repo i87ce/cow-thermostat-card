@@ -4,6 +4,24 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and
 this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.3.4] — 2026-05-18
+
+### Fixed — mobile drawer left a sliver visible when closed
+A thin rounded strip of the quick-control drawer was painting at the
+bottom of the card even with no room selected. Cause: the dialog's
+base styles included `display: flex` (plus `position: fixed`,
+`background`, `box-shadow`) on the unconditional `dialog.drawer`
+selector. The UA stylesheet's `dialog:not([open]) { display: none }`
+rule has equal specificity to that, but the cascade prefers author
+origin over UA origin, so our rule silently won and the dialog
+remained laid out (and painted) even without the `[open]` attribute.
+
+Fix: move every layout-affecting property onto `dialog.drawer[open]`
+and add an explicit `dialog.drawer:not([open]) { display: none }`
+belt-and-braces rule. The dark-mode background override is now also
+scoped to `[open]`. Visually identical when open; truly invisible
+when closed.
+
 ## [1.3.3] — 2026-05-17
 
 ### Changed — mobile dashboard hero, no more bottom ribbons
