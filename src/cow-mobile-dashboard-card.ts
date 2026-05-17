@@ -51,7 +51,7 @@
  *     - …
  */
 import { LitElement, html, css, nothing } from "lit";
-import { customElement, property, state } from "lit/decorators.js";
+import { customElement, property, query, state } from "lit/decorators.js";
 
 import type {
   HomeAssistant,
@@ -217,6 +217,16 @@ export class CowMobileDashboardCard
   @state() private drawerRoom: number | null = null;
   @state() private now = new Date();
   private clockTimer?: number;
+  /**
+   * Live reference to the `<dialog>` element used as the modal drawer.
+   * We control it imperatively via `showModal()` / `close()` because
+   * a plain `position: fixed` div is trapped inside Lovelace's
+   * containing-block stack (HA wraps each card in elements with
+   * `contain: layout` and friends, which neutralize CSS `fixed`).
+   * `<dialog>` renders into the browser's top layer instead, which is
+   * the only way to draw above the rest of the page reliably.
+   */
+  @query("dialog.drawer") private drawerEl?: HTMLDialogElement;
 
   setConfig(cfg: LovelaceCardConfig): void {
     if (!cfg || typeof cfg !== "object") throw new Error("config required");
@@ -238,6 +248,16 @@ export class CowMobileDashboardCard
   override disconnectedCallback(): void {
     super.disconnectedCallback();
     if (this.clockTimer) window.clearInterval(this.clockTimer);
+  }
+
+  override updated(changed: Map<string, unknown>): void {
+    if (changed.has("drawerRoom")) {
+      const d = this.drawerEl;
+      if (d) {
+        if (this.drawerRoom != null && !d.open) d.showModal();
+        if (this.drawerRoom == null && d.open) d.close();
+      }
+    }
   }
 
   getCardSize(): number {
@@ -486,38 +506,54 @@ export class CowMobileDashboardCard
         color: #0a6699;
       }
 
-      /* ── Drawer (modal bottom sheet) ─────────────────────────── */
-      .drawer-backdrop {
+      /* ── Drawer (modal bottom sheet, native <dialog>) ────────── */
+      /* The browser renders <dialog> in the top layer with showModal,
+         which escapes every stacking context — the only reliable way
+         to draw above HA Lovelace's nested "contain: layout" wrappers.
+         We override the user-agent centering and pin it to the bottom. */
+      dialog.drawer {
         position: fixed;
-        inset: 0;
-        background: rgba(0, 0, 0, 0.4);
-        z-index: 10;
-        animation: backdrop-in 200ms ease;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        top: auto;
+        margin: 0;
+        width: 100%;
+        max-width: 100vw;
+        max-height: 82vh;
+        padding: 6px 16px max(20px, env(safe-area-inset-bottom, 0px));
+        border: 0;
+        border-radius: 24px 24px 0 0;
+        background: var(--card-background-color, #fff);
+        color: var(--primary-text-color, inherit);
+        box-shadow: 0 -8px 32px rgba(0, 0, 0, 0.35);
+        display: flex;
+        flex-direction: column;
+        box-sizing: border-box;
+      }
+      dialog.drawer[open] {
+        animation: drawer-up 260ms cubic-bezier(0.22, 1, 0.36, 1);
+      }
+      dialog.drawer::backdrop {
+        background: rgba(0, 0, 0, 0.45);
+        animation: backdrop-in 220ms ease;
       }
       @keyframes backdrop-in {
         from { opacity: 0; }
         to   { opacity: 1; }
       }
-      .drawer {
-        position: fixed;
-        left: 0;
-        right: 0;
-        bottom: 0;
-        z-index: 11;
-        max-height: 82vh;
-        display: flex;
-        flex-direction: column;
-        background: var(--card-background-color, #fff);
-        border-radius: 24px 24px 0 0;
-        box-shadow: 0 -8px 32px rgba(0, 0, 0, 0.25);
-        padding: 6px 16px max(20px, env(safe-area-inset-bottom, 0px));
-        animation: drawer-up 240ms cubic-bezier(0.22, 1, 0.36, 1);
-        /* Safe-area inset above keeps the bottom of the drawer clear of
-           the iPhone home-indicator gesture bar. */
-      }
       @keyframes drawer-up {
-        from { transform: translateY(100%); }
-        to   { transform: translateY(0); }
+        from { transform: translateY(100%); opacity: 0.8; }
+        to   { transform: translateY(0); opacity: 1; }
+      }
+      /* Dark-mode tile elevation so the sheet stands out from the
+         dimmed backdrop. Without this the drawer painted the same
+         near-black as the backdrop and looked invisible. */
+      @media (prefers-color-scheme: dark) {
+        dialog.drawer {
+          background: var(--ha-card-background, #1f1f2a);
+          border-top: 1px solid rgba(255, 255, 255, 0.06);
+        }
       }
       .drawer-handle {
         width: 38px;
@@ -931,46 +967,68 @@ export class CowMobileDashboardCard
     this.drawerRoom = null;
   };
 
-  // ── Drawer (modal bottom sheet) ──────────────────────────────────
+  // ── Drawer (modal bottom sheet, native <dialog>) ─────────────────
 
   private renderDrawer() {
-    if (this.drawerRoom == null) return nothing;
-    const room = this.rooms[this.drawerRoom];
-    if (!room) return nothing;
+    // Render the <dialog> unconditionally so its DOM reference is
+    // always available for showModal()/close() imperatively. The
+    // body is only populated when a room is selected, to avoid
+    // re-running per-light/cover rendering when nothing's open.
+    const idx = this.drawerRoom;
+    const room = idx != null ? this.rooms[idx] : undefined;
     return html`
-      <div
-        class="drawer-backdrop"
-        @click=${this.closeDrawer}
-        aria-hidden="true"
-      ></div>
-      <div
+      <dialog
         class="drawer"
-        role="dialog"
-        aria-modal="true"
-        aria-label="Quick control ${room.name}"
+        @close=${this.closeDrawer}
+        @click=${this.onDialogClick}
       >
-        <div class="drawer-handle"></div>
-        <div class="drawer-head">
-          <span class="room-icon">${room.icon}</span>
-          <span class="drawer-title">${room.name}</span>
-          <button
-            class="drawer-close"
-            @click=${this.closeDrawer}
-            aria-label="Chiudi"
-          >
-            ✕
-          </button>
-        </div>
-        <div class="drawer-body">
-          ${room.lights.length === 0 && room.covers.length === 0
-            ? html`<div class="qc-row-sub">Nessun dispositivo configurato.</div>`
-            : nothing}
-          ${room.lights.map((l) => this.renderLightRow(l))}
-          ${room.covers.map((c) => this.renderCoverRow(c))}
-        </div>
-      </div>
+        ${room
+          ? html`
+              <div class="drawer-handle"></div>
+              <div class="drawer-head">
+                <span class="room-icon">${room.icon}</span>
+                <span class="drawer-title">${room.name}</span>
+                <button
+                  class="drawer-close"
+                  @click=${this.closeDrawer}
+                  aria-label="Chiudi"
+                >
+                  ✕
+                </button>
+              </div>
+              <div class="drawer-body">
+                ${room.lights.length === 0 && room.covers.length === 0
+                  ? html`<div class="qc-row-sub">
+                      Nessun dispositivo configurato.
+                    </div>`
+                  : nothing}
+                ${room.lights.map((l) => this.renderLightRow(l))}
+                ${room.covers.map((c) => this.renderCoverRow(c))}
+              </div>
+            `
+          : nothing}
+      </dialog>
     `;
   }
+
+  /**
+   * Native `<dialog>` doesn't fire a "backdrop click" event of its own.
+   * We mimic it: when the click target IS the dialog (i.e. the user hit
+   * the area outside the dialog's content rect — that area belongs to
+   * the dialog node itself in modal mode), close.
+   */
+  private onDialogClick = (e: MouseEvent): void => {
+    const d = this.drawerEl;
+    if (!d) return;
+    if (e.target !== d) return; // a click inside the inner content
+    const rect = d.getBoundingClientRect();
+    const inside =
+      e.clientX >= rect.left &&
+      e.clientX <= rect.right &&
+      e.clientY >= rect.top &&
+      e.clientY <= rect.bottom;
+    if (!inside) this.closeDrawer();
+  };
 
   private renderLightRow(d: CowMobileDeviceEntry) {
     const ent = this.getEnt(d.entity);

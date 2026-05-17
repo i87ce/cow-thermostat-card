@@ -4,6 +4,33 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and
 this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.3.2] — 2026-05-17
+
+### Fixed — modal drawer was invisible (shadow-DOM stacking trap)
+v1.3.1's drawer used `position: fixed; bottom: 0` on a regular div
+inside the card's shadow root. That fails inside HA Lovelace: each
+card is wrapped by `<hui-view>` / `<ha-card>` / etc. which apply
+`contain: layout` and `transform`s of their own, and any of those
+creates a containing block that *traps* `position: fixed` — the
+drawer was rendered, but pinned to the wrapper's bottom and clipped
+out of view. Visually it just looked like a black flash.
+
+Rewrote the drawer on top of the native HTML `<dialog>` element
+with `showModal()`: that element renders into the browser's *top
+layer*, which sits above every stacking context and every
+containing block in the page. Inside the dialog we just override
+the user-agent centering and pin the sheet to `bottom: 0` with
+`max-height: 82vh`. The native `::backdrop` pseudo-element handles
+the dimming, ESC handles close, and we restore a click-outside-to-
+dismiss behaviour by checking whether the click hit the dialog
+node itself versus its inner content rect.
+
+Bonus: in dark mode the drawer now gets an elevated background
+(`--ha-card-background` rather than the page's near-black) so the
+sheet stands apart from the 0.45-opacity backdrop. Previously the
+two were the same colour and the user couldn't see the drawer at
+all even though it was technically painted.
+
 ## [1.3.1] — 2026-05-17
 
 ### Changed — mobile dashboard quick-control is now a modal drawer
