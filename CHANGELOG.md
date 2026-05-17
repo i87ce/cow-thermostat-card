@@ -4,6 +4,54 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and
 this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.3.0] — 2026-05-17
+
+### Added — `cow-mobile-dashboard-card`
+Brand-new single-card mobile home dashboard for the HA companion app
+on a phone. Single column layout, target viewport ~390 px. Sits at
+the top of the `dashboard-mobile` Lovelace dashboard.
+
+Anatomy:
+- **Hero**: big clock + Italian day/date + outdoor temperature, on a
+  gradient that picks day / sunset / night by `sun.sun` elevation
+  (no live sky FX — kept lightweight, per user decision).
+- **Room grid** (2 columns): icon + name + temp/humidity + badges
+  for active lights and open covers. Tap to expand.
+- **Quick control panel** (inline, opens below the grid): toggle
+  each light, drag the bar to set brightness (only for dimmable
+  bulbs), ▲/■/▼ each cover.
+- **Summary chip**: counts of lights on + covers open, plus quick
+  "Spegni tutto" / "Chiudi tutte" buttons. Collapses to "Tutto
+  spento e chiuso 🌙" when nothing is on.
+- **Music ribbon** (conditional): only shown when the configured
+  `media_player` is `playing` or `paused`. Title + artist + ⏮ ⏸/▶ ⏭.
+- **Alarm row** (optional): one-line status of the configured
+  `alarm_control_panel`, linked through to `/lovelace/alarm`.
+
+Config schema (Lovelace YAML):
+
+```yaml
+type: custom:cow-mobile-dashboard-card
+weather: weather.pirateweather
+sun: sun.sun
+alarm: alarm_control_panel.casa
+media_player: media_player.music_assistant
+rooms:
+  - name: "Sala & Cucina"
+    icon: "🛋"
+    temp: sensor.display_sala_temperature
+    humidity: sensor.display_sala_humidity
+    climate: climate.koolnova_sala
+    lights:
+      - { entity: light.luce_sala, label: "Sala" }
+    covers:
+      - { entity: cover.tapparella_sala, label: "Sala" }
+```
+
+The card is registered in `window.customCards` (visible in HA's
+"Add card" picker) and ships in the same bundle as the small
+thermostat card, so HACS installs it automatically.
+
 ## [1.2.10] — 2026-05-15
 
 ### Fixed — brightness drag really really really doesn't snap back now

@@ -23,6 +23,7 @@ import { aggregateBlindsView } from "./small/state/blinds.js";
 
 import "./cow-room-dashboard-card.js";
 import "./cow-redirect-card.js";
+import "./cow-mobile-dashboard-card.js";
 
 type Kind = "thermostat" | "lights" | "blinds";
 
