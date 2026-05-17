@@ -695,17 +695,26 @@ export class CowMobileDashboardCard
       .qc-row + .qc-row {
         border-top: 1px solid var(--divider-color, rgba(31, 31, 46, 0.06));
       }
-      /* Leading icon (💡 for lights, 🪟 for covers). Fixed width so the
-         label column lines up even when emojis render slightly
-         differently — Apple's emoji set is wider than Noto's, for
-         example. font-size matches the label baseline so the icon
-         vertically centers without a manual translate(). */
+      /* Leading icon: 💡 for lights, ▤ for covers. Fixed width so the
+         labels line up across emoji widths. The 🪟 window emoji is
+         Emoji 13.0 (2020) and renders as a thin glyph or tofu on
+         the older Chromium kiosks the Shelly Wall Displays ship
+         with, so for covers we use ▤ (U+25A4 SQUARED HORIZONTAL
+         FILL) — a plain Unicode glyph supported everywhere, which
+         also matches the badge already used on the room tiles for
+         "open covers" so the two surfaces tell the same story. */
       .qc-row-icon {
         flex: 0 0 22px;
         font-size: 16px;
         line-height: 1;
         text-align: center;
         opacity: 0.72;
+      }
+      .qc-row-icon.is-cover {
+        /* Plain glyphs render smaller than emoji at the same font
+           size; bump it so the visual weight matches 💡. */
+        font-size: 20px;
+        color: var(--primary-text-color, inherit);
       }
       .qc-row-label {
         flex: 1;
@@ -1198,7 +1207,7 @@ export class CowMobileDashboardCard
               : `${pos}% aperta`;
     return html`
       <div class="qc-row">
-        <span class="qc-row-icon" aria-hidden="true">🪟</span>
+        <span class="qc-row-icon is-cover" aria-hidden="true">▤</span>
         <div class="qc-row-label">
           <div>${label}</div>
           <div class="qc-row-sub">${sub}</div>

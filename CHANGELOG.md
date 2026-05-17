@@ -4,6 +4,24 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and
 this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.3.7] — 2026-05-18
+
+### Changed — cover row icon: 🪟 → ▤
+Swapped the cover-row glyph introduced in v1.3.6. 🪟 (Emoji 13.0,
+2020) renders as a thin pale outline on Chrome / Edge desktop and
+shows up as tofu on the older Chromium build the Shelly Wall
+Displays ship — exactly the device this card targets, so the
+"give people at-a-glance type info" UX win evaporated. ▤ (U+25A4
+SQUARED HORIZONTAL FILL) is a plain Unicode glyph supported
+everywhere, looks like roller-shutter slats, and is the same
+character already used on the room-tile "open covers" badge — so
+the drawer and the tile now tell the same story with the same
+mark.
+
+Bumped to 20 px in CSS (`.qc-row-icon.is-cover`) so its visual
+weight matches the 16 px 💡 emoji; emojis render larger than
+plain glyphs at the same font size.
+
 ## [1.3.6] — 2026-05-18
 
 ### Added — type icons in the mobile drawer rows
@@ -13,11 +31,10 @@ list, and a label like "Sala" or "Lavanderia" gave no hint about
 whether the row was a light toggle or a cover with open/stop/close.
 Added a leading 💡 / 🪟 emoji as a type marker on every `qc-row`,
 in a fixed-width 22 px slot so the labels still line up regardless
-of platform emoji width (Apple's lightbulb is wider than Noto's).
+of platform emoji width.
 
-Lights get 💡, covers get 🪟. Icons sit at 72 % opacity so they
-read as glyphs rather than bright UI elements and don't compete
-with the labels for attention.
+(Note: v1.3.7 swaps 🪟 for ▤ on cover rows to fix rendering on
+older Chromium builds — see that entry for details.)
 
 ## [1.3.5] — 2026-05-18
 
