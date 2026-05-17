@@ -208,7 +208,13 @@ export class CowMobileDashboardCard
   @property({ attribute: false }) hass?: HomeAssistant;
   @state() private config?: CowMobileDashboardConfig;
   @state() private rooms: NormalizedRoom[] = [];
-  @state() private expandedRoom = -1;
+  /**
+   * Index of the room whose drawer is currently open, or `null` when no
+   * drawer is showing. Inline expansion was replaced with a real
+   * bottom-sheet drawer per user feedback — scrolling down through the
+   * whole grid to reach an inline panel felt like getting lost.
+   */
+  @state() private drawerRoom: number | null = null;
   @state() private now = new Date();
   private clockTimer?: number;
 
@@ -256,10 +262,30 @@ export class CowMobileDashboardCard
     for (const r of this.rooms) n += this.roomLightsOn(r);
     return n;
   }
+  private totalLightsTotal(): number {
+    let n = 0;
+    for (const r of this.rooms) n += r.lights.length;
+    return n;
+  }
   private totalCoversOpen(): number {
     let n = 0;
     for (const r of this.rooms) n += this.roomCoversOpen(r);
     return n;
+  }
+  private totalCoversTotal(): number {
+    let n = 0;
+    for (const r of this.rooms) n += r.covers.length;
+    return n;
+  }
+  private allLightEntities(): string[] {
+    const r: string[] = [];
+    for (const room of this.rooms) for (const l of room.lights) r.push(l.entity);
+    return r;
+  }
+  private allCoverEntities(): string[] {
+    const r: string[] = [];
+    for (const room of this.rooms) for (const c of room.covers) r.push(c.entity);
+    return r;
   }
 
   // ── Service calls ────────────────────────────────────────────────
@@ -293,17 +319,25 @@ export class CowMobileDashboardCard
           : "stop_cover";
     void this.hass?.callService("cover", svc, {}, { entity_id: entity });
   }
-  private allOff(): void {
-    const ents: string[] = [];
-    for (const r of this.rooms) for (const l of r.lights) ents.push(l.entity);
+  private allLights(on: boolean): void {
+    const ents = this.allLightEntities();
     if (ents.length === 0) return;
-    void this.hass?.callService("light", "turn_off", {}, { entity_id: ents });
+    void this.hass?.callService(
+      "light",
+      on ? "turn_on" : "turn_off",
+      {},
+      { entity_id: ents },
+    );
   }
-  private allCoversClose(): void {
-    const ents: string[] = [];
-    for (const r of this.rooms) for (const c of r.covers) ents.push(c.entity);
+  private allCovers(open: boolean): void {
+    const ents = this.allCoverEntities();
     if (ents.length === 0) return;
-    void this.hass?.callService("cover", "close_cover", {}, { entity_id: ents });
+    void this.hass?.callService(
+      "cover",
+      open ? "open_cover" : "close_cover",
+      {},
+      { entity_id: ents },
+    );
   }
 
   // ── Render ───────────────────────────────────────────────────────
@@ -395,10 +429,9 @@ export class CowMobileDashboardCard
       .room-tile:active {
         transform: scale(0.985);
       }
-      .room-tile[data-active] {
-        background: color-mix(in srgb, var(--primary-color, #03a9f4) 12%, var(--card-background-color, #fff));
-        box-shadow: 0 2px 8px rgba(31, 31, 46, 0.1);
-      }
+      /* room-tile no longer carries a "selected" state — opening a tile
+         always pops up the modal drawer, so the tile itself stays the
+         same and there's nothing to highlight. */
       .room-tile-head {
         display: flex;
         align-items: center;
@@ -453,37 +486,84 @@ export class CowMobileDashboardCard
         color: #0a6699;
       }
 
-      /* ── Quick control panel ─────────────────────────────────── */
-      .qc {
-        margin: 0 8px;
+      /* ── Drawer (modal bottom sheet) ─────────────────────────── */
+      .drawer-backdrop {
+        position: fixed;
+        inset: 0;
+        background: rgba(0, 0, 0, 0.4);
+        z-index: 10;
+        animation: backdrop-in 200ms ease;
+      }
+      @keyframes backdrop-in {
+        from { opacity: 0; }
+        to   { opacity: 1; }
+      }
+      .drawer {
+        position: fixed;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        z-index: 11;
+        max-height: 82vh;
+        display: flex;
+        flex-direction: column;
         background: var(--card-background-color, #fff);
-        border-radius: 18px;
-        padding: 14px 14px 18px;
-        box-shadow: 0 1px 4px rgba(31, 31, 46, 0.06);
-        animation: qc-in 200ms cubic-bezier(0.22, 1, 0.36, 1);
+        border-radius: 24px 24px 0 0;
+        box-shadow: 0 -8px 32px rgba(0, 0, 0, 0.25);
+        padding: 6px 16px max(20px, env(safe-area-inset-bottom, 0px));
+        animation: drawer-up 240ms cubic-bezier(0.22, 1, 0.36, 1);
+        /* Safe-area inset above keeps the bottom of the drawer clear of
+           the iPhone home-indicator gesture bar. */
       }
-      @keyframes qc-in {
-        from { opacity: 0; transform: translateY(-6px); }
-        to   { opacity: 1; transform: translateY(0); }
+      @keyframes drawer-up {
+        from { transform: translateY(100%); }
+        to   { transform: translateY(0); }
       }
-      .qc-head {
+      .drawer-handle {
+        width: 38px;
+        height: 4px;
+        background: var(--divider-color, rgba(31, 31, 46, 0.18));
+        border-radius: 2px;
+        margin: 8px auto 12px;
+        flex-shrink: 0;
+      }
+      .drawer-head {
         display: flex;
         align-items: center;
-        gap: 8px;
+        gap: 10px;
+        padding: 0 4px 12px;
         font-weight: 600;
-        font-size: 14px;
-        margin-bottom: 12px;
+        font-size: 16px;
+        flex-shrink: 0;
       }
-      .qc-head .close {
+      .drawer-title {
+        flex: 1;
+      }
+      .drawer-close {
+        appearance: none;
         margin-left: auto;
         border: 0;
-        background: transparent;
-        font-size: 18px;
+        background: var(--divider-color, rgba(31, 31, 46, 0.08));
+        font-size: 16px;
         line-height: 1;
         color: inherit;
         cursor: pointer;
-        padding: 4px 8px;
-        border-radius: 8px;
+        width: 32px;
+        height: 32px;
+        border-radius: 50%;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+      }
+      .drawer-close:active {
+        transform: scale(0.92);
+      }
+      .drawer-body {
+        flex: 1 1 auto;
+        overflow-y: auto;
+        padding: 0 4px;
+        /* Smooth scroll for the inner list, e.g. rooms with 5+ devices. */
+        -webkit-overflow-scrolling: touch;
       }
       .qc-row {
         display: flex;
@@ -622,17 +702,36 @@ export class CowMobileDashboardCard
         background: var(--divider-color, rgba(31, 31, 46, 0.08));
         color: inherit;
         cursor: pointer;
+        transition: opacity 160ms ease, transform 160ms ease;
       }
-      .summary-actions button:active {
+      .summary-actions button:active:not(:disabled) {
         transform: scale(0.98);
       }
+      .summary-actions button:disabled {
+        opacity: 0.35;
+        cursor: not-allowed;
+      }
+      /* Solid yellow / outlined yellow for the lights pair. The "soft"
+         variant uses the same hue at a lower saturation so it reads as
+         the secondary/inverse action. */
       .summary-actions button[data-accent] {
         background: rgba(255, 199, 46, 0.2);
         color: #b87b0a;
       }
+      .summary-actions button[data-accent-soft] {
+        background: transparent;
+        color: #b87b0a;
+        box-shadow: inset 0 0 0 1.5px rgba(255, 199, 46, 0.45);
+      }
+      /* Same pattern for the covers pair, in blue. */
       .summary-actions button[data-cov] {
         background: rgba(76, 184, 255, 0.18);
         color: #0a6699;
+      }
+      .summary-actions button[data-cov-soft] {
+        background: transparent;
+        color: #0a6699;
+        box-shadow: inset 0 0 0 1.5px rgba(76, 184, 255, 0.42);
       }
 
       /* ── Music ribbon ────────────────────────────────────────── */
@@ -733,9 +832,10 @@ export class CowMobileDashboardCard
     if (!this.config) return html`<div>Loading…</div>`;
     return html`
       <div class="card">
-        ${this.renderHero()} ${this.renderRooms()} ${this.renderQuickControl()}
-        ${this.renderSummary()} ${this.renderMusic()} ${this.renderAlarm()}
+        ${this.renderHero()} ${this.renderRooms()} ${this.renderSummary()}
+        ${this.renderMusic()} ${this.renderAlarm()}
       </div>
+      ${this.renderDrawer()}
     `;
   }
 
@@ -792,18 +892,16 @@ export class CowMobileDashboardCard
         : null;
     const lOn = this.roomLightsOn(room);
     const cOpen = this.roomCoversOpen(room);
-    const active = idx === this.expandedRoom ? "" : undefined;
     return html`
       <div
         class="room-tile"
-        ?data-active=${active != null}
         role="button"
         tabindex="0"
-        @click=${() => this.toggleRoom(idx)}
+        @click=${() => this.openDrawer(idx)}
         @keydown=${(e: KeyboardEvent) => {
           if (e.key === "Enter" || e.key === " ") {
             e.preventDefault();
-            this.toggleRoom(idx);
+            this.openDrawer(idx);
           }
         }}
       >
@@ -826,34 +924,50 @@ export class CowMobileDashboardCard
     `;
   }
 
-  private toggleRoom(idx: number): void {
-    this.expandedRoom = this.expandedRoom === idx ? -1 : idx;
+  private openDrawer(idx: number): void {
+    this.drawerRoom = idx;
   }
+  private closeDrawer = (): void => {
+    this.drawerRoom = null;
+  };
 
-  // ── Quick control ────────────────────────────────────────────────
+  // ── Drawer (modal bottom sheet) ──────────────────────────────────
 
-  private renderQuickControl() {
-    if (this.expandedRoom < 0) return nothing;
-    const room = this.rooms[this.expandedRoom];
+  private renderDrawer() {
+    if (this.drawerRoom == null) return nothing;
+    const room = this.rooms[this.drawerRoom];
     if (!room) return nothing;
     return html`
-      <div class="qc">
-        <div class="qc-head">
+      <div
+        class="drawer-backdrop"
+        @click=${this.closeDrawer}
+        aria-hidden="true"
+      ></div>
+      <div
+        class="drawer"
+        role="dialog"
+        aria-modal="true"
+        aria-label="Quick control ${room.name}"
+      >
+        <div class="drawer-handle"></div>
+        <div class="drawer-head">
           <span class="room-icon">${room.icon}</span>
-          <span>${room.name}</span>
+          <span class="drawer-title">${room.name}</span>
           <button
-            class="close"
-            @click=${() => (this.expandedRoom = -1)}
+            class="drawer-close"
+            @click=${this.closeDrawer}
             aria-label="Chiudi"
           >
             ✕
           </button>
         </div>
-        ${room.lights.length === 0 && room.covers.length === 0
-          ? html`<div class="qc-row-sub">Nessun dispositivo configurato.</div>`
-          : nothing}
-        ${room.lights.map((l) => this.renderLightRow(l))}
-        ${room.covers.map((c) => this.renderCoverRow(c))}
+        <div class="drawer-body">
+          ${room.lights.length === 0 && room.covers.length === 0
+            ? html`<div class="qc-row-sub">Nessun dispositivo configurato.</div>`
+            : nothing}
+          ${room.lights.map((l) => this.renderLightRow(l))}
+          ${room.covers.map((c) => this.renderCoverRow(c))}
+        </div>
       </div>
     `;
   }
@@ -952,40 +1066,77 @@ export class CowMobileDashboardCard
   // ── Summary ──────────────────────────────────────────────────────
 
   private renderSummary() {
+    const lTotal = this.totalLightsTotal();
     const lOn = this.totalLightsOn();
+    const lOff = lTotal - lOn;
+    const cTotal = this.totalCoversTotal();
     const cOpen = this.totalCoversOpen();
+    const cClosed = cTotal - cOpen;
+
+    // Headline reflecting current state. When everything is at rest we
+    // still show the action buttons (disabled where appropriate) so the
+    // "Apri" / "Accendi" verbs are reachable without first changing
+    // something else.
+    let headline: string;
     if (lOn === 0 && cOpen === 0) {
-      return html`
-        <div class="summary">
-          <div class="summary-text">Tutto spento e chiuso 🌙</div>
-        </div>
-      `;
+      headline = "Tutto spento e chiuso 🌙";
+    } else {
+      const parts: string[] = [];
+      if (lOn > 0)
+        parts.push(`${lOn} ${lOn === 1 ? "luce accesa" : "luci accese"}`);
+      if (cOpen > 0)
+        parts.push(
+          `${cOpen} ${cOpen === 1 ? "tapparella aperta" : "tapparelle aperte"}`,
+        );
+      headline = parts.join(" · ");
     }
-    const parts: string[] = [];
-    if (lOn > 0) parts.push(`${lOn} ${lOn === 1 ? "luce accesa" : "luci accese"}`);
-    if (cOpen > 0)
-      parts.push(
-        `${cOpen} ${cOpen === 1 ? "tapparella aperta" : "tapparelle aperte"}`,
-      );
+
+    const hasLights = lTotal > 0;
+    const hasCovers = cTotal > 0;
+
     return html`
       <div class="summary">
-        <div class="summary-text">${parts.join(" · ")}</div>
-        <div class="summary-actions">
-          ${lOn > 0
-            ? html`
-                <button data-accent @click=${() => this.allOff()}>
-                  Spegni tutto
+        <div class="summary-text">${headline}</div>
+        ${hasLights
+          ? html`
+              <div class="summary-actions">
+                <button
+                  data-accent
+                  ?disabled=${lOn === 0}
+                  @click=${() => this.allLights(false)}
+                >
+                  Spegni tutte
                 </button>
-              `
-            : nothing}
-          ${cOpen > 0
-            ? html`
-                <button data-cov @click=${() => this.allCoversClose()}>
+                <button
+                  data-accent-soft
+                  ?disabled=${lOff === 0}
+                  @click=${() => this.allLights(true)}
+                >
+                  Accendi tutte
+                </button>
+              </div>
+            `
+          : nothing}
+        ${hasCovers
+          ? html`
+              <div class="summary-actions">
+                <button
+                  data-cov
+                  ?disabled=${cOpen === 0}
+                  @click=${() => this.allCovers(false)}
+                >
                   Chiudi tutte
                 </button>
-              `
-            : nothing}
-        </div>
+                <button
+                  data-cov-soft
+                  ?disabled=${cClosed === 0}
+                  @click=${() => this.allCovers(true)}
+                >
+                  Apri tutte
+                </button>
+              </div>
+            `
+          : nothing}
       </div>
     `;
   }

@@ -4,6 +4,42 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and
 this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.3.1] — 2026-05-17
+
+### Changed — mobile dashboard quick-control is now a modal drawer
+The inline accordion that opened below the room grid forced the user
+to scroll all the way down to reach the controls — easy to "lose"
+the panel and forget which room you tapped. Replaced with a real
+bottom-sheet drawer:
+
+- Slides up from the bottom (240 ms ease), full-width, max 82vh.
+- Translucent backdrop above the rest of the page; tap-anywhere or ✕
+  to dismiss.
+- Pill-shaped drag handle at the top.
+- Drawer body is scrollable on its own when the room has many
+  devices, so the rest of the dashboard doesn't shift around.
+- `env(safe-area-inset-bottom)` padding so the drawer clears the
+  iPhone home-indicator gesture bar.
+
+The selected-tile highlight on the grid was removed — the drawer
+itself signals which room you're operating on now, so the tile
+doesn't need to keep state.
+
+### Added — four summary actions instead of two
+Per user feedback, exposing only "Spegni tutte" / "Chiudi tutte"
+made the inverse actions (turn everything on, open every cover)
+unreachable from the summary. The chip now shows all four:
+
+```
+[ Spegni tutte ]   [ Accendi tutte ]      ← lights pair
+[ Chiudi tutte ]   [ Apri tutte ]         ← covers pair
+```
+
+Visual hierarchy is solid (primary, on a tinted background) for the
+default action of each row and outlined (secondary) for the inverse.
+Each button is `disabled` when it would be a no-op (e.g. "Accendi
+tutte" is faded when every configured light is already on).
+
 ## [1.3.0] — 2026-05-17
 
 ### Added — `cow-mobile-dashboard-card`
