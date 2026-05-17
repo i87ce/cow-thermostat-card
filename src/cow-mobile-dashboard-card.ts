@@ -695,10 +695,23 @@ export class CowMobileDashboardCard
       .qc-row + .qc-row {
         border-top: 1px solid var(--divider-color, rgba(31, 31, 46, 0.06));
       }
+      /* Leading icon (💡 for lights, 🪟 for covers). Fixed width so the
+         label column lines up even when emojis render slightly
+         differently — Apple's emoji set is wider than Noto's, for
+         example. font-size matches the label baseline so the icon
+         vertically centers without a manual translate(). */
+      .qc-row-icon {
+        flex: 0 0 22px;
+        font-size: 16px;
+        line-height: 1;
+        text-align: center;
+        opacity: 0.72;
+      }
       .qc-row-label {
         flex: 1;
         font-size: 14px;
         font-weight: 500;
+        min-width: 0;
       }
       .qc-row-sub {
         font-size: 12px;
@@ -1130,6 +1143,7 @@ export class CowMobileDashboardCard
     const pct = brightnessPct(ent);
     return html`
       <div class="qc-row">
+        <span class="qc-row-icon" aria-hidden="true">💡</span>
         <div class="qc-row-label">
           <div>${label}</div>
           <div class="qc-row-sub">
@@ -1184,6 +1198,7 @@ export class CowMobileDashboardCard
               : `${pos}% aperta`;
     return html`
       <div class="qc-row">
+        <span class="qc-row-icon" aria-hidden="true">🪟</span>
         <div class="qc-row-label">
           <div>${label}</div>
           <div class="qc-row-sub">${sub}</div>

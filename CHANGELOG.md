@@ -4,6 +4,21 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and
 this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.3.6] — 2026-05-18
+
+### Added — type icons in the mobile drawer rows
+Rooms with both lights and rollers (e.g. Sala & Cucina, Studio
+Alessio, Servizi) crammed two device types into the same drawer
+list, and a label like "Sala" or "Lavanderia" gave no hint about
+whether the row was a light toggle or a cover with open/stop/close.
+Added a leading 💡 / 🪟 emoji as a type marker on every `qc-row`,
+in a fixed-width 22 px slot so the labels still line up regardless
+of platform emoji width (Apple's lightbulb is wider than Noto's).
+
+Lights get 💡, covers get 🪟. Icons sit at 72 % opacity so they
+read as glyphs rather than bright UI elements and don't compete
+with the labels for attention.
+
 ## [1.3.5] — 2026-05-18
 
 ### Changed — mobile dashboard summary moved above the room grid
