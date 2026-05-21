@@ -1,0 +1,397 @@
+# ---------------------------------------------------------------------------
+# Cow Climate orchestration — coordinates Koolnova + Pavimento per room
+# ---------------------------------------------------------------------------
+# Drop this file into /config/packages/cow_climate.yaml (or any name you
+# prefer) and make sure your configuration.yaml has:
+#
+#     homeassistant:
+#       packages: !include_dir_named packages
+#
+# Then `Developer Tools → YAML → Reload all YAML configuration` (or just
+# restart HA) and the climate.casa_* entities + their orchestration
+# automation will appear.
+#
+# Design notes live in docs/06-house-hvac-architecture.md (Section F-bis).
+# The user-facing decision parameters (FLOOR_OFFSET, BOOST_THRESHOLD,
+# behaviour at idle, cool/fan_only forcing floor OFF, Sala+Cucina
+# collapsed into a single proxy) are encoded directly in this file.
+#
+# Each room has three helpers (setpoint / mode / fan) that act as the
+# persistent "state machine" of the proxy thermostat. A template climate
+# reflects those helpers as a proper climate.* entity, and the single
+# automation at the bottom of the file translates any change on a proxy
+# (mode / setpoint / fan / current temp) into coordinated commands on
+# the underlying Koolnova + Pavimento entities.
+# ---------------------------------------------------------------------------
+
+input_number:
+  casa_sala_cucina_setpoint:    { name: "Sala & Cucina · Setpoint",   min: 15, max: 28, step: 0.5, unit_of_measurement: "°C", initial: 20, icon: mdi:thermometer }
+  casa_camera_setpoint:         { name: "Camera · Setpoint",          min: 15, max: 28, step: 0.5, unit_of_measurement: "°C", initial: 20, icon: mdi:thermometer }
+  casa_studio_chiara_setpoint:  { name: "Studio Chiara · Setpoint",   min: 15, max: 28, step: 0.5, unit_of_measurement: "°C", initial: 20, icon: mdi:thermometer }
+  casa_camera_padronale_setpoint: { name: "Camera Padronale · Setpoint", min: 15, max: 28, step: 0.5, unit_of_measurement: "°C", initial: 20, icon: mdi:thermometer }
+  casa_ingresso_pt_setpoint:    { name: "Ingresso PT · Setpoint",     min: 15, max: 28, step: 0.5, unit_of_measurement: "°C", initial: 20, icon: mdi:thermometer }
+
+input_select:
+  casa_sala_cucina_mode:        { name: "Sala & Cucina · Modo",       options: ["off", heat, cool, fan_only], initial: "off", icon: mdi:hvac }
+  casa_sala_cucina_fan:         { name: "Sala & Cucina · Ventola",    options: [auto, low, medium, high],     initial: auto,  icon: mdi:fan }
+  casa_camera_mode:             { name: "Camera · Modo",              options: ["off", heat, cool, fan_only], initial: "off", icon: mdi:hvac }
+  casa_camera_fan:              { name: "Camera · Ventola",           options: [auto, low, medium, high],     initial: auto,  icon: mdi:fan }
+  casa_studio_chiara_mode:      { name: "Studio Chiara · Modo",       options: ["off", heat, cool, fan_only], initial: "off", icon: mdi:hvac }
+  casa_studio_chiara_fan:       { name: "Studio Chiara · Ventola",    options: [auto, low, medium, high],     initial: auto,  icon: mdi:fan }
+  casa_camera_padronale_mode:   { name: "Camera Padronale · Modo",    options: ["off", heat, cool, fan_only], initial: "off", icon: mdi:hvac }
+  casa_camera_padronale_fan:    { name: "Camera Padronale · Ventola", options: [auto, low, medium, high],     initial: auto,  icon: mdi:fan }
+  casa_ingresso_pt_mode:        { name: "Ingresso PT · Modo",         options: ["off", heat, cool, fan_only], initial: "off", icon: mdi:hvac }
+  casa_ingresso_pt_fan:         { name: "Ingresso PT · Ventola",      options: [auto, low, medium, high],     initial: auto,  icon: mdi:fan }
+
+# --- Template climate entities ----------------------------------------------
+# Each entity reads the three helpers above and exposes the standard climate
+# actions. The actions only update the helpers — the orchestration automation
+# at the bottom does the real work of pushing values to Koolnova / Pavimento.
+#
+# We pin hvac_action to a Jinja expression so the card on the wall display
+# can tell whether the system is actively heating / cooling / idle, even when
+# the proxy itself is just bookkeeping helpers.
+
+template:
+  - climate:
+      - name: "Casa Sala & Cucina"
+        unique_id: casa_sala_cucina
+        availability_template: "{{ states('sensor.display_sala_temperature') not in ['unknown','unavailable'] }}"
+        current_temperature_template: "{{ states('sensor.display_sala_temperature') | float(20) }}"
+        target_temperature_template:  "{{ states('input_number.casa_sala_cucina_setpoint') | float(20) }}"
+        hvac_mode_template:           "{{ states('input_select.casa_sala_cucina_mode') }}"
+        fan_mode_template:            "{{ states('input_select.casa_sala_cucina_fan') }}"
+        hvac_action_template: >-
+          {% set m = states('input_select.casa_sala_cucina_mode') %}
+          {% set t = states('input_number.casa_sala_cucina_setpoint') | float(20) %}
+          {% set c = states('sensor.display_sala_temperature')      | float(20) %}
+          {% if m == 'off' %}off
+          {% elif m == 'cool' and c > t %}cooling
+          {% elif m == 'heat' and c < t %}heating
+          {% elif m == 'fan_only' %}fan
+          {% else %}idle{% endif %}
+        modes: ["off", heat, cool, fan_only]
+        fan_modes: [auto, low, medium, high]
+        min_temp: 15
+        max_temp: 28
+        temp_step: 0.5
+        set_hvac_mode:
+          - service: input_select.select_option
+            target: { entity_id: input_select.casa_sala_cucina_mode }
+            data: { option: "{{ hvac_mode }}" }
+        set_temperature:
+          - service: input_number.set_value
+            target: { entity_id: input_number.casa_sala_cucina_setpoint }
+            data: { value: "{{ temperature }}" }
+        set_fan_mode:
+          - service: input_select.select_option
+            target: { entity_id: input_select.casa_sala_cucina_fan }
+            data: { option: "{{ fan_mode }}" }
+
+      - name: "Casa Camera"
+        unique_id: casa_camera
+        availability_template: "{{ states('sensor.display_camera_1_temperature') not in ['unknown','unavailable'] }}"
+        current_temperature_template: "{{ states('sensor.display_camera_1_temperature') | float(20) }}"
+        target_temperature_template:  "{{ states('input_number.casa_camera_setpoint') | float(20) }}"
+        hvac_mode_template:           "{{ states('input_select.casa_camera_mode') }}"
+        fan_mode_template:            "{{ states('input_select.casa_camera_fan') }}"
+        hvac_action_template: >-
+          {% set m = states('input_select.casa_camera_mode') %}
+          {% set t = states('input_number.casa_camera_setpoint') | float(20) %}
+          {% set c = states('sensor.display_camera_1_temperature') | float(20) %}
+          {% if m == 'off' %}off
+          {% elif m == 'cool' and c > t %}cooling
+          {% elif m == 'heat' and c < t %}heating
+          {% elif m == 'fan_only' %}fan
+          {% else %}idle{% endif %}
+        modes: ["off", heat, cool, fan_only]
+        fan_modes: [auto, low, medium, high]
+        min_temp: 15
+        max_temp: 28
+        temp_step: 0.5
+        set_hvac_mode:
+          - service: input_select.select_option
+            target: { entity_id: input_select.casa_camera_mode }
+            data: { option: "{{ hvac_mode }}" }
+        set_temperature:
+          - service: input_number.set_value
+            target: { entity_id: input_number.casa_camera_setpoint }
+            data: { value: "{{ temperature }}" }
+        set_fan_mode:
+          - service: input_select.select_option
+            target: { entity_id: input_select.casa_camera_fan }
+            data: { option: "{{ fan_mode }}" }
+
+      - name: "Casa Studio Chiara"
+        unique_id: casa_studio_chiara
+        availability_template: "{{ states('sensor.display_camera_2_temperature') not in ['unknown','unavailable'] }}"
+        current_temperature_template: "{{ states('sensor.display_camera_2_temperature') | float(20) }}"
+        target_temperature_template:  "{{ states('input_number.casa_studio_chiara_setpoint') | float(20) }}"
+        hvac_mode_template:           "{{ states('input_select.casa_studio_chiara_mode') }}"
+        fan_mode_template:            "{{ states('input_select.casa_studio_chiara_fan') }}"
+        hvac_action_template: >-
+          {% set m = states('input_select.casa_studio_chiara_mode') %}
+          {% set t = states('input_number.casa_studio_chiara_setpoint') | float(20) %}
+          {% set c = states('sensor.display_camera_2_temperature') | float(20) %}
+          {% if m == 'off' %}off
+          {% elif m == 'cool' and c > t %}cooling
+          {% elif m == 'heat' and c < t %}heating
+          {% elif m == 'fan_only' %}fan
+          {% else %}idle{% endif %}
+        modes: ["off", heat, cool, fan_only]
+        fan_modes: [auto, low, medium, high]
+        min_temp: 15
+        max_temp: 28
+        temp_step: 0.5
+        set_hvac_mode:
+          - service: input_select.select_option
+            target: { entity_id: input_select.casa_studio_chiara_mode }
+            data: { option: "{{ hvac_mode }}" }
+        set_temperature:
+          - service: input_number.set_value
+            target: { entity_id: input_number.casa_studio_chiara_setpoint }
+            data: { value: "{{ temperature }}" }
+        set_fan_mode:
+          - service: input_select.select_option
+            target: { entity_id: input_select.casa_studio_chiara_fan }
+            data: { option: "{{ fan_mode }}" }
+
+      - name: "Casa Camera Padronale"
+        unique_id: casa_camera_padronale
+        availability_template: "{{ states('sensor.display_camera_padronale_temperature') not in ['unknown','unavailable'] }}"
+        current_temperature_template: "{{ states('sensor.display_camera_padronale_temperature') | float(20) }}"
+        target_temperature_template:  "{{ states('input_number.casa_camera_padronale_setpoint') | float(20) }}"
+        hvac_mode_template:           "{{ states('input_select.casa_camera_padronale_mode') }}"
+        fan_mode_template:            "{{ states('input_select.casa_camera_padronale_fan') }}"
+        hvac_action_template: >-
+          {% set m = states('input_select.casa_camera_padronale_mode') %}
+          {% set t = states('input_number.casa_camera_padronale_setpoint') | float(20) %}
+          {% set c = states('sensor.display_camera_padronale_temperature') | float(20) %}
+          {% if m == 'off' %}off
+          {% elif m == 'cool' and c > t %}cooling
+          {% elif m == 'heat' and c < t %}heating
+          {% elif m == 'fan_only' %}fan
+          {% else %}idle{% endif %}
+        modes: ["off", heat, cool, fan_only]
+        fan_modes: [auto, low, medium, high]
+        min_temp: 15
+        max_temp: 28
+        temp_step: 0.5
+        set_hvac_mode:
+          - service: input_select.select_option
+            target: { entity_id: input_select.casa_camera_padronale_mode }
+            data: { option: "{{ hvac_mode }}" }
+        set_temperature:
+          - service: input_number.set_value
+            target: { entity_id: input_number.casa_camera_padronale_setpoint }
+            data: { value: "{{ temperature }}" }
+        set_fan_mode:
+          - service: input_select.select_option
+            target: { entity_id: input_select.casa_camera_padronale_fan }
+            data: { option: "{{ fan_mode }}" }
+
+      - name: "Casa Ingresso PT"
+        unique_id: casa_ingresso_pt
+        availability_template: "{{ states('sensor.display_ingresso_pt_temperature') not in ['unknown','unavailable'] }}"
+        current_temperature_template: "{{ states('sensor.display_ingresso_pt_temperature') | float(20) }}"
+        target_temperature_template:  "{{ states('input_number.casa_ingresso_pt_setpoint') | float(20) }}"
+        hvac_mode_template:           "{{ states('input_select.casa_ingresso_pt_mode') }}"
+        fan_mode_template:            "{{ states('input_select.casa_ingresso_pt_fan') }}"
+        hvac_action_template: >-
+          {% set m = states('input_select.casa_ingresso_pt_mode') %}
+          {% set t = states('input_number.casa_ingresso_pt_setpoint') | float(20) %}
+          {% set c = states('sensor.display_ingresso_pt_temperature') | float(20) %}
+          {% if m == 'off' %}off
+          {% elif m == 'cool' and c > t %}cooling
+          {% elif m == 'heat' and c < t %}heating
+          {% elif m == 'fan_only' %}fan
+          {% else %}idle{% endif %}
+        modes: ["off", heat, cool, fan_only]
+        fan_modes: [auto, low, medium, high]
+        min_temp: 15
+        max_temp: 28
+        temp_step: 0.5
+        set_hvac_mode:
+          - service: input_select.select_option
+            target: { entity_id: input_select.casa_ingresso_pt_mode }
+            data: { option: "{{ hvac_mode }}" }
+        set_temperature:
+          - service: input_number.set_value
+            target: { entity_id: input_number.casa_ingresso_pt_setpoint }
+            data: { value: "{{ temperature }}" }
+        set_fan_mode:
+          - service: input_select.select_option
+            target: { entity_id: input_select.casa_ingresso_pt_fan }
+            data: { option: "{{ fan_mode }}" }
+
+# --- Orchestration automation ------------------------------------------------
+# Single automation, one job: whenever a proxy's mode / setpoint / fan changes
+# OR the room temperature crosses the boost threshold, translate that into
+# the right calls on Koolnova + Pavimento. The slug parameter selects which
+# room to operate on at trigger time.
+
+automation:
+  - id: cow_climate_orchestrator
+    alias: "Cow Climate — Orchestrator"
+    description: "Coordinates Koolnova + Pavimento for each casa_<room> proxy"
+    mode: queued
+    max: 20
+    trigger:
+      # Any change of the user-facing controls per room
+      - platform: state
+        entity_id:
+          # sala & cucina
+          - input_number.casa_sala_cucina_setpoint
+          - input_select.casa_sala_cucina_mode
+          - input_select.casa_sala_cucina_fan
+          # camera
+          - input_number.casa_camera_setpoint
+          - input_select.casa_camera_mode
+          - input_select.casa_camera_fan
+          # studio chiara
+          - input_number.casa_studio_chiara_setpoint
+          - input_select.casa_studio_chiara_mode
+          - input_select.casa_studio_chiara_fan
+          # camera padronale
+          - input_number.casa_camera_padronale_setpoint
+          - input_select.casa_camera_padronale_mode
+          - input_select.casa_camera_padronale_fan
+          # ingresso pt
+          - input_number.casa_ingresso_pt_setpoint
+          - input_select.casa_ingresso_pt_mode
+          - input_select.casa_ingresso_pt_fan
+      # Any room temperature change — re-evaluate the boost decision
+      - platform: state
+        entity_id:
+          - sensor.display_sala_temperature
+          - sensor.display_camera_1_temperature
+          - sensor.display_camera_2_temperature
+          - sensor.display_camera_padronale_temperature
+          - sensor.display_ingresso_pt_temperature
+    variables:
+      # Mapping table: which room each trigger entity belongs to, and
+      # which underlying climate.* entities it controls. Add a new row
+      # here when adding a new proxy.
+      rooms:
+        sala_cucina:
+          temp: sensor.display_sala_temperature
+          mode_input: input_select.casa_sala_cucina_mode
+          setpoint_input: input_number.casa_sala_cucina_setpoint
+          fan_input: input_select.casa_sala_cucina_fan
+          koolnova: ["climate.koolnova_sala", "climate.koolnova_cucina"]
+          pavimento: climate.pavimento_sala
+        camera:
+          temp: sensor.display_camera_1_temperature
+          mode_input: input_select.casa_camera_mode
+          setpoint_input: input_number.casa_camera_setpoint
+          fan_input: input_select.casa_camera_fan
+          koolnova: ["climate.koolnova_camera_1"]
+          pavimento: climate.pavimento_camera_1
+        studio_chiara:
+          temp: sensor.display_camera_2_temperature
+          mode_input: input_select.casa_studio_chiara_mode
+          setpoint_input: input_number.casa_studio_chiara_setpoint
+          fan_input: input_select.casa_studio_chiara_fan
+          koolnova: ["climate.koolnova_camera_2"]
+          pavimento: climate.pavimento_camera_2
+        camera_padronale:
+          temp: sensor.display_camera_padronale_temperature
+          mode_input: input_select.casa_camera_padronale_mode
+          setpoint_input: input_number.casa_camera_padronale_setpoint
+          fan_input: input_select.casa_camera_padronale_fan
+          koolnova: ["climate.koolnova_camera_3"]
+          pavimento: climate.pavimento_camera_padronale
+        ingresso_pt:
+          temp: sensor.display_ingresso_pt_temperature
+          mode_input: input_select.casa_ingresso_pt_mode
+          setpoint_input: input_number.casa_ingresso_pt_setpoint
+          fan_input: input_select.casa_ingresso_pt_fan
+          koolnova: ["climate.koolnova_ingresso_pt"]
+          pavimento: climate.pavimento_ingresso_pt
+      # Match the triggered entity_id to a slug
+      slug: >-
+        {% set tid = trigger.entity_id %}
+        {% set ns = namespace(found='') %}
+        {% for k, v in rooms.items() %}
+          {% if tid in [v.temp, v.mode_input, v.setpoint_input, v.fan_input] %}
+            {% set ns.found = k %}
+          {% endif %}
+        {% endfor %}
+        {{ ns.found }}
+      r: "{{ rooms[slug] }}"
+      mode: "{{ states(r.mode_input) }}"
+      setpoint: "{{ states(r.setpoint_input) | float(20) }}"
+      fan: "{{ states(r.fan_input) }}"
+      current: "{{ states(r.temp) | float(20) }}"
+      delta: "{{ setpoint - current }}"
+      FLOOR_OFFSET: 1.0
+      BOOST_THRESHOLD: 1.5
+    action:
+      # Skip silently if we can't resolve the trigger to a room (defensive)
+      - condition: template
+        value_template: "{{ slug != '' }}"
+      # Dispatch on user mode
+      - choose:
+          # -------------- OFF -------------------
+          - conditions: "{{ mode == 'off' }}"
+            sequence:
+              - service: climate.set_hvac_mode
+                target: { entity_id: "{{ r.koolnova }}" }
+                data: { hvac_mode: "off" }
+              - service: climate.set_hvac_mode
+                target: { entity_id: "{{ r.pavimento }}" }
+                data: { hvac_mode: "off" }
+          # -------------- COOL ------------------
+          - conditions: "{{ mode == 'cool' }}"
+            sequence:
+              - service: climate.set_hvac_mode
+                target: { entity_id: "{{ r.koolnova }}" }
+                data: { hvac_mode: "cool" }
+              - service: climate.set_temperature
+                target: { entity_id: "{{ r.koolnova }}" }
+                data: { temperature: "{{ setpoint }}" }
+              - service: climate.set_fan_mode
+                target: { entity_id: "{{ r.koolnova }}" }
+                data: { fan_mode: "{{ fan }}" }
+              - service: climate.set_hvac_mode
+                target: { entity_id: "{{ r.pavimento }}" }
+                data: { hvac_mode: "off" }
+          # -------------- FAN_ONLY --------------
+          - conditions: "{{ mode == 'fan_only' }}"
+            sequence:
+              - service: climate.set_hvac_mode
+                target: { entity_id: "{{ r.koolnova }}" }
+                data: { hvac_mode: "fan_only" }
+              - service: climate.set_fan_mode
+                target: { entity_id: "{{ r.koolnova }}" }
+                data: { fan_mode: "{{ fan }}" }
+              - service: climate.set_hvac_mode
+                target: { entity_id: "{{ r.pavimento }}" }
+                data: { hvac_mode: "off" }
+          # -------------- HEAT (the team mode) --
+          - conditions: "{{ mode == 'heat' }}"
+            sequence:
+              # Floor: always on, aiming at setpoint - offset
+              - service: climate.set_hvac_mode
+                target: { entity_id: "{{ r.pavimento }}" }
+                data: { hvac_mode: "heat" }
+              - service: climate.set_temperature
+                target: { entity_id: "{{ r.pavimento }}" }
+                data: { temperature: "{{ setpoint - FLOOR_OFFSET }}" }
+              # Koolnova: only as booster when the gap is large enough
+              - choose:
+                  - conditions: "{{ delta > BOOST_THRESHOLD }}"
+                    sequence:
+                      - service: climate.set_hvac_mode
+                        target: { entity_id: "{{ r.koolnova }}" }
+                        data: { hvac_mode: "heat" }
+                      - service: climate.set_temperature
+                        target: { entity_id: "{{ r.koolnova }}" }
+                        data: { temperature: "{{ setpoint }}" }
+                      - service: climate.set_fan_mode
+                        target: { entity_id: "{{ r.koolnova }}" }
+                        data: { fan_mode: "{{ fan }}" }
+                default:
+                  - service: climate.set_hvac_mode
+                    target: { entity_id: "{{ r.koolnova }}" }
+                    data: { hvac_mode: "off" }
