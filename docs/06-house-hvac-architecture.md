@@ -30,8 +30,8 @@ the air system and you don't put air-con vents in a tiny bathroom.
 
 | Room | Floor zone (`climate.pavimento_*`) | Modbus zone (`climate.koolnova_*`) |
 |---|---|---|
-| Sala | `pavimento_sala` | `koolnova_sala` |
-| Cucina | ⚠ **TBD** — see open issue C2 | `koolnova_cucina` |
+| Sala | `pavimento_sala` *(shared loop, also heats Cucina)* | `koolnova_sala` |
+| Cucina | shares `pavimento_sala` — single hydronic loop covers both rooms | `koolnova_cucina` |
 | Camera 1 | `pavimento_camera_1` | `koolnova_camera_1` |
 | Camera 2 (Studio Chiara) | `pavimento_camera_2` | `koolnova_camera_2` |
 | Camera Padronale | `pavimento_camera_padronale` | `koolnova_camera_3` |
@@ -47,7 +47,7 @@ User-reported counts vs. what HA actually sees:
 | | User stated | HA reality |
 |---|---|---|
 | Modbus zones | 5 (sala, cucina, camera 1/2/3) | 6 (extra: `koolnova_ingresso_pt`) |
-| Floor zones | 8 (one per Wall Display) | 7 (no Cucina display) |
+| Floor zones | 8 (one per Wall Display) | 7 valves; Cucina shares Sala's loop, so there's no separate `climate.pavimento_cucina` entity |
 
 ## C. Underfloor heating wiring (per display)
 
@@ -108,7 +108,7 @@ REST API `/api/config/config_entries/flow` (handler:
 `generic_thermostat`):
 
 ```
-climate.pavimento_sala               heater=switch.display_sala               sensor=sensor.display_sala_temperature
+climate.pavimento_sala               heater=switch.display_sala               sensor=sensor.display_sala_temperature   (covers Sala + Cucina, friendly_name="Pavimento Sala & Cucina")
 climate.pavimento_camera_1           heater=switch.display_camera_1           sensor=sensor.display_camera_1_temperature
 climate.pavimento_camera_2           heater=switch.display_camera_2           sensor=sensor.display_camera_2_temperature
 climate.pavimento_camera_padronale   heater=switch.display_camera_padronale   sensor=sensor.display_camera_padronale_temperature
@@ -162,15 +162,16 @@ later from a clean state:
   - extend the schema to `climate` (HVAC) + `floor_climate` (floor)
   - or generalise to `climates: string[]`
   - decision deferred — track in CHANGELOG when picked.
-- **C2. Cucina floor zone.** No Wall Display dedicated to the
-  Cucina. The Sala XL display has only one `switch:0`, so it can't
-  cover Cucina too. Three possibilities:
-  - Cucina floor circuit is physically tied to the Sala valve →
-    no extra entity needed; `climate.pavimento_sala` warms both.
-  - Cucina has a valve driven by an unidentified device (BTicino?
-    Shelly Plus 1?) → find the device and wire a Generic Thermostat
-    against its switch.
-  - Cucina is not on the floor system → leave a note and move on.
+- **C2. ~~Cucina floor zone~~** — **resolved 2026-05-21.** Confirmed
+  by the user: the Cucina floor circuit is physically tied to the
+  Sala valve (single hydronic loop, one actuator). No extra entity
+  needed. The `climate.pavimento_sala` friendly_name was renamed
+  to **"Pavimento Sala & Cucina"** so any UI that reads it makes
+  the shared-loop nature obvious. Important downstream consequence:
+  the `target_sensor` is still `sensor.display_sala_temperature`,
+  so the thermostat loop reacts to **Sala's** temperature only.
+  Cucina temp will drift slightly because there's no closed loop
+  on it — acceptable since they're an open-plan space.
 - **C3. Cucina Modbus surfacing.** `climate.koolnova_cucina` exists
   but isn't reachable from the dashboard because "Sala & Cucina"
   is a single room tile that only points at `koolnova_sala`. Fixed
