@@ -34,7 +34,6 @@ mqtt:
   climate:
     - name: "Casa Sala & Cucina"
       unique_id: casa_sala_cucina
-      object_id: casa_sala_cucina
       modes: ["off", "heat", "cool", "fan_only"]
       fan_modes: ["auto", "low", "medium", "high"]
       min_temp: 15
@@ -52,7 +51,6 @@ mqtt:
 
     - name: "Casa Camera"
       unique_id: casa_camera
-      object_id: casa_camera
       modes: ["off", "heat", "cool", "fan_only"]
       fan_modes: ["auto", "low", "medium", "high"]
       min_temp: 15
@@ -70,7 +68,6 @@ mqtt:
 
     - name: "Casa Studio Chiara"
       unique_id: casa_studio_chiara
-      object_id: casa_studio_chiara
       modes: ["off", "heat", "cool", "fan_only"]
       fan_modes: ["auto", "low", "medium", "high"]
       min_temp: 15
@@ -88,7 +85,6 @@ mqtt:
 
     - name: "Casa Camera Padronale"
       unique_id: casa_camera_padronale
-      object_id: casa_camera_padronale
       modes: ["off", "heat", "cool", "fan_only"]
       fan_modes: ["auto", "low", "medium", "high"]
       min_temp: 15
@@ -106,7 +102,6 @@ mqtt:
 
     - name: "Casa Ingresso PT"
       unique_id: casa_ingresso_pt
-      object_id: casa_ingresso_pt
       modes: ["off", "heat", "cool", "fan_only"]
       fan_modes: ["auto", "low", "medium", "high"]
       min_temp: 15
