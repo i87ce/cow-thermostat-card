@@ -148,20 +148,160 @@ leave them parked until the dashboard exposes them.
 The other six were created with the same flow but not actively
 tested (they're parked `off` so the relay stays off regardless).
 
+## F-bis. Climate orchestration strategy (the "team brain")
+
+Floor heating and Koolnova HVAC overlap in winter on the same
+rooms but have very different physics:
+
+- **Floor (hydronic)**: rise time ~1–2 h, fall time ~1–2 h. You
+  can't aim it at 20.0 °C exactly without overshooting by 1–1.5 °C
+  because thermal mass keeps releasing heat for a long time after
+  the valve closes.
+- **Koolnova (air)**: rise time ~5–15 min. Instantly responsive.
+
+If both run "naively" you get predictable overshoot in winter:
+Koolnova hits setpoint in 10 min and stops, then the floor keeps
+dumping heat for 2 hours and the room ends 1.5 °C above target.
+Comfort wrecked.
+
+So we coordinate them with a **single user-facing proxy
+thermostat per room** (`climate.casa_<room>`) sitting in front of
+the raw Koolnova + Pavimento entities. The proxy is what the
+mobile dashboard and the `cow-thermostat-card` actually talk to.
+A Home Assistant automation translates proxy state changes into
+coordinated commands on the two underlying systems.
+
+```
+                  user (mobile / wall card)
+                          │
+                          ▼
+                  climate.casa_<room>      ← proxy: heat/cool/fan_only/off,
+                  (template climate)         setpoint, fan_mode
+                          │
+              change in setpoint/mode/fan
+                          │
+                          ▼
+                  automation: orchestrate
+                          │
+            ┌─────────────┴─────────────┐
+            ▼                           ▼
+    climate.koolnova_<room>      climate.pavimento_<room>
+```
+
+### Decision parameters (confirmed by user, 2026-05-21)
+
+| # | Parameter | Value | Notes |
+|---|---|---|---|
+| 1 | `FLOOR_OFFSET` | **−1.0 °C** | Pavimento aims at `setpoint − 1.0` to absorb its own overshoot |
+| 2 | `BOOST_THRESHOLD` | **1.5 °C** | When `setpoint − current > 1.5`, Koolnova kicks in as booster |
+| 3 | Behaviour at `idle` (target reached in heat mode) | **floor stays ON, Koolnova OFF** | Inertia of the floor holds the temperature, silently |
+| 4 | Pavimento in `cool` / `fan_only` | **always OFF** | Floor is heating-only |
+| 5 | **Sala + Cucina** | **always managed as a single proxy** `climate.casa_sala_cucina` | Even though Koolnova has 2 separate zones, the user wants 1 thermostat. The automation sets both Koolnova zones identically |
+| 6 | Pavimento setpoint when shared (Sala / Cucina) | not applicable — single proxy means single setpoint already | (Was open before #5 collapsed Sala+Cucina) |
+| 7 | Fan speed in `heat` with delta ≤ threshold | applied only when Koolnova is actually running; UI shows "auto" / "silent" otherwise | Avoids user confusion when fan setting isn't audible |
+| 8 | Persistence of proxy state across HA restart | built-in via template climate state machine | No extra work |
+
+### Algorithm — what the automation runs on every proxy change
+
+```
+inputs from proxy: mode_user, setpoint_user, fan_user
+inputs from sensors: current = sensor.display_<room>_temperature
+
+CASE mode_user == off:
+    koolnova.set_hvac_mode = off
+    pavimento.set_hvac_mode = off
+
+CASE mode_user == cool:
+    koolnova.set_hvac_mode = cool
+    koolnova.set_temperature = setpoint_user
+    koolnova.set_fan_mode = fan_user
+    pavimento.set_hvac_mode = off
+
+CASE mode_user == fan_only:
+    koolnova.set_hvac_mode = fan_only
+    koolnova.set_fan_mode = fan_user
+    pavimento.set_hvac_mode = off
+
+CASE mode_user == heat:
+    pavimento.set_hvac_mode  = heat
+    pavimento.set_temperature = setpoint_user - FLOOR_OFFSET
+
+    delta = setpoint_user - current
+    IF delta > BOOST_THRESHOLD:
+        koolnova.set_hvac_mode    = heat
+        koolnova.set_temperature  = setpoint_user
+        koolnova.set_fan_mode     = fan_user
+    ELSE:
+        koolnova.set_hvac_mode    = off    # let the floor handle it
+```
+
+Special case for Sala + Cucina (rule #5): the automation fires for
+the single `climate.casa_sala_cucina` proxy and writes the same
+mode / setpoint / fan to **both** `climate.koolnova_sala` and
+`climate.koolnova_cucina`. The pavimento side stays unchanged
+(`climate.pavimento_sala` already covers both rooms).
+
+### Proxies to create
+
+5 proxies that orchestrate both subsystems:
+
+| Proxy | Koolnova target(s) | Pavimento target | target_sensor (current temp) |
+|---|---|---|---|
+| `climate.casa_sala_cucina` | `koolnova_sala` **+** `koolnova_cucina` | `pavimento_sala` | `sensor.display_sala_temperature` |
+| `climate.casa_camera` | `koolnova_camera_1` | `pavimento_camera_1` | `sensor.display_camera_1_temperature` |
+| `climate.casa_studio_chiara` | `koolnova_camera_2` | `pavimento_camera_2` | `sensor.display_camera_2_temperature` |
+| `climate.casa_camera_padronale` | `koolnova_camera_3` | `pavimento_camera_padronale` | `sensor.display_camera_padronale_temperature` |
+| `climate.casa_ingresso_pt` | `koolnova_ingresso_pt` | `pavimento_ingresso_pt` | `sensor.display_ingresso_pt_temperature` |
+
+2 rooms have no Koolnova zone, just the floor — for these the
+proxy isn't needed: the mobile dashboard and the wall card can
+target the pavimento entity directly. The two bare floor zones:
+
+- `climate.pavimento_bagno_ospiti` (no proxy, used directly)
+- `climate.pavimento_bagno_padronale` (no proxy, used directly)
+
+The remaining rooms have no climate at all: Studio Alessio,
+Esterno, Servizi.
+
+### Implementation plan (to start when user gives go)
+
+1. **Pilot**: build `climate.casa_studio_chiara` first (Camera 2 already
+   has working `climate.pavimento_camera_2` from the earlier
+   validation). Confirm the algorithm behaves as expected in the 4
+   modes through a series of forced setpoint changes.
+2. Once the pilot works end-to-end, replicate to the other 4
+   proxies with a small script that loops over the table above.
+3. Point the `cow-thermostat-card` Lovelace YAML at the new proxies
+   (one card per wall display).
+4. Update the mobile dashboard's `rooms[].climate` field from
+   `climate.koolnova_*` → `climate.casa_<room>` so the room tile and
+   drawer see the proxy.
+5. Mark issue C1 resolved in the open items below.
+
+The orchestrating automation can be implemented either as:
+
+- **a)** a single HA automation triggered on `state_changed` of any
+  `climate.casa_*` entity, with a Jinja-templated action block, or
+- **b)** a Python script in `python_scripts/` (more readable
+  branching), or
+- **c)** a dedicated custom HACS integration.
+
+Recommended starting point: **(a)** — minimal moving parts, lives
+fully inside HA's config, and is enough for the algorithm above.
+Upgrade to (b) only if the template logic becomes hard to read.
+
 ## F. Open items
 
 These are intentionally **not done yet** so we can pick them up
 later from a clean state:
 
-- **C1. Mobile dashboard support for 2 climates per room.** The
-  `cow-mobile-dashboard-card` schema currently has a single
-  `climate: string` field per room. The house has rooms with two
-  climates (e.g. Sala has both `koolnova_sala` and `pavimento_sala`)
-  and we need both reachable from the room drawer. Candidate
-  approaches:
-  - extend the schema to `climate` (HVAC) + `floor_climate` (floor)
-  - or generalise to `climates: string[]`
-  - decision deferred — track in CHANGELOG when picked.
+- **C1. ~~Mobile dashboard support for 2 climates per room~~** —
+  **superseded 2026-05-21.** No multi-climate schema needed: the
+  user wants a *single* user-facing thermostat per room. We build
+  proxy `climate.casa_<room>` entities (see Section F-bis) and the
+  dashboard's `rooms[].climate` keeps being a single string, just
+  pointing at the proxy instead of the raw Koolnova entity. The
+  dashboard card needs no code change — only a config migration.
 - **C2. ~~Cucina floor zone~~** — **resolved 2026-05-21.** Confirmed
   by the user: the Cucina floor circuit is physically tied to the
   Sala valve (single hydronic loop, one actuator). No extra entity
@@ -172,11 +312,10 @@ later from a clean state:
   so the thermostat loop reacts to **Sala's** temperature only.
   Cucina temp will drift slightly because there's no closed loop
   on it — acceptable since they're an open-plan space.
-- **C3. Cucina Modbus surfacing.** `climate.koolnova_cucina` exists
-  but isn't reachable from the dashboard because "Sala & Cucina"
-  is a single room tile that only points at `koolnova_sala`. Fixed
-  by C1 above (multi-climate per room) or by splitting Sala and
-  Cucina into two tiles.
+- **C3. ~~Cucina Modbus surfacing~~** — **resolved 2026-05-21.**
+  Folded into rule #5 in Section F-bis: `climate.casa_sala_cucina`
+  drives `koolnova_sala` and `koolnova_cucina` together as a single
+  proxy. No separate UI for Cucina.
 - **C4. Failsafe automations.** Should add a "freeze-protect"
   automation: if any `sensor.display_<room>_temperature` reads
   below 14 °C for >5 min while HA is up, force the corresponding
