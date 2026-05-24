@@ -263,32 +263,61 @@ target the pavimento entity directly. The two bare floor zones:
 The remaining rooms have no climate at all: Studio Alessio,
 Esterno, Servizi.
 
-### Implementation plan (to start when user gives go)
+### Implementation status
 
-1. **Pilot**: build `climate.casa_studio_chiara` first (Camera 2 already
-   has working `climate.pavimento_camera_2` from the earlier
-   validation). Confirm the algorithm behaves as expected in the 4
-   modes through a series of forced setpoint changes.
-2. Once the pilot works end-to-end, replicate to the other 4
-   proxies with a small script that loops over the table above.
-3. Point the `cow-thermostat-card` Lovelace YAML at the new proxies
-   (one card per wall display).
-4. Update the mobile dashboard's `rooms[].climate` field from
-   `climate.koolnova_*` → `climate.casa_<room>` so the room tile and
-   drawer see the proxy.
-5. Mark issue C1 resolved in the open items below.
+| Step | Status |
+|---|---|
+| Build 5 `climate.casa_<room>` proxies | ✅ done (`examples/ha-cow-climate-orchestration.yaml`) |
+| Implement orchestrator automation | ✅ done (single HA automation, Jinja-templated dispatch) |
+| Validate pilot on one room | ✅ done 2026-05-24, see results below |
+| Repoint mobile dashboard `rooms[].climate` to proxies | ⏳ pending — see C6 in open items |
+| Repoint wall-display `cow-thermostat-card` to proxies | ⏳ pending — see C6 in open items |
 
-The orchestrating automation can be implemented either as:
+### How it ended up implemented
 
-- **a)** a single HA automation triggered on `state_changed` of any
-  `climate.casa_*` entity, with a Jinja-templated action block, or
-- **b)** a Python script in `python_scripts/` (more readable
-  branching), or
-- **c)** a dedicated custom HACS integration.
+HA 2026.5.x dropped the `climate` platform from the `template:`
+integration (the natural choice for this kind of proxy). Next-best
+supported option was **MQTT climate** — we already have a Mosquitto
+add-on serving Zigbee2MQTT, so the broker was free of charge. The
+5 proxies are declared under `mqtt: climate:` with:
 
-Recommended starting point: **(a)** — minimal moving parts, lives
-fully inside HA's config, and is enough for the algorithm above.
-Upgrade to (b) only if the template logic becomes hard to read.
+- `optimistic: true` — HA updates the proxy's state locally on each
+  command, no echo automation needed.
+- `retain: true` — Mosquitto persists last setpoint / mode / fan
+  across HA restarts.
+- One MQTT topic family per room: `cow/casa/<room>/{mode,setpoint,
+  fan,current}/{state,set}`.
+
+The orchestrator is a single HA automation (mode `queued`, max 20)
+that triggers on `state_changed` of any of the 5 proxies plus the
+5 room temperature sensors. A `rooms:` map in `variables:` is the
+single source of truth — adding a new proxy is one entry in that
+map. The dispatch logic is the algorithm above.
+
+A second tiny automation forwards each `sensor.display_<room>_
+temperature` reading to the proxy's `current_temperature_topic`
+(retained), so the proxy populates the current temperature on
+startup without polling.
+
+### Pilot validation — 2026-05-24
+
+Forced state changes on `climate.casa_ingresso_pt` (current room
+temp 23.5 °C, Koolnova system off for the season so its `climate.*`
+entity is `unavailable` — the dispatcher's calls just produce a
+warning and the floor side does the real work):
+
+| Step | Action via proxy | Expected behaviour | Observed |
+|---|---|---|---|
+| 1 | `heat`, setpoint 26 (Δ +2.5 > 1.5) | floor `heat@25`, relay ON; Koolnova `heat@26` | floor `heat@25` action=heating, **relay ON**, Koolnova call attempted (unavailable) |
+| 2 | setpoint 24 (Δ +0.5 < 1.5) | Koolnova OFF, floor `heat@23` idle | floor `heat@23` action=idle, **relay OFF** |
+| 3 | `cool`, setpoint 22 | Koolnova `cool@22`, floor OFF | floor **off**, Koolnova call attempted, relay OFF |
+| 4 | `off` | everything OFF | proxy off, floor off, relay OFF |
+
+All four steps pass. The algorithm survives off-season Koolnova
+`unavailable`: the dispatcher logs a warning and the floor side
+still does its job. The orchestrator scaled cleanly to all five
+rooms (state-changed events on neighbouring proxies during YAML
+reload triggered the automation 5× without contention).
 
 ## F. Open items
 
@@ -316,6 +345,19 @@ later from a clean state:
   Folded into rule #5 in Section F-bis: `climate.casa_sala_cucina`
   drives `koolnova_sala` and `koolnova_cucina` together as a single
   proxy. No separate UI for Cucina.
+- **C6. Repoint user-facing surfaces to the new proxies.** The
+  proxy entities `climate.casa_<room>` are live but nothing in
+  Lovelace points at them yet. Two changes needed:
+  - **mobile dashboard**: migrate `rooms[].climate` from
+    `climate.koolnova_<zone>` → `climate.casa_<room>` for the 5
+    rooms with both subsystems; leave the two bathrooms on
+    `climate.pavimento_bagno_*` (they have no Koolnova zone).
+  - **wall-display dashboards** (one Lovelace dashboard per
+    `walldisplay-*`): the `cow-thermostat-card` entity should
+    target the matching proxy. Camera 2's card → `climate.casa_
+    studio_chiara`, etc. The two bathroom displays target
+    `climate.pavimento_bagno_*` directly.
+
 - **C4. Failsafe automations.** Should add a "freeze-protect"
   automation: if any `sensor.display_<room>_temperature` reads
   below 14 °C for >5 min while HA is up, force the corresponding
