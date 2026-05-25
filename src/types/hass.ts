@@ -54,8 +54,55 @@ export interface HassSensorAttributes {
   device_class?: string;
 }
 
+/**
+ * Minimal projections of HA's entity / device / area registries as the
+ * frontend exposes them on the `hass` object. We only model the fields
+ * the cards consume — keeps the type surface honest and the bundle
+ * dependency-free.
+ *
+ * Population guarantees: the HA frontend populates these on every render
+ * after the websocket initial bootstrap. They may be empty objects on a
+ * brand-new client before the first sync; callers should treat missing
+ * keys as "unknown" rather than asserting them.
+ */
+export interface HassEntityRegistryEntry {
+  entity_id: string;
+  device_id?: string;
+  area_id?: string;
+  platform?: string;
+  /** "diagnostic" | "config" | undefined (= normal user-facing) */
+  entity_category?: string;
+  /** True when the user disabled the entity via the UI. */
+  disabled?: boolean;
+  /** True when the entity is marked hidden in the registry. */
+  hidden?: boolean;
+}
+
+export interface HassDeviceRegistryEntry {
+  id: string;
+  area_id?: string;
+  name?: string;
+  name_by_user?: string;
+  identifiers?: Array<[string, string]>;
+  manufacturer?: string;
+  model?: string;
+}
+
+export interface HassAreaRegistryEntry {
+  area_id: string;
+  name: string;
+  icon?: string;
+  picture?: string;
+}
+
 export interface HomeAssistant {
   states: Record<string, HassEntity>;
+  /** Entity registry indexed by `entity_id`. */
+  entities?: Record<string, HassEntityRegistryEntry>;
+  /** Device registry indexed by `device_id`. */
+  devices?: Record<string, HassDeviceRegistryEntry>;
+  /** Area registry indexed by `area_id`. */
+  areas?: Record<string, HassAreaRegistryEntry>;
   /**
    * Standard fire-and-forget service call.
    * For services that return data (e.g. `music_assistant.search`,

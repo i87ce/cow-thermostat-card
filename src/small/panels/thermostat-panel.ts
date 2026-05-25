@@ -10,6 +10,11 @@ import {
 import { panelStyles } from "../styles/shell.js";
 import { animKeyframes, animTokens, colorTransition } from "../styles/anim.js";
 import { formatTime } from "../../utils/format.js";
+import {
+  findRoomOpenings,
+  renderOpeningsStrip,
+} from "../openings.js";
+import type { OpeningKind } from "../config.js";
 
 import "../components/action-button.js";
 import "../components/chip-row.js";
@@ -85,6 +90,13 @@ export class CowThermostatPanel extends LitElement {
   @property({ type: String }) roomName = "";
   @property({ type: String }) outdoorEntity = "";
   @property({ type: String }) humidityEntity = "";
+
+  /* ─── Ajax openings (forwarded from card config) ──────────────── */
+  @property({ type: Array }) areas: string[] = [];
+  @property({ type: String }) openingDefaultKind?: OpeningKind;
+  @property({ type: Array }) openingDoors: string[] = [];
+  @property({ type: Array }) openingWindows: string[] = [];
+  @property({ type: Array }) openingGarages: string[] = [];
 
   @state() private now = new Date();
   private timer?: number;
@@ -249,6 +261,47 @@ export class CowThermostatPanel extends LitElement {
 
       cow-chip-row {
         --cow-accent: var(--cow-accent-primary);
+      }
+
+      /* Ajax openings strip — bottom of the right (white) panel.
+         Auto-discovered from the entity registry via findAjaxOpeningsForClimate;
+         rendered only when at least one Ajax door/window exists in the
+         climate's HA area. Closed = neutral grey, open = stop-alert red.
+         Position mirrors the Fan row's left edge (397.5px) and sits
+         just under it so it doesn't fight the swipe-affordance edge. */
+      .ajax-openings {
+        position: absolute;
+        left: 397.5px;
+        right: 30px;
+        bottom: 22.5px;
+        display: flex;
+        flex-direction: row;
+        align-items: center;
+        gap: 16.875px; /* 9px @ 384 → 9*1.875 */
+        pointer-events: none;
+      }
+      .ajax-opening {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 45px; /* 24px @ 384 → 24*1.875 */
+        height: 45px;
+        color: var(--cow-text-disabled, #b3b3bd);
+        transition: color 200ms ease;
+      }
+      .ajax-opening[data-open] {
+        color: var(--cow-stop, #e74c3c);
+      }
+      .ajax-opening svg {
+        width: 100%;
+        height: 100%;
+        display: block;
+      }
+      .ajax-openings-more {
+        font-weight: 600;
+        font-size: 22.5px;
+        color: var(--cow-text-secondary, #8c8c99);
+        margin-left: 4px;
       }
     `,
   ];
@@ -428,6 +481,35 @@ export class CowThermostatPanel extends LitElement {
             </div>
           `
         : ""}
+      ${this.renderAjaxOpenings()}
     `;
+  }
+
+  /**
+   * Bottom-right opening indicators for every Ajax door/window in the
+   * card's owned area(s). See `src/small/openings.ts` for the
+   * discovery + override logic; this method only wires the panel
+   * properties to the shared helper.
+   *
+   * UX rules:
+   *   * Nothing rendered when ``hass`` is missing, registries haven't
+   *     bootstrapped yet, or the area has zero Ajax openings.
+   *   * Max 4 glyphs visible; "+N" pill takes over after that to keep
+   *     the row from colliding with the fan chips on small displays.
+   *   * Glyph color: closed → ``--cow-text-disabled``; open → ``--cow-stop``.
+   *   * ``pointer-events: none`` on the strip — read-only signal, the
+   *     panel's swipe affordance and chip buttons stay tappable.
+   */
+  private renderAjaxOpenings() {
+    return renderOpeningsStrip(
+      findRoomOpenings(this.hass, {
+        areas: this.areas,
+        fallbackArea: this.roomName,
+        defaultKind: this.openingDefaultKind,
+        doors: this.openingDoors,
+        windows: this.openingWindows,
+        garages: this.openingGarages,
+      }),
+    );
   }
 }

@@ -20,6 +20,7 @@
  */
 
 export type InitialView = "thermostat" | "lights" | "blinds";
+export type OpeningKind = "door" | "window" | "garage";
 
 export interface DeviceEntry {
   entity: string;
@@ -36,6 +37,25 @@ export interface CowConfig {
   local_temp?: string;
   local_humidity?: string;
   initial_view: InitialView;
+  /**
+   * HA areas this card "owns" — drives Ajax openings discovery.
+   * Strings are matched against the area registry by display name
+   * (case-insensitive, accent-folded). Multi-area entries are
+   * supported for composite spaces like a Sala-Cucina open plan.
+   *
+   * When omitted the card falls back to fuzzy-matching the ``room``
+   * display name, which works for 1:1 rooms (``"Camera 1"`` →
+   * area ``"Camera 1"``) but not for renamed composites.
+   */
+  areas: string[];
+  /** Default opening kind when no per-device rule matches. */
+  opening_default_kind?: OpeningKind;
+  /** Device names (case-insensitive) that are doors. */
+  opening_doors: string[];
+  /** Device names that are windows. */
+  opening_windows: string[];
+  /** Device names that are garage doors. */
+  opening_garages: string[];
 }
 
 export class CowConfigError extends Error {
@@ -218,6 +238,25 @@ export function validateConfig(input: unknown): CowConfig {
     return v;
   })();
 
+  const stringList = (v: unknown, key: string): string[] => {
+    if (v == null) return [];
+    if (!Array.isArray(v)) throw new CowConfigError(`'${key}' must be a list`);
+    return v
+      .filter((x): x is string => typeof x === "string" && x.length > 0)
+      .map((s) => s.trim());
+  };
+
+  const openingDefaults = ((): OpeningKind | undefined => {
+    const v = (cfg.opening_defaults as Record<string, unknown> | undefined)?.kind;
+    if (v == null) return undefined;
+    if (v !== "door" && v !== "window" && v !== "garage") {
+      throw new CowConfigError(
+        "'opening_defaults.kind' must be 'door' | 'window' | 'garage'",
+      );
+    }
+    return v;
+  })();
+
   return {
     type: "custom:cow-thermostat-card",
     room,
@@ -228,5 +267,10 @@ export function validateConfig(input: unknown): CowConfig {
     local_temp: optionalEntity(cfg, "local_temp", DOMAIN_SENSOR),
     local_humidity: optionalEntity(cfg, "local_humidity", DOMAIN_SENSOR),
     initial_view: initial,
+    areas: stringList(cfg.areas, "areas"),
+    opening_default_kind: openingDefaults,
+    opening_doors: stringList(cfg.opening_doors, "opening_doors"),
+    opening_windows: stringList(cfg.opening_windows, "opening_windows"),
+    opening_garages: stringList(cfg.opening_garages, "opening_garages"),
   };
 }

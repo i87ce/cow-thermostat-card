@@ -9,10 +9,11 @@ import {
   type LightsVariant,
   type LightsView,
 } from "../state/lights.js";
-import type { DeviceEntry } from "../config.js";
+import type { DeviceEntry, OpeningKind } from "../config.js";
 import { panelStyles } from "../styles/shell.js";
 import { animKeyframes, animTokens, colorTransition } from "../styles/anim.js";
 import { formatTime } from "../../utils/format.js";
+import { findRoomOpenings, renderOpeningsStrip } from "../openings.js";
 
 import "../components/light-tile.js";
 import "../visuals/bulb-visual.js";
@@ -100,6 +101,13 @@ export class CowLightsPanel extends LitElement {
   @property({ attribute: false }) hass?: HomeAssistant;
   @property({ type: Array }) devices: DeviceEntry[] = [];
   @property({ type: String }) roomName = "";
+
+  /* ─── Ajax openings (forwarded from card config) ──────────────── */
+  @property({ type: Array }) areas: string[] = [];
+  @property({ type: String }) openingDefaultKind?: OpeningKind;
+  @property({ type: Array }) openingDoors: string[] = [];
+  @property({ type: Array }) openingWindows: string[] = [];
+  @property({ type: Array }) openingGarages: string[] = [];
   /** "all" | entity_id of a single light */
   @state() private scope: string = "all";
   @state() private now = new Date();
@@ -700,6 +708,21 @@ export class CowLightsPanel extends LitElement {
             </button>
           `
         : ""}
+      ${this.renderAjaxOpenings()}
     `;
+  }
+
+  /** Shared Ajax openings strip — see thermostat-panel for full rationale. */
+  private renderAjaxOpenings() {
+    return renderOpeningsStrip(
+      findRoomOpenings(this.hass, {
+        areas: this.areas,
+        fallbackArea: this.roomName,
+        defaultKind: this.openingDefaultKind,
+        doors: this.openingDoors,
+        windows: this.openingWindows,
+        garages: this.openingGarages,
+      }),
+    );
   }
 }

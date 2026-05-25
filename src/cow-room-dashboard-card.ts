@@ -415,6 +415,7 @@ export class CowRoomDashboardCard
                 .pollenMinLevel=${cfg.pollen?.min_level ?? 1}
                 .pollenPinned=${cfg.pollen?.pinned ?? []}
                 .pollenMaxItems=${cfg.pollen?.max_items ?? 3}
+                .aurora=${!!cfg.aurora}
                 ?compact=${showRibbon}
               ></cow-xl-hero>
             </div>`}

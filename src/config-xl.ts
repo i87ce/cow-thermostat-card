@@ -138,6 +138,13 @@ export interface CowRoomDashboardConfig {
   scenes?: CowSceneConfig[];
   /** BCP-47 locale for time/date formatting. Defaults to browser language. */
   locale?: string;
+  /**
+   * Opt-in aurora overlay for the hero (forwarded to the shared
+   * hero engine). There is no HA weather state for aurora — the user
+   * decides when to switch it on (special occasions, a Kp-index
+   * sensor, etc.). Default false.
+   */
+  aurora?: boolean;
 }
 
 export class CowXLConfigError extends Error {
@@ -252,6 +259,7 @@ export function validateXLConfig(input: unknown): CowRoomDashboardConfig {
     pollen,
     scenes,
     locale: typeof cfg.locale === "string" ? cfg.locale : undefined,
+    aurora: cfg.aurora === true,
   };
 }
 

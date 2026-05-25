@@ -54,6 +54,20 @@ import type {
   LovelaceCardConfig,
 } from "./types/hass.js";
 import { fontFaces, typography } from "./styles/typography.js";
+import {
+  applyKindOverrides,
+  findAjaxOpenings,
+  findAjaxOpeningsInArea,
+  openingIconSvg,
+  type AjaxOpening,
+  type OpeningKind,
+  type OpeningKindOverrides,
+} from "./util/ajax-openings.js";
+import {
+  deriveThermostatView,
+  type ThermostatVariant,
+} from "./small/state/thermostat.js";
+import "./shared/hero/mobile-hero.js";
 
 // ─────────────────────────────────────────────────────────────────────
 // Config
@@ -73,6 +87,15 @@ export interface CowMobileRoom {
   climate?: string;
   lights?: Array<string | CowMobileDeviceEntry>;
   covers?: Array<string | CowMobileDeviceEntry>;
+  /**
+   * HA areas this room maps to (display names OR area_ids — both
+   * resolved by the openings discovery util). When set, the openings
+   * pill aggregates Ajax sensors from every listed area. When unset,
+   * the util falls back to a fuzzy match on ``name`` (works for
+   * simple 1:1 rooms but fails on multi-area composites like
+   * ``"Sala & Cucina"`` — that's exactly the case this field solves).
+   */
+  areas?: string[];
 }
 
 export interface CowMobilePersonEntry {
@@ -85,6 +108,8 @@ export interface CowMobileDashboardConfig extends LovelaceCardConfig {
   title?: string;
   weather?: string;
   sun?: string;
+  /** Optional sensor.moon — passed to the hero engine for moon phase. */
+  moon?: string;
   outdoor_temp?: string;
   alarm?: string;
   /**
@@ -93,6 +118,33 @@ export interface CowMobileDashboardConfig extends LovelaceCardConfig {
    * the short name (default uses the friendly_name's first word).
    */
   persons?: Array<string | CowMobilePersonEntry>;
+  /* ─── Hero engine — pollen + aurora opt-in ────────────────────── */
+  /** Aggregate pollen sensor (Polleninformation / similar). */
+  pollen_overall?: string;
+  /** Per-allergen pollen sensors. */
+  pollen_allergens?: string[];
+  /** Min level to surface an allergen inline. Defaults to 1. */
+  pollen_min_level?: number;
+  /** Allergens always listed regardless of level. */
+  pollen_pinned?: string[];
+  /** Max allergens listed inline. Defaults to 3. */
+  pollen_max_items?: number;
+  /** Opt-in aurora overlay. Off by default. */
+  aurora?: boolean;
+  /* ─── Ajax openings overrides ─────────────────────────────────── */
+  /**
+   * Default opening kind when no per-device rule matches. Most consumer
+   * Ajax installs are windows, so the recommended default is "window"
+   * — flip via ``opening_defaults.kind: door`` if your install is
+   * mostly doors.
+   */
+  opening_defaults?: { kind?: OpeningKind };
+  /** Device names (case-insensitive) that are doors. */
+  opening_doors?: string[];
+  /** Device names (case-insensitive) that are windows. */
+  opening_windows?: string[];
+  /** Device names (case-insensitive) that are garage doors. */
+  opening_garages?: string[];
   rooms: CowMobileRoom[];
 }
 
@@ -105,6 +157,7 @@ interface NormalizedRoom {
   climate?: string;
   lights: CowMobileDeviceEntry[];
   covers: CowMobileDeviceEntry[];
+  areas: string[];
 }
 
 function normaliseDevices(
@@ -126,54 +179,19 @@ function normaliseRoom(r: CowMobileRoom): NormalizedRoom {
     climate: r.climate,
     lights: normaliseDevices(r.lights),
     covers: normaliseDevices(r.covers),
+    areas: Array.isArray(r.areas)
+      ? r.areas.filter((a): a is string => typeof a === "string" && a.length > 0)
+      : [],
   };
 }
 
 // ─────────────────────────────────────────────────────────────────────
 // Helpers
 // ─────────────────────────────────────────────────────────────────────
-
-/**
- * Pick a hero gradient by sun elevation. The thresholds mirror the
- * civil-twilight angles used in the XL `cow-xl-hero`: above +6° is
- * full day, +6° → −6° is golden hour / dusk, below −6° is night.
- */
-function heroGradient(elevation: number | null): { from: string; to: string; text: string } {
-  if (elevation == null) return DAY;
-  if (elevation > 6) return DAY;
-  if (elevation > -6) return SUNSET;
-  return NIGHT;
-}
-const DAY = { from: "#4cb8ff", to: "#a3dfff", text: "#0c2b4a" } as const;
-const SUNSET = { from: "#ff8a4c", to: "#ffd166", text: "#3d1f0a" } as const;
-const NIGHT = { from: "#0f1640", to: "#2a2a55", text: "#e8ecff" } as const;
-
-const DOW_IT = ["Dom", "Lun", "Mar", "Mer", "Gio", "Ven", "Sab"];
-const MONTH_IT = ["Gen", "Feb", "Mar", "Apr", "Mag", "Giu", "Lug", "Ago", "Set", "Ott", "Nov", "Dic"];
-function formatDate(d: Date): string {
-  return `${DOW_IT[d.getDay()]} ${d.getDate()} ${MONTH_IT[d.getMonth()]}`;
-}
-function formatClock(d: Date): string {
-  return `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
-}
-
-const WEATHER_ICONS: Record<string, string> = {
-  "clear-night": "🌙",
-  cloudy: "☁",
-  exceptional: "⚠",
-  fog: "🌫",
-  hail: "🌨",
-  lightning: "⚡",
-  "lightning-rainy": "⛈",
-  partlycloudy: "⛅",
-  pouring: "🌧",
-  rainy: "🌦",
-  snowy: "❄",
-  "snowy-rainy": "🌨",
-  sunny: "🌞",
-  windy: "🌬",
-  "windy-variant": "🌬",
-} as const;
+// Hero-only helpers (heroGradient, DAY/SUNSET/NIGHT palettes,
+// formatDate/formatClock, WEATHER_ICONS) were removed when the hero
+// was delegated to <cow-mobile-hero> — that component owns its own
+// clock/date/weather rendering via the shared hero engine.
 
 function isOn(s: HassEntity | undefined): boolean {
   return !!s && s.state === "on";
@@ -219,8 +237,6 @@ export class CowMobileDashboardCard
    * whole grid to reach an inline panel felt like getting lost.
    */
   @state() private drawerRoom: number | null = null;
-  @state() private now = new Date();
-  private clockTimer?: number;
   /**
    * Live reference to the `<dialog>` element used as the modal drawer.
    * We control it imperatively via `showModal()` / `close()` because
@@ -242,17 +258,9 @@ export class CowMobileDashboardCard
     this.rooms = c.rooms.map(normaliseRoom);
   }
 
-  override connectedCallback(): void {
-    super.connectedCallback();
-    // Re-render the clock every 20 s. Cheap, keeps the hero accurate.
-    this.clockTimer = window.setInterval(() => {
-      this.now = new Date();
-    }, 20_000);
-  }
-  override disconnectedCallback(): void {
-    super.disconnectedCallback();
-    if (this.clockTimer) window.clearInterval(this.clockTimer);
-  }
+  // The clock no longer lives in this card — the hero (cow-mobile-hero,
+  // wrapping cow-hero-engine) owns its own 30 s tick. We keep the
+  // lifecycle hooks for the drawer reference handling below.
 
   override updated(changed: Map<string, unknown>): void {
     if (changed.has("drawerRoom")) {
@@ -300,6 +308,83 @@ export class CowMobileDashboardCard
     let n = 0;
     for (const r of this.rooms) n += r.covers.length;
     return n;
+  }
+
+  // ── Ajax openings helpers ────────────────────────────────────────
+  //
+  // Discovery is registry-driven: we never ask the user to list opening
+  // entities in card config. ``findAjaxOpeningsInArea`` matches the
+  // HA area whose name fuzzy-matches the room's display name; ``Sala &
+  // Cucina`` will hit the ``Sala`` area, ``Studio Chiara`` hits ``Studio``,
+  // etc. (See src/util/ajax-openings.ts for the matcher.)
+
+  /**
+   * Card-level kind overrides loaded from YAML. Computed each call so
+   * a hot-reload of the card config takes effect without a restart.
+   */
+  private kindOverrides(): OpeningKindOverrides | undefined {
+    const c = this.config;
+    if (!c) return undefined;
+    if (
+      !c.opening_doors?.length &&
+      !c.opening_windows?.length &&
+      !c.opening_garages?.length &&
+      !c.opening_defaults?.kind
+    ) {
+      return undefined;
+    }
+    return {
+      default: c.opening_defaults?.kind,
+      doors: c.opening_doors,
+      windows: c.opening_windows,
+      garages: c.opening_garages,
+    };
+  }
+
+  private roomOpenings(room: NormalizedRoom): AjaxOpening[] {
+    // Prefer the explicit ``areas: [...]`` list when the user
+    // configured it (handles multi-area rooms like ``"Sala & Cucina"``
+    // and disambiguates short names like ``"Camera"`` vs ``"Camera 1"``
+    // / ``"Camera 2"``). Fall back to fuzzy-matching the room display
+    // name when ``areas`` is absent — preserves backward compat.
+    let raw: AjaxOpening[];
+    if (room.areas.length > 0) {
+      const seen = new Set<string>();
+      const out: AjaxOpening[] = [];
+      for (const a of room.areas) {
+        for (const o of findAjaxOpeningsInArea(this.hass, a)) {
+          if (seen.has(o.entityId)) continue;
+          seen.add(o.entityId);
+          out.push(o);
+        }
+      }
+      raw = out;
+    } else {
+      raw = findAjaxOpeningsInArea(this.hass, room.name);
+    }
+    return applyKindOverrides(raw, this.kindOverrides());
+  }
+  private houseOpenings(): AjaxOpening[] {
+    return applyKindOverrides(
+      findAjaxOpenings(this.hass),
+      this.kindOverrides(),
+    );
+  }
+
+  // ── Setpoint helpers (room.climate) ─────────────────────────────
+
+  private roomClimateView(room: NormalizedRoom): {
+    variant: ThermostatVariant;
+    target: number | null;
+  } | null {
+    if (!room.climate || !this.hass) return null;
+    const ent = this.hass.states[room.climate];
+    if (!ent) return null;
+    const view = deriveThermostatView(ent);
+    return {
+      variant: view.variant,
+      target: view.target ?? null,
+    };
   }
   private allLightEntities(): string[] {
     const r: string[] = [];
@@ -384,37 +469,27 @@ export class CowMobileDashboardCard
       }
 
       /* ── Hero ─────────────────────────────────────────────────── */
-      .hero {
-        position: relative;
-        padding: 28px 22px 26px;
-        border-radius: 24px;
-        background: linear-gradient(160deg, var(--hero-from), var(--hero-to));
-        color: var(--hero-text, #1f1f2e);
-        overflow: hidden;
+      /* The hero is delegated to <cow-mobile-hero> (which wraps the
+         shared <cow-hero-engine>). We only set the host card's slot
+         position and box shadow here; clock + meteo + pollen are
+         owned by the hero element itself. */
+      cow-mobile-hero.hero {
+        display: block;
         margin: 0 8px;
+        border-radius: 24px;
         box-shadow: 0 4px 16px rgba(31, 31, 46, 0.08);
+        overflow: hidden;
       }
-      .hero-clock {
-        font-weight: 200;
-        font-size: 64px;
-        line-height: 1;
-        letter-spacing: -2px;
-        margin: 0;
-      }
-      .hero-row {
+
+      /* Mobile-hero footer slot — alarm pill on the left, presence
+         chips on the right. Wraps to a 2nd line on narrow screens. */
+      .hero-footer-row {
         display: flex;
-        align-items: baseline;
-        gap: 10px;
-        margin-top: 10px;
-        font-size: 15px;
-        font-weight: 500;
-        opacity: 0.85;
-      }
-      .hero-row .dot {
-        opacity: 0.5;
-      }
-      .hero-weather {
-        font-size: 18px;
+        flex-direction: row;
+        align-items: center;
+        gap: 8px;
+        flex-wrap: wrap;
+        width: 100%;
       }
 
       /* ── Hero: people & alarm chips ──────────────────────────── */
@@ -422,7 +497,6 @@ export class CowMobileDashboardCard
         display: flex;
         flex-wrap: wrap;
         gap: 6px;
-        margin-top: 16px;
       }
       .person-chip {
         display: inline-flex;
@@ -449,7 +523,6 @@ export class CowMobileDashboardCard
         display: inline-flex;
         align-items: center;
         gap: 8px;
-        margin-top: 10px;
         padding: 8px 14px 8px 10px;
         border-radius: 999px;
         font-size: 13px;
@@ -557,8 +630,16 @@ export class CowMobileDashboardCard
       .room-badges {
         margin-top: 10px;
         display: flex;
+        flex-direction: column;
         gap: 6px;
-        min-height: 18px;
+      }
+      .room-badge-row {
+        display: flex;
+        flex-direction: row;
+        gap: 6px;
+        align-items: center;
+        flex-wrap: wrap;
+        min-height: 22px;
       }
       .badge {
         display: inline-flex;
@@ -566,10 +647,16 @@ export class CowMobileDashboardCard
         gap: 4px;
         font-size: 11px;
         font-weight: 600;
-        padding: 2px 7px;
+        padding: 3px 8px;
         border-radius: 999px;
         background: var(--cow-mobile-badge-bg, rgba(31, 31, 46, 0.08));
         color: var(--cow-mobile-badge-fg, #1f1f2e);
+        line-height: 1;
+      }
+      .badge svg {
+        width: 14px;
+        height: 14px;
+        display: block;
       }
       .badge.on {
         background: rgba(255, 199, 46, 0.18);
@@ -578,6 +665,56 @@ export class CowMobileDashboardCard
       .badge.cov {
         background: rgba(76, 184, 255, 0.18);
         color: #0a6699;
+      }
+      /* Setpoint variants mirror the small thermostat panel tokens. */
+      .badge.set-heating { background: #ffeae0; color: #b85100; }
+      .badge.set-cooling { background: #dfedfe; color: #2659bb; }
+      .badge.set-idle    { background: #d5f1e1; color: #077348; }
+      .badge.set-off     { background: #ededef; color: #73737d; }
+      /* Openings pill — sits on its own row so every glyph is visible
+         (no truncation). Pink-tinted when any contact is open, neutral
+         grey otherwise; glyphs are coloured by themselves via inline
+         fill so the pill background stays low-contrast. */
+      .openings-pill {
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+        padding: 3px 8px;
+        border-radius: 999px;
+        background: #f3f3f5;
+        line-height: 1;
+      }
+      .openings-pill.has-open {
+        background: #ffeae8;
+      }
+      .openings-pill svg {
+        width: 16px;
+        height: 16px;
+        display: block;
+      }
+      .openings-pill .open  { color: var(--cow-stop, #e74c3c); }
+      .openings-pill .closed { color: #b3b3bd; }
+
+      /* Summary card — new openings row (between headline and buttons) */
+      .summary-openings {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        margin: 6px 0 2px;
+        font-size: 13px;
+        font-weight: 500;
+        color: var(--cow-stop, #e74c3c);
+      }
+      .summary-openings svg {
+        width: 18px;
+        height: 18px;
+        display: block;
+        color: var(--cow-stop, #e74c3c);
+      }
+      .summary-openings .icons {
+        display: inline-flex;
+        align-items: center;
+        gap: 2px;
       }
 
       /* ── Drawer (modal bottom sheet, native <dialog>) ────────── */
@@ -727,6 +864,38 @@ export class CowMobileDashboardCard
         opacity: 0.6;
         font-weight: 400;
       }
+      /* Drawer Aperture section — read-only list of Ajax openings for
+         the room currently in focus. Mirrors the qc-row visual rhythm
+         so it slots above lights/covers without a visual break. */
+      .qc-section-title {
+        font-size: 11px;
+        font-weight: 600;
+        letter-spacing: 1.5px;
+        color: var(--secondary-text-color, #8c8c99);
+        margin: 4px 0 6px;
+        text-transform: uppercase;
+      }
+      .qc-row .opening-state {
+        font-size: 12px;
+        font-weight: 600;
+        padding: 3px 9px;
+        border-radius: 999px;
+      }
+      .qc-row .opening-state.is-open {
+        background: rgba(231, 76, 60, 0.12);
+        color: var(--cow-stop, #e74c3c);
+      }
+      .qc-row .opening-state.is-closed {
+        background: rgba(31, 31, 46, 0.06);
+        color: var(--secondary-text-color, #8c8c99);
+      }
+      .qc-row .qc-row-icon.is-opening svg {
+        width: 22px;
+        height: 22px;
+        display: block;
+      }
+      .qc-row .qc-row-icon.is-opening.open  { color: var(--cow-stop, #e74c3c); }
+      .qc-row .qc-row-icon.is-opening.closed { color: var(--secondary-text-color, #8c8c99); }
       .toggle {
         appearance: none;
         border: 0;
@@ -906,31 +1075,35 @@ export class CowMobileDashboardCard
 
   // ── Hero ─────────────────────────────────────────────────────────
 
+  /**
+   * Hero is delegated to ``<cow-mobile-hero>`` which itself wraps the
+   * shared ``<cow-hero-engine>`` — so we get the same live sky / sun
+   * arc / weather FX / pollen line that the XL dashboard renders.
+   * Mobile-only chrome (alarm pill + presence chips) goes into the
+   * hero's ``footer`` slot so the engine can position the footer row
+   * along the bottom of the hero panel.
+   */
   private renderHero() {
-    const sun = this.getEnt(this.config?.sun);
-    const elevation = (sun?.attributes?.elevation as number | undefined) ?? null;
-    const grad = heroGradient(elevation);
-
-    const weather = this.getEnt(this.config?.weather);
-    const wIcon = weather ? WEATHER_ICONS[weather.state] ?? "" : "";
-    const wTempRaw = weather?.attributes?.temperature as number | undefined;
-    const wTemp = typeof wTempRaw === "number" ? `${Math.round(wTempRaw)}°` : "";
-
     return html`
-      <div
+      <cow-mobile-hero
         class="hero"
-        style="--hero-from:${grad.from}; --hero-to:${grad.to}; --hero-text:${grad.text}"
+        .hass=${this.hass}
+        .weatherEntity=${this.config?.weather}
+        .sunEntity=${this.config?.sun}
+        .moonEntity=${this.config?.moon}
+        .locale=${this.hass?.locale?.language}
+        .pollenOverall=${this.config?.pollen_overall}
+        .pollenAllergens=${this.config?.pollen_allergens}
+        .pollenMinLevel=${this.config?.pollen_min_level ?? 1}
+        .pollenPinned=${this.config?.pollen_pinned}
+        .pollenMaxItems=${this.config?.pollen_max_items ?? 3}
+        .aurora=${!!this.config?.aurora}
       >
-        <div class="hero-clock">${formatClock(this.now)}</div>
-        <div class="hero-row">
-          <span>${formatDate(this.now)}</span>
-          ${wTemp
-            ? html`<span class="dot">·</span>
-                <span class="hero-weather">${wIcon} ${wTemp}</span>`
-            : nothing}
+        <div slot="footer" class="hero-footer-row">
+          ${this.renderHeroAlarm()}
+          ${this.renderHeroPersons()}
         </div>
-        ${this.renderHeroPersons()} ${this.renderHeroAlarm()}
-      </div>
+      </cow-mobile-hero>
     `;
   }
 
@@ -1042,6 +1215,8 @@ export class CowMobileDashboardCard
         : null;
     const lOn = this.roomLightsOn(room);
     const cOpen = this.roomCoversOpen(room);
+    const openings = this.roomOpenings(room);
+    const climate = this.roomClimateView(room);
     return html`
       <div
         class="room-tile"
@@ -1065,11 +1240,82 @@ export class CowMobileDashboardCard
           ${hum ? html`<span>${hum}</span>` : nothing}
         </div>
         <div class="room-badges">
-          ${lOn > 0 ? html`<span class="badge on">💡 ${lOn}</span>` : nothing}
-          ${cOpen > 0
-            ? html`<span class="badge cov">▤ ${cOpen}</span>`
-            : nothing}
+          ${this.renderOpeningsBadgeRow(openings)}
+          ${this.renderControlBadgeRow(climate, lOn, cOpen)}
         </div>
+      </div>
+    `;
+  }
+
+  /**
+   * Row 1 of the badges stack — Ajax openings strip. Collapses to
+   * ``nothing`` when the room has zero Ajax sensors in its area, so
+   * the existing tile height stays the same on rooms without Ajax.
+   * Every opening glyph is visible (no "+N" overflow — they live on a
+   * dedicated row).
+   */
+  private renderOpeningsBadgeRow(openings: AjaxOpening[]) {
+    if (openings.length === 0) return nothing;
+    const hasOpen = openings.some((o) => o.isOpen);
+    return html`
+      <div class="room-badge-row">
+        <span class="openings-pill ${hasOpen ? "has-open" : ""}">
+          ${openings.map(
+            (o) => html`
+              <span
+                class=${o.isOpen ? "open" : "closed"}
+                title=${`${o.deviceName} — ${o.isOpen ? "aperta" : "chiusa"}`}
+              >
+                ${openingIconSvg(o.kind, o.isOpen, 16)}
+              </span>
+            `,
+          )}
+        </span>
+      </div>
+    `;
+  }
+
+  /**
+   * Row 2 — left-to-right: setpoint (variant-coloured), lights count,
+   * covers count. Each badge is shown only when its data exists, so
+   * rooms with neither climate nor lights collapse to just the covers
+   * pill (or to an empty row, which still reserves the slot height so
+   * the tile geometry is stable while you scroll).
+   */
+  private renderControlBadgeRow(
+    climate: { variant: ThermostatVariant; target: number | null } | null,
+    lOn: number,
+    cOpen: number,
+  ) {
+    if (climate == null && lOn === 0 && cOpen === 0) return nothing;
+    // Label rules:
+    //   * variant=off (HVAC off entirely)         → "Off"
+    //   * variant=idle + target available         → target °C (it's the
+    //     setpoint the system will chase next time it kicks in)
+    //   * variant=idle + target null (heat_cool   → "Auto" — the system
+    //     mode reads target_temp_high/low instead   is in dual-setpoint
+    //     of `temperature`)                         mode, no single target
+    //   * heating/cooling                          → target °C
+    const setpointLabel = climate
+      ? climate.variant === "off"
+        ? "Off"
+        : climate.target == null
+          ? "Auto"
+          : `${Math.round(climate.target)}°`
+      : null;
+    return html`
+      <div class="room-badge-row">
+        ${climate
+          ? html`
+              <span class="badge set-${climate.variant}">
+                🌡 ${setpointLabel}
+              </span>
+            `
+          : nothing}
+        ${lOn > 0 ? html`<span class="badge on">💡 ${lOn}</span>` : nothing}
+        ${cOpen > 0
+          ? html`<span class="badge cov">▤ ${cOpen}</span>`
+          : nothing}
       </div>
     `;
   }
@@ -1111,6 +1357,7 @@ export class CowMobileDashboardCard
                 </button>
               </div>
               <div class="drawer-body">
+                ${this.renderDrawerOpenings(room)}
                 ${room.lights.length === 0 && room.covers.length === 0
                   ? html`<div class="qc-row-sub">
                       Nessun dispositivo configurato.
@@ -1237,7 +1484,76 @@ export class CowMobileDashboardCard
     `;
   }
 
+  /**
+   * Drawer section — full list of Ajax openings for the selected room,
+   * one row per device. Read-only (Ajax contacts are sensors, not
+   * actuators). Hidden entirely when the room has zero openings.
+   */
+  private renderDrawerOpenings(room: NormalizedRoom) {
+    const openings = this.roomOpenings(room);
+    if (openings.length === 0) return nothing;
+    return html`
+      <div class="qc-section-title">Aperture</div>
+      ${openings.map(
+        (o) => html`
+          <div class="qc-row">
+            <span
+              class="qc-row-icon is-opening ${o.isOpen ? "open" : "closed"}"
+              aria-hidden="true"
+            >
+              ${openingIconSvg(o.kind, o.isOpen, 22)}
+            </span>
+            <div class="qc-row-label">
+              <div>${o.deviceName}${o.isExtraContact ? " (extra)" : ""}</div>
+              <div class="qc-row-sub">
+                ${o.kind === "window"
+                  ? "Finestra"
+                  : o.kind === "garage"
+                    ? "Porta garage"
+                    : "Porta"}
+              </div>
+            </div>
+            <span
+              class="opening-state ${o.isOpen ? "is-open" : "is-closed"}"
+            >
+              ${o.isOpen ? "aperta" : "chiusa"}
+            </span>
+          </div>
+        `,
+      )}
+    `;
+  }
+
   // ── Summary ──────────────────────────────────────────────────────
+
+  /**
+   * Compact "N aperture — Room A, Room B" row that sits between the
+   * summary headline and the action buttons. Only renders when at
+   * least one Ajax opening is currently open in the house. Up to 4
+   * MDI glyphs precede the text; rooms list truncates to 2 then "+M
+   * altre" so it never wraps.
+   */
+  private renderSummaryOpenings() {
+    const all = this.houseOpenings();
+    const open = all.filter((o) => o.isOpen);
+    if (open.length === 0) return nothing;
+    const glyphs = open.slice(0, 4);
+    const rooms = Array.from(
+      new Set(open.map((o) => o.areaName ?? o.ajaxRoomName).filter((n): n is string => !!n)),
+    );
+    const headRooms = rooms.slice(0, 2).join(", ");
+    const extra = rooms.length - 2;
+    const roomText = headRooms + (extra > 0 ? ` +${extra} altre` : "");
+    const word = open.length === 1 ? "apertura" : "aperture";
+    return html`
+      <div class="summary-openings">
+        <span class="icons">
+          ${glyphs.map((o) => openingIconSvg(o.kind, true, 18))}
+        </span>
+        <span>${open.length} ${word}${roomText ? ` — ${roomText}` : ""}</span>
+      </div>
+    `;
+  }
 
   private renderSummary() {
     const lTotal = this.totalLightsTotal();
@@ -1271,6 +1587,7 @@ export class CowMobileDashboardCard
     return html`
       <div class="summary">
         <div class="summary-text">${headline}</div>
+        ${this.renderSummaryOpenings()}
         ${hasLights
           ? html`
               <div class="summary-actions">
