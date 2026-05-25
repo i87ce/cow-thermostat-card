@@ -4,6 +4,31 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and
 this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.3.8] — 2026-05-25
+
+### Added — `fan_only` mode on the wall-display thermostat panel
+The `cow-thermostat-panel` mode chip-row used to filter HVAC modes
+down to off/heat/cool/heat_cool/auto and silently drop everything
+else — fine when the climate entity was a raw Koolnova zone, but
+the new `climate.casa_<room>` MQTT proxies advertise
+`["off","heat","cool","fan_only"]`. With the old filter the
+"Fan" chip never rendered and the team-brain's fan_only branch
+(Koolnova=fan_only, pavimento=off) was unreachable from the
+wall display.
+
+- `ThermostatView.mode` union widened to include `"fan_only"`.
+- `deriveThermostatView` recognises `state === "fan_only"` and
+  returns it as the mode instead of collapsing it to `auto`.
+- The chip-row whitelist now includes `fan_only` with label "Fan".
+- `dry` is intentionally still excluded — the proxies don't expose
+  it and we don't want a chip that calls a service the proxy
+  rejects.
+
+No state migration needed — the existing 6 `walldisplay-*`
+dashboards already use the right entities, and the next data
+migration repoints their `climate:` field at the new proxies in
+the same release window.
+
 ## [1.3.7] — 2026-05-18
 
 ### Changed — cover row icon: 🪟 → ▤

@@ -399,8 +399,23 @@ export class CowThermostatPanel extends LitElement {
     const hum = this.humidityText(v);
     const out = this.outdoorText();
 
+    // Surface every climate mode the underlying entity actually
+    // supports — including `fan_only`, which the casa_<room> MQTT
+    // proxies expose for the new "ventola sola" coordinated mode
+    // (Koolnova fan_only, pavimento off). `dry` we deliberately
+    // skip: Koolnova advertises it on the air side but the proxies
+    // don't, and nobody runs dehumidification from a wall display
+    // anyway.
     const modes = v.hvacModes
-      .filter((m) => m === "off" || m === "heat" || m === "cool" || m === "heat_cool" || m === "auto")
+      .filter(
+        (m) =>
+          m === "off" ||
+          m === "heat" ||
+          m === "cool" ||
+          m === "heat_cool" ||
+          m === "auto" ||
+          m === "fan_only",
+      )
       .map((m) => ({
         id: m,
         label:
@@ -412,7 +427,9 @@ export class CowThermostatPanel extends LitElement {
                 ? "Off"
                 : m === "heat_cool"
                   ? "Auto"
-                  : "Auto",
+                  : m === "fan_only"
+                    ? "Fan"
+                    : "Auto",
       }));
     const fanItems = v.fanModes.map((f) => ({
       id: f,
