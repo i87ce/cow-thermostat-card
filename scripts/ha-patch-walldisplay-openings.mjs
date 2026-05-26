@@ -81,8 +81,14 @@ const PLAN = {
         areas: ["Bagno Ospiti"],
         opening_default_kind: "window",
       },
-      "Lavanderia": {
-        areas: ["Lavanderia"],
+      // Renamed from "Lavanderia" so the chip label matches how the
+      // mobile dashboard buckets these entities. The room now also
+      // owns the "Locale Tecnico" area so its single light there
+      // (light.luce_locale_tecnico) is reachable from the per-room
+      // drawer Lights tab — and so the Ajax-openings discovery
+      // picks up any contact in that area too.
+      "Servizi": {
+        areas: ["Lavanderia", "Locale Tecnico"],
         opening_default_kind: "window",
       },
       "Studio Alessio": {
