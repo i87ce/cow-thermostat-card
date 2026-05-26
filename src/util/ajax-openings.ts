@@ -45,8 +45,19 @@ export interface AjaxOpening {
   label: string;
   /** Raw device name from the device registry (no entity-name suffix). */
   deviceName: string;
-  /** Physical kind inferred from the device name (defaults to "door"). */
+  /** Physical kind inferred from the device name. */
   kind: OpeningKind;
+  /**
+   * How ``kind`` was determined — drives the override precedence:
+   *   - ``keyword``: the device name matched a strong keyword
+   *     (porta / finestra / garage / etc.), so the inferred kind is
+   *     trustworthy and the host card's ``opening_default_kind``
+   *     fallback must NOT override it.
+   *   - ``fallback``: no keyword matched, ``kind`` is the heuristic
+   *     last-resort (``window``). The host card's
+   *     ``opening_default_kind`` is allowed to flip it.
+   */
+  kindInferred: "keyword" | "fallback";
   /** ``true`` iff the door/window is currently open. */
   isOpen: boolean;
   /** Raw state for advanced consumers ("on" = open, "off" = closed,
@@ -131,11 +142,13 @@ export function findAjaxOpenings(
     const friendly =
       (state.attributes?.friendly_name as string | undefined) ?? deviceName;
 
+    const inferred = inferOpeningKind(deviceName);
     out.push({
       entityId: reg.entity_id,
       label: friendly,
       deviceName,
-      kind: inferOpeningKind(deviceName),
+      kind: inferred.kind,
+      kindInferred: inferred.byKeyword ? "keyword" : "fallback",
       isOpen: state.state === "on",
       rawState: state.state,
       areaId,
@@ -369,21 +382,27 @@ export function isAjaxRegistryEntry(
  * installs (windows are far more common). Pass an explicit
  * ``OpeningKindOverrides.default`` from the host card to flip it.
  */
-export function inferOpeningKind(deviceName: string): OpeningKind {
+export function inferOpeningKind(deviceName: string): {
+  kind: OpeningKind;
+  byKeyword: boolean;
+} {
   const n = deviceName.toLowerCase();
-  if (/\b(garage|box|serranda|cancell)/.test(n)) return "garage";
-  if (/\b(finestra|window|vetrata|lucernaio)/.test(n)) return "window";
-  if (/\b(porta|portoncin|portone|door|gate|ingresso|balcon)/.test(n)) {
-    return "door";
-  }
+  if (/\b(garage|box|serranda|cancell)/.test(n))
+    return { kind: "garage", byKeyword: true };
+  if (/\b(finestra|window|vetrata|lucernaio)/.test(n))
+    return { kind: "window", byKeyword: true };
+  if (/\b(porta|portoncin|portone|door|gate|ingresso|balcon)/.test(n))
+    return { kind: "door", byKeyword: true };
   // Default: window — in real-world Italian residential installs the
   // overwhelming majority of Ajax DoorProtect contacts sit on a window
   // sash (one per room is the typical layout, vs. 2-3 doors per house).
   // Naming heuristics above catch the door/garage/balcony cases by
   // keyword; everything else (rooms named "Sala 1", "Cucina 2", "Camera
   // 3") falls through to here and is far more likely to be a window.
-  // Cards can still flip this per-device via opening_doors / etc.
-  return "window";
+  // Cards can still flip this per-device via opening_doors / etc., and
+  // can override the fallback default via opening_default_kind (only
+  // affects devices whose kind here is a fallback, not a keyword match).
+  return { kind: "window", byKeyword: false };
 }
 
 /**
@@ -448,9 +467,15 @@ export function applyKindOverrides(
   return openings.map((o) => {
     const k = o.deviceName.toLowerCase().trim();
     let kind: OpeningKind;
+    // Override precedence: explicit per-name lists > keyword inference >
+    // config fallback > already-baked hardcoded fallback. The keyword
+    // tier is what stops a `default: window` from flipping a "Porta
+    // Ingresso" (inferred as door via the `porta` keyword) into a
+    // window glyph.
     if (garages.has(k)) kind = "garage";
     else if (doors.has(k)) kind = "door";
     else if (windows.has(k)) kind = "window";
+    else if (o.kindInferred === "keyword") kind = o.kind;
     else if (fallback) kind = fallback;
     else kind = o.kind;
     return kind === o.kind ? o : { ...o, kind };

@@ -4,6 +4,31 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and
 this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.4.3] — 2026-05-26
+
+### Fixed
+- **`opening_default_kind` no longer overrides keyword-matched
+  devices.** Sala's "Porta Ingresso" was being drawn as a window
+  on the XL Sala & Cucina dashboard because the room's
+  `opening_default_kind: window` config flag was applied
+  unconditionally on top of `inferOpeningKind`'s `door` keyword
+  match. The override precedence is now: explicit per-name lists
+  (`opening_doors`, `opening_windows`, `opening_garages`) win
+  first, then keyword inference, then the config fallback, then
+  the hardcoded `window` last resort. `AjaxOpening` carries a new
+  `kindInferred: "keyword" | "fallback"` flag so consumers can
+  tell the two tiers apart.
+- **`inferOpeningKind` signature changed** from `(name) =>
+  OpeningKind` to `(name) => { kind, byKeyword }`. Internal
+  helper, but listed for completeness.
+
+### Added — XL drawer header counts openings
+The per-room drawer subtitle ("3 luci · 1 tapparella · termostato")
+now also reports the room's Ajax openings, broken down by kind so
+the user can see at a glance whether the room has a door, a
+window, or a garage contact. Format: `N finestre · M porte · K
+garage`, appended after the existing devices.
+
 ## [1.4.2] — 2026-05-26
 
 ### Changed

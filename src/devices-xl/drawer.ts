@@ -272,8 +272,23 @@ export class CowXLDrawer extends LitElement {
     }
   }
 
-  private deviceCount(): { lights: number; blinds: number; climate: boolean } {
-    if (!this.room) return { lights: 0, blinds: 0, climate: false };
+  private deviceCount(): {
+    lights: number;
+    blinds: number;
+    climate: boolean;
+    doors: number;
+    windows: number;
+    garages: number;
+  } {
+    if (!this.room)
+      return {
+        lights: 0,
+        blinds: 0,
+        climate: false,
+        doors: 0,
+        windows: 0,
+        garages: 0,
+      };
     const lights = Array.isArray(this.room.light)
       ? this.room.light.length
       : this.room.light
@@ -284,7 +299,22 @@ export class CowXLDrawer extends LitElement {
       : this.room.cover
         ? 1
         : 0;
-    return { lights, blinds, climate: !!this.room.climate };
+    let doors = 0;
+    let windows = 0;
+    let garages = 0;
+    for (const o of findRoomOpeningsXL(this.hass, this.room)) {
+      if (o.kind === "door") doors++;
+      else if (o.kind === "garage") garages++;
+      else windows++;
+    }
+    return {
+      lights,
+      blinds,
+      climate: !!this.room.climate,
+      doors,
+      windows,
+      garages,
+    };
   }
 
   private subtitleText(): string {
@@ -294,6 +324,12 @@ export class CowXLDrawer extends LitElement {
       parts.push(`${c.lights} ${c.lights === 1 ? "luce" : "luci"}`);
     if (c.blinds > 0)
       parts.push(`${c.blinds} ${c.blinds === 1 ? "tapparella" : "tapparelle"}`);
+    if (c.windows > 0)
+      parts.push(`${c.windows} ${c.windows === 1 ? "finestra" : "finestre"}`);
+    if (c.doors > 0)
+      parts.push(`${c.doors} ${c.doors === 1 ? "porta" : "porte"}`);
+    if (c.garages > 0)
+      parts.push(`${c.garages} garage`);
     if (c.climate) parts.push("termostato");
     return parts.length === 0 ? "Nessun dispositivo" : parts.join(" · ");
   }
