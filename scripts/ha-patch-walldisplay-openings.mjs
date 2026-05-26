@@ -19,9 +19,15 @@ if (!HOST || !TOKEN) {
   process.exit(1);
 }
 
-// One entry per per-room dashboard. Each `apply` is invoked with the
-// target card (or the inner `rooms[0]` config of an XL dashboard) and
-// mutates it in place, returning true if it changed anything.
+// One entry per per-room dashboard. Two shapes:
+//   - Small per-room thermostat-card → top-level patch object applied
+//     to the single card.
+//   - XL multi-room dashboard-card    → { _xl: true, rooms: { roomName -> patch } }
+//     where each key is the `name` of a room inside the card's
+//     `rooms[]` list. Rooms not listed here are left untouched.
+//
+// "Porta Ingresso" / "Garage" / etc. already match keyword inference,
+// so we don't need to ship explicit opening_doors entries for them.
 const PLAN = {
   "walldisplay-camera-1": {
     areas: ["Camera 1"],
@@ -47,12 +53,55 @@ const PLAN = {
     areas: ["Ingresso PT"],
     opening_default_kind: "window",
   },
-  // XL dashboard — applied to rooms[0]. The "Porta Ingresso" device name
-  // already matches the door keyword in inferOpeningKind, so we don't
-  // need an explicit opening_doors override for it.
+  // XL dashboard — applies to every room inside the cow-room-dashboard-card.
   "walldisplay-sala-cucina": {
-    areas: ["Sala", "Cucina"],
-    opening_default_kind: "window",
+    _xl: true,
+    rooms: {
+      "Sala & Cucina": {
+        areas: ["Sala", "Cucina"],
+        opening_default_kind: "window",
+      },
+      "Camera P.": {
+        areas: ["Camera Padronale", "Cabina Armadio"],
+        opening_default_kind: "window",
+      },
+      "Studio Chiara": {
+        areas: ["Camera 2"],
+        opening_default_kind: "window",
+      },
+      "Cameretta": {
+        areas: ["Camera 1"],
+        opening_default_kind: "window",
+      },
+      "Bagno P.": {
+        areas: ["Bagno Padronale"],
+        opening_default_kind: "window",
+      },
+      "Bagno O.": {
+        areas: ["Bagno Ospiti"],
+        opening_default_kind: "window",
+      },
+      "Lavanderia": {
+        areas: ["Lavanderia"],
+        opening_default_kind: "window",
+      },
+      "Studio Alessio": {
+        areas: ["Studio"],
+        opening_default_kind: "window",
+      },
+      "Garage": {
+        areas: ["Garage"],
+        opening_default_kind: "window",
+      },
+      "Ingresso PT": {
+        areas: ["Ingresso PT"],
+        opening_default_kind: "window",
+      },
+      "Esterno": {
+        areas: ["Esterno"],
+        opening_default_kind: "window",
+      },
+    },
   },
 };
 
@@ -125,36 +174,80 @@ async function run() {
       console.log(`${urlPath}: ⚠️  no first card — skipped`);
       continue;
     }
-    let target;
-    if (card.type === "custom:cow-thermostat-card") {
-      target = card;
-    } else if (card.type === "custom:cow-room-dashboard-card") {
-      target = card.rooms?.[0];
-      if (!target) {
-        console.log(`${urlPath}: ⚠️  XL card with no rooms — skipped`);
+    let dashboardChanged = false;
+
+    if (want._xl) {
+      if (card.type !== "custom:cow-room-dashboard-card") {
+        console.log(`${urlPath}: ⚠️  expected XL card but got ${card.type}`);
         continue;
       }
+      const byName = new Map((card.rooms ?? []).map((r) => [r.name, r]));
+      console.log(`${urlPath} (XL):`);
+      for (const [roomName, roomWant] of Object.entries(want.rooms)) {
+        const room = byName.get(roomName);
+        if (!room) {
+          console.log(`    ⚠️  room "${roomName}" not found in card.rooms[]`);
+          continue;
+        }
+        const before = Object.fromEntries(
+          KEYS.filter((k) => room[k] !== undefined).map((k) => [k, room[k]]),
+        );
+        const changed = patchTarget(room, roomWant);
+        if (!changed) {
+          console.log(`    "${roomName}": no-op`);
+          continue;
+        }
+        dashboardChanged = true;
+        console.log(`    "${roomName}":`);
+        for (const k of KEYS) {
+          if (!(k in roomWant)) continue;
+          console.log(
+            `        ${k}: ${JSON.stringify(before[k])} → ${JSON.stringify(roomWant[k])}`,
+          );
+        }
+      }
     } else {
-      console.log(`${urlPath}: ⚠️  unsupported card type ${card.type}`);
-      continue;
+      // Small per-room card
+      let target;
+      if (card.type === "custom:cow-thermostat-card") {
+        target = card;
+      } else if (card.type === "custom:cow-room-dashboard-card") {
+        // Legacy: a single-room XL card without _xl flag patches rooms[0].
+        target = card.rooms?.[0];
+        if (!target) {
+          console.log(`${urlPath}: ⚠️  XL card with no rooms — skipped`);
+          continue;
+        }
+      } else {
+        console.log(`${urlPath}: ⚠️  unsupported card type ${card.type}`);
+        continue;
+      }
+      const before = Object.fromEntries(
+        KEYS.filter((k) => target[k] !== undefined).map((k) => [k, target[k]]),
+      );
+      const changed = patchTarget(target, want);
+      if (!changed) {
+        console.log(
+          `${urlPath}: no-op (${Object.keys(before).join(",") || "empty"})`,
+        );
+        continue;
+      }
+      dashboardChanged = true;
+      console.log(`${urlPath}: changed`);
+      for (const k of KEYS) {
+        if (!(k in want)) continue;
+        console.log(
+          `    ${k}: ${JSON.stringify(before[k])} → ${JSON.stringify(want[k])}`,
+        );
+      }
     }
-    const before = Object.fromEntries(
-      KEYS.filter((k) => target[k] !== undefined).map((k) => [k, target[k]]),
-    );
-    const changed = patchTarget(target, want);
-    if (!changed) {
-      console.log(`${urlPath}: no-op (${Object.keys(before).join(",") || "empty"})`);
-      continue;
-    }
-    totalChanges++;
-    console.log(`${urlPath}: changed`);
-    for (const k of KEYS) {
-      if (!(k in want)) continue;
-      console.log(`    ${k}: ${JSON.stringify(before[k])} → ${JSON.stringify(want[k])}`);
-    }
-    if (APPLY) {
-      await send("lovelace/config/save", { url_path: urlPath, config: cfg });
-      console.log(`    ✓ saved`);
+
+    if (dashboardChanged) {
+      totalChanges++;
+      if (APPLY) {
+        await send("lovelace/config/save", { url_path: urlPath, config: cfg });
+        console.log(`    ✓ saved ${urlPath}`);
+      }
     }
   }
   console.log(

@@ -182,6 +182,12 @@ export class CowXLLightsTab extends LitElement {
         align-items: center;
         gap: 0.5rem;
       }
+      /* Non-dimmable bulbs only render the on/off switch — center it so
+         the lone control sits visually balanced where the slider used
+         to be, instead of floating against the right edge. */
+      .lt-controls.toggle-only {
+        justify-content: center;
+      }
       .lt-slider {
         flex: 1;
         height: 0.375rem;
@@ -398,7 +404,13 @@ export class CowXLLightsTab extends LitElement {
     const entity: HassEntity | undefined = this.hass?.states?.[id];
     const view = deriveLightsView(entity);
     const on = view.variant !== "off";
-    const valueText = on ? `${view.brightnessPct}%` : "OFF";
+    // On/off-only bulbs report `dimmable=false` (see `isDimmable` in
+    // small/state/lights.ts). For them we must not display a percentage
+    // (HA would silently ignore any `brightness:` we send) and we hide
+    // the −/slider/+ row entirely so the user isn't offered a control
+    // that does nothing. The on/off toggle remains, centered.
+    const dimmable = view.dimmable;
+    const valueText = on ? (dimmable ? `${view.brightnessPct}%` : "ON") : "OFF";
     // Inner controls swallow the click so they don't trigger the tile-level
     // toggle. Without this, dragging the slider or tapping +/− would also
     // flip the light on/off, which is a confusing double-effect.
@@ -427,40 +439,48 @@ export class CowXLLightsTab extends LitElement {
         <div class="lt-label">${label}</div>
         <div class="lt-value">${valueText}</div>
         <div></div>
-        <div class="lt-controls" @click=${stop} @pointerdown=${stop}>
-          <button
-            class="lt-btn"
-            @click=${(e: Event) => {
-              stop(e);
-              this.bumpBrightness(id, -10);
-            }}
-            aria-label="Diminuisci luminosità"
-          >
-            −
-          </button>
-          <div
-            class="lt-slider"
-            @pointerdown=${(e: PointerEvent) => {
-              stop(e);
-              this.onSliderTap(e, id);
-            }}
-            role="slider"
-            aria-valuemin="0"
-            aria-valuemax="100"
-            aria-valuenow=${view.brightnessPct}
-          >
-            <div class="fill" style="width: ${view.brightnessPct}%"></div>
-          </div>
-          <button
-            class="lt-btn"
-            @click=${(e: Event) => {
-              stop(e);
-              this.bumpBrightness(id, 10);
-            }}
-            aria-label="Aumenta luminosità"
-          >
-            +
-          </button>
+        <div
+          class="lt-controls ${dimmable ? "" : "toggle-only"}"
+          @click=${stop}
+          @pointerdown=${stop}
+        >
+          ${dimmable
+            ? html`
+                <button
+                  class="lt-btn"
+                  @click=${(e: Event) => {
+                    stop(e);
+                    this.bumpBrightness(id, -10);
+                  }}
+                  aria-label="Diminuisci luminosità"
+                >
+                  −
+                </button>
+                <div
+                  class="lt-slider"
+                  @pointerdown=${(e: PointerEvent) => {
+                    stop(e);
+                    this.onSliderTap(e, id);
+                  }}
+                  role="slider"
+                  aria-valuemin="0"
+                  aria-valuemax="100"
+                  aria-valuenow=${view.brightnessPct}
+                >
+                  <div class="fill" style="width: ${view.brightnessPct}%"></div>
+                </div>
+                <button
+                  class="lt-btn"
+                  @click=${(e: Event) => {
+                    stop(e);
+                    this.bumpBrightness(id, 10);
+                  }}
+                  aria-label="Aumenta luminosità"
+                >
+                  +
+                </button>
+              `
+            : nothing}
           <div
             class="lt-power"
             ?data-on=${on}
