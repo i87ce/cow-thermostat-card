@@ -4,6 +4,57 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and
 this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.4.0] — 2026-05-26
+
+### Added — Ajax openings on every wall-display surface
+Previously only the small thermostat panel showed the bottom-right
+strip of Ajax door/window icons. This release wires the same data
+into the remaining wall-display surfaces so a glance at any card
+tells you whether something is open in the room.
+
+Small card (`cow-thermostat-card`)
+- `cow-thermostat-card` shell now forwards `areas`,
+  `opening_default_kind`, `opening_doors`, `opening_windows`,
+  `opening_garages` to all three child panels (thermostat / lights
+  / blinds).
+- `thermostat-panel` drops its inline `.ajax-openings` CSS block and
+  pulls the shared `openingsStripStyles` (single source of truth).
+- `lights-panel` receives the shared CSS so the strip in the
+  bottom-right corner finally renders (the markup was already
+  there in 1.3.x but the styles were missing).
+- `blinds-panel` is wired from scratch: 5 new forwarded props, a
+  `host[data-has-openings]` CSS override that parks the strip in
+  the top-right slot (taking the place of the low-value "N
+  tapparelle" device-sub label, hidden in that state), and the
+  `renderOpeningsStrip` call.
+
+XL room dashboard (`cow-room-dashboard-card`)
+- `CowRoomConfig` grows `areas?`, `opening_default_kind`,
+  `opening_doors`, `opening_windows`, `opening_garages` — same
+  conventions as the small `CowConfig`.
+- Every chip in the header gets a new red `.chip-badge.openings`
+  with the count of open contacts, sitting to the left of the
+  existing covers / lights / climate badges.
+- The Security tab inside the per-room drawer is no longer a
+  "coming soon" placeholder: it renders a responsive auto-fill
+  grid of opening rows (kind icon + device name + Ajax-room
+  subtitle + "Aperta" / "Chiusa" pill), and the drawer's status
+  pill above it reports "N/M aperte" or "Tutto chiuso".
+
+Configuration helper
+- `scripts/ha-derive-mobile-areas.mjs` got a claim-aware second
+  pass: a room never inherits an area that's already owned by
+  another room (manual or derived), so the "Servizi" rest-bucket
+  no longer hoovers up Sala / Ingresso PT just because a stray
+  light or cover happens to live there. Re-running against the
+  live HA instance reports 0 changes — the mobile YAML is already
+  aligned.
+
+Versioning
+- `package.json` bumped to 1.4.0 to match the `VERSION` constant
+  printed by `cow-thermostat-card` on load (drift was 1.3.8 vs
+  1.1.3 — both now agree).
+
 ## [1.3.8] — 2026-05-25
 
 ### Added — `fan_only` mode on the wall-display thermostat panel
