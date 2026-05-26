@@ -898,6 +898,126 @@ export class CowMobileDashboardCard
         opacity: 0.6;
         font-weight: 400;
       }
+      /* ── Climate card in the room drawer ───────────────────────────
+         Compact thermostat block at the top of the drawer body when
+         the room has a climate entity. Tinted by THERMOSTAT_ACCENT
+         (--cow-accent-* CSS vars) so heating/cooling/idle/off all
+         look identical to the small panel + XL drawer. */
+      .qc-climate {
+        border-radius: 16px;
+        padding: 14px;
+        margin: 0 0 10px;
+        color: #fff;
+        background: var(--cow-accent-surface,
+          linear-gradient(180deg, #80858c 0%, #a6abb2 100%));
+        transition: background 320ms ease;
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+      }
+      .qc-climate-head {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        font-weight: 600;
+        font-size: 13px;
+        line-height: 1.2;
+        text-transform: uppercase;
+        letter-spacing: 0.6px;
+      }
+      .qc-climate-head .status {
+        opacity: 0.9;
+        font-weight: 500;
+        text-transform: none;
+        letter-spacing: normal;
+      }
+      .qc-climate-body {
+        display: flex;
+        align-items: flex-end;
+        justify-content: space-between;
+        gap: 8px;
+        flex-wrap: nowrap;
+      }
+      .qc-climate-cur {
+        font-size: 32px;
+        font-weight: 200;
+        line-height: 1;
+        font-variant-numeric: tabular-nums;
+      }
+      .qc-climate-cur .hum {
+        margin-left: 8px;
+        font-size: 12px;
+        font-weight: 500;
+        opacity: 0.85;
+        vertical-align: 4px;
+      }
+      .qc-climate-set {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+      }
+      .qc-climate-target {
+        font-size: 22px;
+        font-weight: 600;
+        line-height: 1;
+        min-width: 44px;
+        text-align: center;
+        font-variant-numeric: tabular-nums;
+      }
+      .qc-climate-bump {
+        appearance: none;
+        border: 0;
+        width: 32px;
+        height: 32px;
+        border-radius: 50%;
+        background: rgba(255, 255, 255, 0.22);
+        color: #fff;
+        font-size: 13px;
+        font-weight: 600;
+        cursor: pointer;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        transition: background 160ms ease, opacity 160ms ease;
+        flex-shrink: 0;
+      }
+      .qc-climate-bump:active {
+        background: rgba(255, 255, 255, 0.4);
+      }
+      /* Arrows stop responding (and grey out) when the proxy is OFF
+         — same behaviour as the small wall card / XL drawer. */
+      .qc-climate-bump[disabled] {
+        opacity: 0.45;
+        cursor: not-allowed;
+      }
+      .qc-climate-bump[disabled]:active {
+        background: rgba(255, 255, 255, 0.22);
+      }
+      .qc-climate-chiprow {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 4px;
+      }
+      .qc-climate-chip {
+        appearance: none;
+        border: 0;
+        flex: 1 1 0;
+        min-width: 48px;
+        padding: 7px 4px;
+        border-radius: 8px;
+        background: rgba(255, 255, 255, 0.2);
+        color: #fff;
+        font-size: 12px;
+        font-weight: 600;
+        cursor: pointer;
+        transition: background 160ms ease;
+      }
+      .qc-climate-chip[data-active] {
+        background: rgba(255, 255, 255, 0.95);
+        color: var(--primary-text-color, #1f1f2e);
+        box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.06);
+      }
+
       /* Drawer Aperture section — read-only list of Ajax openings for
          the room currently in focus. Mirrors the qc-row visual rhythm
          so it slots above lights/covers without a visual break. */

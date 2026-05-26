@@ -4,6 +4,21 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and
 this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.4.14] — 2026-05-26
+
+### Fixed
+- **Mobile drawer climate block missing its CSS.** The CSS edit
+  that paired with `renderClimateRow` in v1.4.12 had also
+  silently no-op'd (third missing edit in the v1.4.12 commit).
+  Result was a flat unstyled column: 28° on one line, 💧 47% on
+  the next, ▼ on the next, 21° on the next, ▲ on the next, no
+  accent gradient, no flex layout, every element falling on a
+  separate row because the parent had no `display: flex`. Added
+  the full `.qc-climate*` rule set: row layout for current /
+  setpoint, rounded chips for modes + fan, accent gradient driven
+  by `--cow-accent-surface`, transparent-white ▼ ▲ bumpers, and
+  the disabled state for OFF.
+
 ## [1.4.13] — 2026-05-26
 
 ### Fixed
