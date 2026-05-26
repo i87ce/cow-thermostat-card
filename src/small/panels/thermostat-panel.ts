@@ -265,16 +265,19 @@ export class CowThermostatPanel extends LitElement {
         --cow-accent: var(--cow-accent-primary);
       }
 
-      /* When the room has Ajax openings, lift fan label + fan-row by
-         60 px so the openings strip (bottom: 22.5px, height: 45px,
-         living roughly at y=652..697) doesn't collide with the
-         fan chips (which sit at y=637..687 in the default layout).
-         The host attribute is toggled in willUpdate(). */
+      /* When the room has Ajax openings, drop fan-label + fan-row into
+         the visual midpoint between the .mode-row (ends at y≈548) and
+         the openings strip (starts at y≈652). Originally fan-row sat
+         at y=637.5 and overlapped the strip; the previous +60px lift
+         to y=577.5 was too aggressive and crashed into .mode-row. The
+         new y≈605 leaves ~21px of air above and ~14px below, which
+         visually centres the fan chips in the lower-right quadrant.
+         Host attribute is toggled in willUpdate(). */
       :host([data-has-openings]) .fan-label {
-        top: 543.75px;
+        top: 569.0625px;
       }
       :host([data-has-openings]) .fan-row {
-        top: 577.5px;
+        top: 605.625px;
       }
     `,
   ];

@@ -4,6 +4,27 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and
 this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.4.2] — 2026-05-26
+
+### Changed
+- **Thermostat panel fan-row sits at the visual midpoint.** v1.4.1
+  lifted the fan-row by 60 px to clear the openings strip, but that
+  was too aggressive — `.fan-label` ended up overlapping the
+  bottom of `.mode-row`. The new offset (label at y=569, chips at
+  y=605) splits the difference: ~21 px of air above the chips and
+  ~14 px below, against the openings strip starting at y=652.
+- **Blinds openings strip now sits in the bottom-left slot** (same
+  position as on the thermostat panel) instead of the top-right
+  corner that v1.4.0 carved out. Wall-display rooms typically have
+  exactly one tapparella, so `.scope-wrap` isn't rendered and the
+  strip has 70 px of clean air below `.preset-row`. The previous
+  override that hid `.device-sub` is gone — the "1 tapparella"
+  label is back on every blinds panel.
+- **Multi-cover edge case kept covered.** When `>1` cover and ≥1
+  Ajax opening are present, a new `data-multi-cover` host flag
+  pulls `.scope-wrap` up from y=620 to y=594 so it doesn't crash
+  into the openings strip in the rare two-tapparelle room.
+
 ## [1.4.1] — 2026-05-26
 
 ### Fixed
