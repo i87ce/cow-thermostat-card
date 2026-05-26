@@ -14,24 +14,32 @@
 # Implementation: we'd have preferred a Template Climate entity as the proxy,
 # but HA 2026.5.x dropped `climate` from the template integration. The next
 # best supported option is MQTT Climate — and we already have a Mosquitto
-# add-on serving Zigbee2MQTT, so the broker is free of charge. The five
+# add-on serving Zigbee2MQTT, so the broker is free of charge. The
 # climate.casa_<room> proxies are declared as MQTT climates with
 # `optimistic: true` (HA updates state locally on each command — no echo
 # automation needed) and `retain: true` (last setpoint / mode / fan survive
 # an HA restart, persisted by the broker).
 #
-# An orchestration automation listens for state changes on those proxies
-# and translates them into coordinated commands on the underlying Koolnova
-# + Pavimento entities (this is the team-brain).
+# Single source of truth: every UI surface (mobile dashboard, wall-display
+# cards, XL room dashboard) reads temperature and humidity from the proxy
+# via current_temperature_topic + current_humidity_topic. The display's
+# raw sensors are *only* used as the upstream feed published to those
+# topics. If we ever move the canonical reading (e.g. swap to a better
+# room sensor) we change a single mqtt.publish action in this file and
+# every surface picks up the new feed automatically.
 #
-# A second small automation feeds each room's current temperature back to
-# the proxy by republishing `sensor.display_<room>_temperature` to the
-# corresponding MQTT topic — that's how the proxy populates
-# `current_temperature` for the UI.
+# Seven proxies — one per heated/cooled room:
+#   * 5 dual-system: Koolnova HVAC + hydronic floor
+#       casa_sala_cucina, casa_camera, casa_studio_chiara,
+#       casa_camera_padronale, casa_ingresso_pt
+#   * 2 floor-only:  no Koolnova zone, just a Generic Thermostat
+#                    driving the Shelly Wall Display relay (the valve)
+#       casa_bagno_padronale, casa_bagno_ospiti
 # ---------------------------------------------------------------------------
 
 mqtt:
   climate:
+    # ── Dual-system proxies (Koolnova + floor) ──────────────────────────
     - name: "Casa Sala & Cucina"
       unique_id: casa_sala_cucina
       modes: ["off", "heat", "cool", "fan_only"]
@@ -48,6 +56,7 @@ mqtt:
       fan_mode_command_topic: "cow/casa/sala_cucina/fan/set"
       fan_mode_state_topic: "cow/casa/sala_cucina/fan/state"
       current_temperature_topic: "cow/casa/sala_cucina/current/state"
+      current_humidity_topic: "cow/casa/sala_cucina/humidity/state"
 
     - name: "Casa Camera"
       unique_id: casa_camera
@@ -65,6 +74,7 @@ mqtt:
       fan_mode_command_topic: "cow/casa/camera/fan/set"
       fan_mode_state_topic: "cow/casa/camera/fan/state"
       current_temperature_topic: "cow/casa/camera/current/state"
+      current_humidity_topic: "cow/casa/camera/humidity/state"
 
     - name: "Casa Studio Chiara"
       unique_id: casa_studio_chiara
@@ -82,6 +92,7 @@ mqtt:
       fan_mode_command_topic: "cow/casa/studio_chiara/fan/set"
       fan_mode_state_topic: "cow/casa/studio_chiara/fan/state"
       current_temperature_topic: "cow/casa/studio_chiara/current/state"
+      current_humidity_topic: "cow/casa/studio_chiara/humidity/state"
 
     - name: "Casa Camera Padronale"
       unique_id: casa_camera_padronale
@@ -99,6 +110,7 @@ mqtt:
       fan_mode_command_topic: "cow/casa/camera_padronale/fan/set"
       fan_mode_state_topic: "cow/casa/camera_padronale/fan/state"
       current_temperature_topic: "cow/casa/camera_padronale/current/state"
+      current_humidity_topic: "cow/casa/camera_padronale/humidity/state"
 
     - name: "Casa Ingresso PT"
       unique_id: casa_ingresso_pt
@@ -116,12 +128,55 @@ mqtt:
       fan_mode_command_topic: "cow/casa/ingresso_pt/fan/set"
       fan_mode_state_topic: "cow/casa/ingresso_pt/fan/state"
       current_temperature_topic: "cow/casa/ingresso_pt/current/state"
+      current_humidity_topic: "cow/casa/ingresso_pt/humidity/state"
 
-# --- Republish current temperature into each proxy --------------------------
-# Each MQTT climate proxy reads its current_temperature from a dedicated
-# topic. We re-publish the Shelly Wall Display sensor reading every time
-# it changes, with retain=true so the proxy picks up the last value on HA
-# startup (no "unknown" current temp).
+    # ── Floor-only proxies (no Koolnova zone) ───────────────────────────
+    # The two bathrooms have no air-side HVAC zone, just a floor loop.
+    # We still wrap them in a casa_* proxy so the UI is uniform: every
+    # heated room is accessed through climate.casa_<room>, and the proxy
+    # is the single source of truth for current_temperature /
+    # current_humidity. The orchestrator maps these proxies to their
+    # respective climate.pavimento_<room> Generic Thermostat below.
+    - name: "Casa Bagno Padronale"
+      unique_id: casa_bagno_padronale
+      modes: ["off", "heat"]
+      min_temp: 15
+      max_temp: 28
+      temp_step: 0.5
+      retain: true
+      optimistic: true
+      mode_command_topic: "cow/casa/bagno_padronale/mode/set"
+      mode_state_topic: "cow/casa/bagno_padronale/mode/state"
+      temperature_command_topic: "cow/casa/bagno_padronale/setpoint/set"
+      temperature_state_topic: "cow/casa/bagno_padronale/setpoint/state"
+      current_temperature_topic: "cow/casa/bagno_padronale/current/state"
+      current_humidity_topic: "cow/casa/bagno_padronale/humidity/state"
+
+    - name: "Casa Bagno Ospiti"
+      unique_id: casa_bagno_ospiti
+      modes: ["off", "heat"]
+      min_temp: 15
+      max_temp: 28
+      temp_step: 0.5
+      retain: true
+      optimistic: true
+      mode_command_topic: "cow/casa/bagno_ospiti/mode/set"
+      mode_state_topic: "cow/casa/bagno_ospiti/mode/state"
+      temperature_command_topic: "cow/casa/bagno_ospiti/setpoint/set"
+      temperature_state_topic: "cow/casa/bagno_ospiti/setpoint/state"
+      current_temperature_topic: "cow/casa/bagno_ospiti/current/state"
+      current_humidity_topic: "cow/casa/bagno_ospiti/humidity/state"
+
+# --- Republish current temperature + humidity into each proxy ----------------
+# Single feed: every proxy reads its current_temperature and current_humidity
+# from MQTT topics that mirror the wall display's sensors. We publish those
+# values on every change of the source sensor, with retain=true so the proxy
+# picks them up immediately on HA startup (no "unknown" current values).
+#
+# This is the boundary where the upstream signal (display sensor) enters the
+# proxy abstraction. If we ever move the canonical reading to a different
+# sensor for a room, we update this single automation and every UI surface
+# follows.
 
 automation:
   - id: cow_climate_publish_current_temp
@@ -137,6 +192,8 @@ automation:
           - sensor.display_camera_2_temperature
           - sensor.display_camera_padronale_temperature
           - sensor.display_ingresso_pt_temperature
+          - sensor.display_bagno_padronale_temperature
+          - sensor.display_bagno_ospiti_temperature
     variables:
       topic_by_sensor:
         sensor.display_sala_temperature: "cow/casa/sala_cucina/current/state"
@@ -144,9 +201,43 @@ automation:
         sensor.display_camera_2_temperature: "cow/casa/studio_chiara/current/state"
         sensor.display_camera_padronale_temperature: "cow/casa/camera_padronale/current/state"
         sensor.display_ingresso_pt_temperature: "cow/casa/ingresso_pt/current/state"
+        sensor.display_bagno_padronale_temperature: "cow/casa/bagno_padronale/current/state"
+        sensor.display_bagno_ospiti_temperature: "cow/casa/bagno_ospiti/current/state"
     action:
       - condition: template
-        # Drop unknown/unavailable; only forward real numbers.
+        value_template: "{{ trigger.to_state.state not in ['unknown','unavailable','none', None] }}"
+      - service: mqtt.publish
+        data:
+          topic: "{{ topic_by_sensor[trigger.entity_id] }}"
+          payload: "{{ trigger.to_state.state }}"
+          retain: true
+
+  - id: cow_climate_publish_current_humidity
+    alias: "Cow Climate — Publish current humidity to MQTT"
+    description: "Mirror sensor.display_<room>_humidity to cow/casa/<room>/humidity/state."
+    mode: queued
+    max: 10
+    trigger:
+      - platform: state
+        entity_id:
+          - sensor.display_sala_humidity
+          - sensor.display_camera_1_humidity
+          - sensor.display_camera_2_humidity
+          - sensor.display_camera_padronale_humidity
+          - sensor.display_ingresso_pt_humidity
+          - sensor.display_bagno_padronale_humidity
+          - sensor.display_bagno_ospiti_humidity
+    variables:
+      topic_by_sensor:
+        sensor.display_sala_humidity: "cow/casa/sala_cucina/humidity/state"
+        sensor.display_camera_1_humidity: "cow/casa/camera/humidity/state"
+        sensor.display_camera_2_humidity: "cow/casa/studio_chiara/humidity/state"
+        sensor.display_camera_padronale_humidity: "cow/casa/camera_padronale/humidity/state"
+        sensor.display_ingresso_pt_humidity: "cow/casa/ingresso_pt/humidity/state"
+        sensor.display_bagno_padronale_humidity: "cow/casa/bagno_padronale/humidity/state"
+        sensor.display_bagno_ospiti_humidity: "cow/casa/bagno_ospiti/humidity/state"
+    action:
+      - condition: template
         value_template: "{{ trigger.to_state.state not in ['unknown','unavailable','none', None] }}"
       - service: mqtt.publish
         data:
@@ -155,10 +246,16 @@ automation:
           retain: true
 
   # ------------------------------------------------------------------------
-  # The orchestrator: heart of the team-brain. Triggers on every state change
-  # of any climate.casa_* proxy (mode / setpoint / fan) or on the room's
-  # current temperature, and dispatches the right calls to Koolnova and
-  # Pavimento per the rules in docs/06-house-hvac-architecture.md.
+  # The orchestrator: heart of the team-brain. Triggers on every state
+  # change of any climate.casa_* proxy (mode / setpoint / fan) or on the
+  # room's current temperature, and dispatches the right calls to the
+  # underlying Koolnova + Pavimento entities.
+  #
+  # Behaviour rules live in docs/06-house-hvac-architecture.md Section
+  # F-bis; the dispatch table below has one entry per proxy, with empty
+  # `koolnova: []` for the two floor-only bathroom proxies (heat/off
+  # only, the cool/fan_only branches short-circuit harmlessly because
+  # the modes aren't exposed by those proxies).
   # ------------------------------------------------------------------------
   - id: cow_climate_orchestrator
     alias: "Cow Climate — Orchestrator"
@@ -166,9 +263,6 @@ automation:
     mode: queued
     max: 20
     trigger:
-      # User-facing climate.casa_* proxies (mode/setpoint/fan changes
-      # all reflect on .state or attribute changes — single platform
-      # state trigger catches both).
       - platform: state
         entity_id:
           - climate.casa_sala_cucina
@@ -176,7 +270,8 @@ automation:
           - climate.casa_studio_chiara
           - climate.casa_camera_padronale
           - climate.casa_ingresso_pt
-      # Room temperature changes — re-evaluate the heat boost decision.
+          - climate.casa_bagno_padronale
+          - climate.casa_bagno_ospiti
       - platform: state
         entity_id:
           - sensor.display_sala_temperature
@@ -184,20 +279,25 @@ automation:
           - sensor.display_camera_2_temperature
           - sensor.display_camera_padronale_temperature
           - sensor.display_ingresso_pt_temperature
+          - sensor.display_bagno_padronale_temperature
+          - sensor.display_bagno_ospiti_temperature
     variables:
-      # Map every trigger entity_id to a room slug.
       proxy_to_slug:
         climate.casa_sala_cucina: sala_cucina
         climate.casa_camera: camera
         climate.casa_studio_chiara: studio_chiara
         climate.casa_camera_padronale: camera_padronale
         climate.casa_ingresso_pt: ingresso_pt
+        climate.casa_bagno_padronale: bagno_padronale
+        climate.casa_bagno_ospiti: bagno_ospiti
       temp_to_slug:
         sensor.display_sala_temperature: sala_cucina
         sensor.display_camera_1_temperature: camera
         sensor.display_camera_2_temperature: studio_chiara
         sensor.display_camera_padronale_temperature: camera_padronale
         sensor.display_ingresso_pt_temperature: ingresso_pt
+        sensor.display_bagno_padronale_temperature: bagno_padronale
+        sensor.display_bagno_ospiti_temperature: bagno_ospiti
       rooms:
         sala_cucina:
           proxy: climate.casa_sala_cucina
@@ -224,6 +324,16 @@ automation:
           temp_sensor: sensor.display_ingresso_pt_temperature
           koolnova: ["climate.koolnova_ingresso_pt"]
           pavimento: climate.pavimento_ingresso_pt
+        bagno_padronale:
+          proxy: climate.casa_bagno_padronale
+          temp_sensor: sensor.display_bagno_padronale_temperature
+          koolnova: []
+          pavimento: climate.pavimento_bagno_padronale
+        bagno_ospiti:
+          proxy: climate.casa_bagno_ospiti
+          temp_sensor: sensor.display_bagno_ospiti_temperature
+          koolnova: []
+          pavimento: climate.pavimento_bagno_ospiti
       slug: >-
         {% if trigger.entity_id in proxy_to_slug %}
           {{ proxy_to_slug[trigger.entity_id] }}
@@ -242,22 +352,30 @@ automation:
       BOOST_THRESHOLD: 1.5
     action:
       - condition: template
-        # Defensive: skip if we couldn't resolve the trigger to a room
-        # (shouldn't happen given the explicit trigger list, but cheap to keep).
         value_template: "{{ (slug | trim) != '' }}"
       - choose:
           # -------------- OFF -----------------------------------------
           - conditions: "{{ mode == 'off' }}"
             sequence:
-              - service: climate.set_hvac_mode
-                target: { entity_id: "{{ r.koolnova }}" }
-                data: { hvac_mode: "off" }
+              - choose:
+                  - conditions: "{{ r.koolnova | length > 0 }}"
+                    sequence:
+                      - service: climate.set_hvac_mode
+                        target: { entity_id: "{{ r.koolnova }}" }
+                        data: { hvac_mode: "off" }
               - service: climate.set_hvac_mode
                 target: { entity_id: "{{ r.pavimento }}" }
                 data: { hvac_mode: "off" }
           # -------------- COOL ----------------------------------------
+          # Only the dual-system proxies advertise cool — the floor-only
+          # bagno_* proxies will never enter this branch from the UI,
+          # but if MQTT retain ever delivers an out-of-list mode we
+          # still guard the empty-koolnova case to avoid a wasted
+          # service call with a null entity_id.
           - conditions: "{{ mode == 'cool' }}"
             sequence:
+              - condition: template
+                value_template: "{{ r.koolnova | length > 0 }}"
               - service: climate.set_hvac_mode
                 target: { entity_id: "{{ r.koolnova }}" }
                 data: { hvac_mode: "cool" }
@@ -273,6 +391,8 @@ automation:
           # -------------- FAN_ONLY ------------------------------------
           - conditions: "{{ mode == 'fan_only' }}"
             sequence:
+              - condition: template
+                value_template: "{{ r.koolnova | length > 0 }}"
               - service: climate.set_hvac_mode
                 target: { entity_id: "{{ r.koolnova }}" }
                 data: { hvac_mode: "fan_only" }
@@ -292,9 +412,13 @@ automation:
               - service: climate.set_temperature
                 target: { entity_id: "{{ r.pavimento }}" }
                 data: { temperature: "{{ setpoint - FLOOR_OFFSET }}" }
-              # Koolnova kicks in only when the gap is large enough.
+              # Koolnova kicks in only when the gap is large enough AND
+              # the room actually has a Koolnova zone (the two bathroom
+              # proxies have koolnova: [] — they skip the boost branch).
               - choose:
-                  - conditions: "{{ delta > BOOST_THRESHOLD }}"
+                  - conditions:
+                      - "{{ r.koolnova | length > 0 }}"
+                      - "{{ delta > BOOST_THRESHOLD }}"
                     sequence:
                       - service: climate.set_hvac_mode
                         target: { entity_id: "{{ r.koolnova }}" }
@@ -305,7 +429,8 @@ automation:
                       - service: climate.set_fan_mode
                         target: { entity_id: "{{ r.koolnova }}" }
                         data: { fan_mode: "{{ fan }}" }
-                default:
-                  - service: climate.set_hvac_mode
-                    target: { entity_id: "{{ r.koolnova }}" }
-                    data: { hvac_mode: "off" }
+                  - conditions: "{{ r.koolnova | length > 0 }}"
+                    sequence:
+                      - service: climate.set_hvac_mode
+                        target: { entity_id: "{{ r.koolnova }}" }
+                        data: { hvac_mode: "off" }
