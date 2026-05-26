@@ -241,27 +241,30 @@ mode / setpoint / fan to **both** `climate.koolnova_sala` and
 `climate.koolnova_cucina`. The pavimento side stays unchanged
 (`climate.pavimento_sala` already covers both rooms).
 
-### Proxies to create
+### Proxies — current inventory (7 total)
 
-5 proxies that orchestrate both subsystems:
+| Proxy | Modes | Koolnova target(s) | Pavimento target | feed |
+|---|---|---|---|---|
+| `climate.casa_sala_cucina` | off/heat/cool/fan_only | `koolnova_sala` **+** `koolnova_cucina` | `pavimento_sala` | `sensor.display_sala_*` |
+| `climate.casa_camera` | off/heat/cool/fan_only | `koolnova_camera_1` | `pavimento_camera_1` | `sensor.display_camera_1_*` |
+| `climate.casa_studio_chiara` | off/heat/cool/fan_only | `koolnova_camera_2` | `pavimento_camera_2` | `sensor.display_camera_2_*` |
+| `climate.casa_camera_padronale` | off/heat/cool/fan_only | `koolnova_camera_3` | `pavimento_camera_padronale` | `sensor.display_camera_padronale_*` |
+| `climate.casa_ingresso_pt` | off/heat/cool/fan_only | `koolnova_ingresso_pt` | `pavimento_ingresso_pt` | `sensor.display_ingresso_pt_*` |
+| `climate.casa_bagno_padronale` | off/heat | — | `pavimento_bagno_padronale` | `sensor.display_bagno_padronale_*` |
+| `climate.casa_bagno_ospiti` | off/heat | — | `pavimento_bagno_ospiti` | `sensor.display_bagno_ospiti_*` |
 
-| Proxy | Koolnova target(s) | Pavimento target | target_sensor (current temp) |
-|---|---|---|---|
-| `climate.casa_sala_cucina` | `koolnova_sala` **+** `koolnova_cucina` | `pavimento_sala` | `sensor.display_sala_temperature` |
-| `climate.casa_camera` | `koolnova_camera_1` | `pavimento_camera_1` | `sensor.display_camera_1_temperature` |
-| `climate.casa_studio_chiara` | `koolnova_camera_2` | `pavimento_camera_2` | `sensor.display_camera_2_temperature` |
-| `climate.casa_camera_padronale` | `koolnova_camera_3` | `pavimento_camera_padronale` | `sensor.display_camera_padronale_temperature` |
-| `climate.casa_ingresso_pt` | `koolnova_ingresso_pt` | `pavimento_ingresso_pt` | `sensor.display_ingresso_pt_temperature` |
+The two bathroom proxies were added later (May 26) when we
+realised the original 5-proxy design forced the bathroom dashboards
+to reach past the proxy and target `climate.pavimento_bagno_*`
+directly. That violated the "always go through the proxy" rule and
+meant the bathroom drawer's Climate tab could never expose
+`current_humidity` (Generic Thermostat doesn't have that attribute).
+Wrapping the bathroom floor zones in `casa_*` MQTT proxies makes
+the surface uniform and adds humidity to the bathroom UI.
 
-2 rooms have no Koolnova zone, just the floor — for these the
-proxy isn't needed: the mobile dashboard and the wall card can
-target the pavimento entity directly. The two bare floor zones:
-
-- `climate.pavimento_bagno_ospiti` (no proxy, used directly)
-- `climate.pavimento_bagno_padronale` (no proxy, used directly)
-
-The remaining rooms have no climate at all: Studio Alessio,
-Esterno, Servizi.
+Rooms with no heating system at all — Studio Alessio, Esterno,
+Servizi — get no climate entity. Their Lovelace cards skip the
+Climate tab / pill.
 
 ### Implementation status
 
@@ -279,25 +282,58 @@ HA 2026.5.x dropped the `climate` platform from the `template:`
 integration (the natural choice for this kind of proxy). Next-best
 supported option was **MQTT climate** — we already have a Mosquitto
 add-on serving Zigbee2MQTT, so the broker was free of charge. The
-5 proxies are declared under `mqtt: climate:` with:
+**seven** proxies are declared under `mqtt: climate:` with:
 
 - `optimistic: true` — HA updates the proxy's state locally on each
   command, no echo automation needed.
 - `retain: true` — Mosquitto persists last setpoint / mode / fan
   across HA restarts.
 - One MQTT topic family per room: `cow/casa/<room>/{mode,setpoint,
-  fan,current}/{state,set}`.
+  fan,current,humidity}/{state,set}`.
+
+The dual-system proxies (sala_cucina, camera, studio_chiara,
+camera_padronale, ingresso_pt) advertise the full mode list
+`[off, heat, cool, fan_only]` plus fan modes
+`[auto, low, medium, high]`. The two floor-only proxies
+(bagno_padronale, bagno_ospiti) advertise only `[off, heat]` and
+no fan modes — they wrap a Generic Thermostat that has neither.
+All seven are otherwise identical so the UI stays uniform.
 
 The orchestrator is a single HA automation (mode `queued`, max 20)
-that triggers on `state_changed` of any of the 5 proxies plus the
-5 room temperature sensors. A `rooms:` map in `variables:` is the
+that triggers on `state_changed` of any of the 7 proxies plus the
+7 room temperature sensors. A `rooms:` map in `variables:` is the
 single source of truth — adding a new proxy is one entry in that
-map. The dispatch logic is the algorithm above.
+map. Each entry carries `koolnova: [...]` and `pavimento: ...`
+fields; the bathroom entries set `koolnova: []` so the dispatch's
+cool / fan_only / boost branches skip the air-side call cleanly.
 
-A second tiny automation forwards each `sensor.display_<room>_
-temperature` reading to the proxy's `current_temperature_topic`
-(retained), so the proxy populates the current temperature on
-startup without polling.
+### The boundary: where the upstream sensor meets the proxy
+
+Two small automations sit at the boundary between the upstream
+display sensors and the proxy abstraction. They fire on every state
+change of `sensor.display_<room>_temperature` /
+`sensor.display_<room>_humidity` and republish the value to the
+matching MQTT topic with `retain: true`:
+
+```
+sensor.display_<room>_temperature ──┐
+                                    ├─→ mqtt.publish (retain) ──→ cow/casa/<room>/{current,humidity}/state
+sensor.display_<room>_humidity ─────┘                              │
+                                                                   ▼
+                                                  climate.casa_<room> (MQTT proxy)
+                                                                   │
+                                                  ┌────────────────┴───────────────────┐
+                                                  ▼                 ▼                  ▼
+                                       header pill (XL)    climate-tab drawer    mobile dashboard
+```
+
+Every UI surface — XL header chip, XL drawer Climate tab, mobile
+dashboard tile, small wall card — reads `current_temperature` and
+`current_humidity` from the proxy entity. None of them reach past
+the proxy to the raw sensor anymore. If we ever move the canonical
+reading (e.g. switch to an Aqara T1 in some room), we change a
+single mqtt.publish action in `cow_climate.yaml` and every surface
+picks up the new feed.
 
 ### Pilot validation — 2026-05-24
 
@@ -345,18 +381,18 @@ later from a clean state:
   Folded into rule #5 in Section F-bis: `climate.casa_sala_cucina`
   drives `koolnova_sala` and `koolnova_cucina` together as a single
   proxy. No separate UI for Cucina.
-- **C6. Repoint user-facing surfaces to the new proxies.** The
-  proxy entities `climate.casa_<room>` are live but nothing in
-  Lovelace points at them yet. Two changes needed:
-  - **mobile dashboard**: migrate `rooms[].climate` from
-    `climate.koolnova_<zone>` → `climate.casa_<room>` for the 5
-    rooms with both subsystems; leave the two bathrooms on
-    `climate.pavimento_bagno_*` (they have no Koolnova zone).
-  - **wall-display dashboards** (one Lovelace dashboard per
-    `walldisplay-*`): the `cow-thermostat-card` entity should
-    target the matching proxy. Camera 2's card → `climate.casa_
-    studio_chiara`, etc. The two bathroom displays target
-    `climate.pavimento_bagno_*` directly.
+- **C6. ~~Repoint user-facing surfaces to the new proxies~~** —
+  **resolved 2026-05-26.** All seven dashboards (6 walldisplay-*
+  + 1 XL walldisplay-sala-cucina) and the mobile dashboard now
+  target `climate.casa_<room>` via the stored Lovelace YAML. The
+  two bathroom dashboards moved from `climate.pavimento_bagno_*`
+  to `climate.casa_bagno_*` once the bathroom proxies were added
+  on the same day (see "Proxies — current inventory" above).
+  The small wall-display thermostat-panel (v1.3.8+) now accepts
+  `fan_only` in its mode chip-row, and the XL drawer's
+  climate-tab (v1.4.9+) picks up the THERMOSTAT_ACCENT palette so
+  the body gradient + selected mode chip both switch colour with
+  the variant — matching the small panel exactly.
 
 - **C4. Failsafe automations.** Should add a "freeze-protect"
   automation: if any `sensor.display_<room>_temperature` reads
