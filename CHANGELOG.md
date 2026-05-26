@@ -4,6 +4,41 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and
 this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.4.9] — 2026-05-26
+
+### Changed — XL Climate tab adopts the small panel's accent + behaviour
+The XL drawer's Climate tab was visually disconnected from the small
+wall-display thermostat panel: same `view.variant`, completely
+different paint. Heating always orange (regardless of cool / idle /
+off), selected mode chip always white, setpoint arrows tappable
+even when the system was OFF, status label `view.variant.toUpperCase()`
+(English raw) and the sub line was a hardcoded
+"Temperatura attuale · <room>".
+
+Now both surfaces share the same single source of truth in
+`small/state/thermostat.ts`:
+
+- New exports `THERMOSTAT_ACCENT`, `THERMOSTAT_STATUS_LABEL`,
+  `THERMOSTAT_SUB_LABEL`. The small panel imports them (no behaviour
+  change there) and the XL Climate tab now reads from the same
+  tables, so any future palette tweak lands on both surfaces.
+- The body gradient is now driven by `--cow-accent-surface` set on
+  the host from `THERMOSTAT_ACCENT[view.variant].surface`, with a
+  320 ms ease transition. Heating → orange, cooling → blue, idle →
+  green, off → grey.
+- Selected mode chip background uses `--cow-accent-primary` (same
+  shade family) with a subtle inset white outline. Same visual
+  language as the small chip-row.
+- Setpoint ▼ / ▲ arrows are `disabled` when `view.variant === "off"`
+  (greyed out, no click), mirroring the small panel's action-button
+  behaviour. Avoids queueing setpoint changes the proxy can't act on
+  while the system is parked.
+- `.col-label` now reads `THERMOSTAT_STATUS_LABEL[variant]`
+  (HEATING/COOLING/OFF/IDLE) and `.col-sub` reads
+  `THERMOSTAT_SUB_LABEL[variant]` ("Sta scaldando", "Sta
+  raffreddando", "Sistema spento", "Target raggiunto") instead of
+  the old hardcoded strings.
+
 ## [1.4.8] — 2026-05-26
 
 ### Changed — XL surfaces read temperature & humidity from the proxy only

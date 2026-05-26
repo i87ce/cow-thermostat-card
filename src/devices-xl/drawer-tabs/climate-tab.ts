@@ -6,6 +6,9 @@ import { buttonReset } from "../../styles/button-reset.js";
 import {
   deriveThermostatView,
   bumpTarget,
+  THERMOSTAT_ACCENT,
+  THERMOSTAT_STATUS_LABEL,
+  THERMOSTAT_SUB_LABEL,
 } from "../../small/state/thermostat.js";
 
 /**
@@ -41,24 +44,32 @@ export class CowXLClimateTab extends LitElement {
         color: var(--cow-text-secondary);
         text-transform: uppercase;
       }
+      /* Body background follows the variant accent. The host element
+         sets --cow-accent-surface / --cow-accent-primary via inline
+         style in render() based on view.variant, so heating stays
+         orange, cooling turns blue, idle is green, off is grey —
+         pixel-identical to the small wall display panel because both
+         pull from THERMOSTAT_ACCENT in small/state/thermostat.ts. */
       .full {
         position: absolute;
         left: 2rem;
         right: 2rem;
         top: 2.5rem;
         height: 20rem;
-        background: linear-gradient(
-          120deg,
-          var(--cow-thermostat-orange) 0%,
-          var(--cow-thermostat-orange-dark, #e55a1f) 60%,
-          #ffd2a8 100%
-        );
+        background: var(--cow-accent-surface,
+          linear-gradient(
+            120deg,
+            var(--cow-thermostat-orange) 0%,
+            var(--cow-thermostat-orange-dark, #e55a1f) 60%,
+            #ffd2a8 100%
+          ));
         border-radius: 1.25rem;
         padding: 2rem;
         display: grid;
         grid-template-columns: 1fr 1fr 1fr;
         gap: 2rem;
         color: var(--cow-surface-white);
+        transition: background 320ms ease;
       }
       .col {
         display: flex;
@@ -115,10 +126,21 @@ export class CowXLClimateTab extends LitElement {
         align-items: center;
         justify-content: center;
         cursor: pointer;
-        transition: background 160ms ease;
+        transition: background 160ms ease, opacity 160ms ease;
       }
       .arrow-btn:active {
         background: rgba(255, 255, 255, 0.32);
+      }
+      /* When the climate is OFF we don't accept setpoint nudges — the
+         small panel disables its up/down arrows in this state, mirror
+         that here so the XL drawer doesn't quietly accept commands the
+         downstream service will reject. */
+      .arrow-btn[disabled] {
+        opacity: 0.4;
+        cursor: not-allowed;
+      }
+      .arrow-btn[disabled]:active {
+        background: rgba(255, 255, 255, 0.18);
       }
 
       .right {
@@ -144,9 +166,15 @@ export class CowXLClimateTab extends LitElement {
         justify-content: center;
         cursor: pointer;
       }
+      /* Selected mode chip uses the same accent as the small wall card:
+         heating → orange, cooling → blue, idle → green, off → grey.
+         The fallback (var(--cow-accent-primary,#fff)) keeps the previous
+         all-white look when no accent has been pushed down yet, so the
+         component degrades gracefully in tests / Storybook. */
       .mode-btn[data-active] {
-        background: var(--cow-surface-white);
-        color: var(--cow-text-primary);
+        background: var(--cow-accent-primary, var(--cow-surface-white));
+        color: var(--cow-surface-white);
+        box-shadow: inset 0 0 0 0.125rem rgba(255, 255, 255, 0.35);
       }
       .fans {
         margin-top: 0.25rem;
@@ -315,6 +343,12 @@ export class CowXLClimateTab extends LitElement {
     }
     const climate = this.hass?.states?.[this.room.climate];
     const view = deriveThermostatView(climate);
+    // The variant label that goes in the caption "CLIMA — …". The
+    // small wall card uses a short STATUS_LABEL (HEATING/COOLING/OFF/IDLE)
+    // for its big status pill; the XL caption can afford the longer
+    // Italian phrasing here, but the .col-label inside the card and
+    // the .col-sub below it pull from the shared STATUS_LABEL /
+    // SUB_LABEL tables so the two surfaces always agree on wording.
     const variantLabel =
       view.variant === "heating"
         ? "RISCALDAMENTO ATTIVO"
@@ -338,7 +372,16 @@ export class CowXLClimateTab extends LitElement {
 
     const fans = view.fanModes.length > 0 ? view.fanModes : ["auto"];
 
-    // continued below in the original branch
+    // Push the variant's accent palette onto the host as CSS variables
+    // so the body gradient + selected mode chip + everything else that
+    // reads `--cow-accent-*` paint with the right colour for OFF /
+    // IDLE / HEATING / COOLING — same palette the small panel uses.
+    const accent = THERMOSTAT_ACCENT[view.variant];
+    this.style.setProperty("--cow-accent-primary", accent.primary);
+    this.style.setProperty("--cow-accent-light", accent.light);
+    this.style.setProperty("--cow-accent-active", accent.active);
+    this.style.setProperty("--cow-accent-surface", accent.surface);
+
     return this.renderClimate(view, variantLabel, cur, tgt, upTarget, downTarget, fans);
   }
 
@@ -427,11 +470,17 @@ export class CowXLClimateTab extends LitElement {
     fans: string[],
   ) {
     if (!this.room) return nothing;
+    // Arrows are disabled while the climate is OFF — same behaviour as
+    // the small wall card's thermostat panel. Tapping a setpoint while
+    // the system is off does nothing useful (no loop is running to chase
+    // the target), and the casa_<room> proxy's set_temperature call would
+    // get queued without taking effect until the user flipped a mode.
+    const arrowsDisabled = view.variant === "off";
     return html`
       <div class="caption">CLIMA — ${variantLabel}</div>
       <div class="full">
         <div class="col">
-          <div class="col-label">${view.variant.toUpperCase()}</div>
+          <div class="col-label">${THERMOSTAT_STATUS_LABEL[view.variant]}</div>
           <div class="col-icon">
             ${view.variant === "heating"
               ? "🔥"
@@ -442,7 +491,7 @@ export class CowXLClimateTab extends LitElement {
                   : "⚖"}
           </div>
           <div class="col-big">${cur}</div>
-          <div class="col-sub">Temperatura attuale · ${this.room.name}</div>
+          <div class="col-sub">${THERMOSTAT_SUB_LABEL[view.variant]} · ${this.room.name}</div>
         </div>
         <div class="col" style="align-items:flex-start;">
           <div class="col-label">IMPOSTATO A</div>
@@ -450,14 +499,22 @@ export class CowXLClimateTab extends LitElement {
           <div class="setpoint-controls">
             <button
               class="arrow-btn"
-              @click=${() => downTarget != null && this.setTarget(downTarget)}
+              ?disabled=${arrowsDisabled}
+              @click=${() =>
+                !arrowsDisabled &&
+                downTarget != null &&
+                this.setTarget(downTarget)}
               aria-label="Diminuisci setpoint"
             >
               ▼
             </button>
             <button
               class="arrow-btn"
-              @click=${() => upTarget != null && this.setTarget(upTarget)}
+              ?disabled=${arrowsDisabled}
+              @click=${() =>
+                !arrowsDisabled &&
+                upTarget != null &&
+                this.setTarget(upTarget)}
               aria-label="Aumenta setpoint"
             >
               ▲

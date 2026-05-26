@@ -2,6 +2,75 @@ import type { HassClimateAttributes, HassEntity } from "../../types/hass.js";
 
 export type ThermostatVariant = "heating" | "cooling" | "off" | "idle";
 
+/**
+ * Colour palette + label table for the four thermostat variants.
+ *
+ * These are the single source of truth for everything thermostat-shaped
+ * across the UI (small wall display panel and XL room dashboard Climate
+ * tab). Importing here keeps the two surfaces visually identical when
+ * the same climate enters the same variant — heating is always the
+ * same orange, cooling always the same blue, idle always the same
+ * green, off always the same grey.
+ *
+ * `surface` is the multi-stop gradient used to paint hero panels (left
+ * pane of the small card, the XL drawer body). `primary` is the solo
+ * accent colour used by chip-row active states, big numbers, etc.
+ */
+export interface ThermostatAccent {
+  primary: string;
+  light: string;
+  active: string;
+  surface: string;
+  textOnAccent: string;
+}
+
+export const THERMOSTAT_ACCENT: Record<ThermostatVariant, ThermostatAccent> = {
+  heating: {
+    primary: "#fa6b2e",
+    light: "#ff994d",
+    active: "#f2612c",
+    surface: "linear-gradient(180deg,#fa6b2e 0%,#ff994d 100%)",
+    textOnAccent: "#fff",
+  },
+  cooling: {
+    primary: "#2673eb",
+    light: "#59a6ff",
+    active: "#3380f2",
+    surface: "linear-gradient(180deg,#2673eb 0%,#59a6ff 100%)",
+    textOnAccent: "#fff",
+  },
+  off: {
+    primary: "#80858c",
+    light: "#a6abb2",
+    active: "#8c9499",
+    surface: "linear-gradient(180deg,#80858c 0%,#a6abb2 100%)",
+    textOnAccent: "#fff",
+  },
+  idle: {
+    primary: "#26a673",
+    light: "#40c78c",
+    active: "#33b27a",
+    surface: "linear-gradient(180deg,#26a673 0%,#40c78c 100%)",
+    textOnAccent: "#fff",
+  },
+};
+
+/** Short uppercase label (HEATING / COOLING / OFF / IDLE). */
+export const THERMOSTAT_STATUS_LABEL: Record<ThermostatVariant, string> = {
+  heating: "HEATING",
+  cooling: "COOLING",
+  off: "OFF",
+  idle: "IDLE",
+};
+
+/** Italian sub-label shown under the status, e.g. "Sta scaldando". */
+export const THERMOSTAT_SUB_LABEL: Record<ThermostatVariant, string> = {
+  heating: "Sta scaldando",
+  cooling: "Sta raffreddando",
+  off: "Sistema spento",
+  idle: "Target raggiunto",
+};
+
 export interface ThermostatView {
   variant: ThermostatVariant;
   current: number | null;

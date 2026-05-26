@@ -4,7 +4,9 @@ import type { HomeAssistant, HassEntity } from "../../types/hass.js";
 import {
   bumpTarget,
   deriveThermostatView,
-  type ThermostatVariant,
+  THERMOSTAT_ACCENT,
+  THERMOSTAT_STATUS_LABEL,
+  THERMOSTAT_SUB_LABEL,
   type ThermostatView,
 } from "../state/thermostat.js";
 import { panelStyles } from "../styles/shell.js";
@@ -12,7 +14,6 @@ import { animKeyframes, animTokens, colorTransition } from "../styles/anim.js";
 import { formatTime } from "../../utils/format.js";
 import {
   findRoomOpenings,
-  openingsStripStyles,
   renderOpeningsStrip,
 } from "../openings.js";
 import type { OpeningKind } from "../config.js";
@@ -31,58 +32,13 @@ import "../visuals/thermostat-icon.js";
  * to "round numbers" — you'd silently drift from the design.
  */
 
-interface AccentSet {
-  primary: string;
-  light: string;
-  active: string;
-  surface: string;
-  textOnAccent: string;
-}
-
-const ACCENT: Record<ThermostatVariant, AccentSet> = {
-  heating: {
-    primary: "#fa6b2e",
-    light: "#ff994d",
-    active: "#f2612c",
-    surface: "linear-gradient(180deg,#fa6b2e 0%,#ff994d 100%)",
-    textOnAccent: "#fff",
-  },
-  cooling: {
-    primary: "#2673eb",
-    light: "#59a6ff",
-    active: "#3380f2",
-    surface: "linear-gradient(180deg,#2673eb 0%,#59a6ff 100%)",
-    textOnAccent: "#fff",
-  },
-  off: {
-    primary: "#80858c",
-    light: "#a6abb2",
-    active: "#8c9499",
-    surface: "linear-gradient(180deg,#80858c 0%,#a6abb2 100%)",
-    textOnAccent: "#fff",
-  },
-  idle: {
-    primary: "#26a673",
-    light: "#40c78c",
-    active: "#33b27a",
-    surface: "linear-gradient(180deg,#26a673 0%,#40c78c 100%)",
-    textOnAccent: "#fff",
-  },
-};
-
-const STATUS_LABEL: Record<ThermostatVariant, string> = {
-  heating: "HEATING",
-  cooling: "COOLING",
-  off: "OFF",
-  idle: "IDLE",
-};
-
-const SUB_LABEL: Record<ThermostatVariant, string> = {
-  heating: "Sta scaldando",
-  cooling: "Sta raffreddando",
-  off: "Sistema spento",
-  idle: "Target raggiunto",
-};
+// Accent palette + status / sub labels are imported from
+// `small/state/thermostat.ts` so the XL Climate tab can share them
+// verbatim — keeps the small panel and the XL drawer visually identical
+// when the same climate enters the same variant.
+const ACCENT = THERMOSTAT_ACCENT;
+const STATUS_LABEL = THERMOSTAT_STATUS_LABEL;
+const SUB_LABEL = THERMOSTAT_SUB_LABEL;
 
 @customElement("cow-thermostat-panel")
 export class CowThermostatPanel extends LitElement {
@@ -106,7 +62,6 @@ export class CowThermostatPanel extends LitElement {
     animTokens,
     animKeyframes,
     panelStyles,
-    openingsStripStyles,
     css`
       .left {
         background: var(--cow-accent-surface, linear-gradient(180deg, #fa6b2e, #ff994d));
@@ -265,19 +220,45 @@ export class CowThermostatPanel extends LitElement {
         --cow-accent: var(--cow-accent-primary);
       }
 
-      /* When the room has Ajax openings, drop fan-label + fan-row into
-         the visual midpoint between the .mode-row (ends at y≈548) and
-         the openings strip (starts at y≈652). Originally fan-row sat
-         at y=637.5 and overlapped the strip; the previous +60px lift
-         to y=577.5 was too aggressive and crashed into .mode-row. The
-         new y≈605 leaves ~21px of air above and ~14px below, which
-         visually centres the fan chips in the lower-right quadrant.
-         Host attribute is toggled in willUpdate(). */
-      :host([data-has-openings]) .fan-label {
-        top: 569.0625px;
+      /* Ajax openings strip — bottom of the right (white) panel.
+         Auto-discovered from the entity registry via findAjaxOpeningsForClimate;
+         rendered only when at least one Ajax door/window exists in the
+         climate's HA area. Closed = neutral grey, open = stop-alert red.
+         Position mirrors the Fan row's left edge (397.5px) and sits
+         just under it so it doesn't fight the swipe-affordance edge. */
+      .ajax-openings {
+        position: absolute;
+        left: 397.5px;
+        right: 30px;
+        bottom: 22.5px;
+        display: flex;
+        flex-direction: row;
+        align-items: center;
+        gap: 16.875px; /* 9px @ 384 → 9*1.875 */
+        pointer-events: none;
       }
-      :host([data-has-openings]) .fan-row {
-        top: 605.625px;
+      .ajax-opening {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 45px; /* 24px @ 384 → 24*1.875 */
+        height: 45px;
+        color: var(--cow-text-disabled, #b3b3bd);
+        transition: color 200ms ease;
+      }
+      .ajax-opening[data-open] {
+        color: var(--cow-stop, #e74c3c);
+      }
+      .ajax-opening svg {
+        width: 100%;
+        height: 100%;
+        display: block;
+      }
+      .ajax-openings-more {
+        font-weight: 600;
+        font-size: 22.5px;
+        color: var(--cow-text-secondary, #8c8c99);
+        margin-left: 4px;
       }
     `,
   ];
@@ -309,18 +290,6 @@ export class CowThermostatPanel extends LitElement {
     this.style.setProperty("--cow-accent-active", a.active);
     this.style.setProperty("--cow-accent-surface", a.surface);
     this.style.setProperty("--cow-on-accent", a.textOnAccent);
-    this.toggleAttribute("data-has-openings", this.openings().length > 0);
-  }
-
-  private openings() {
-    return findRoomOpenings(this.hass, {
-      areas: this.areas,
-      fallbackArea: this.roomName,
-      defaultKind: this.openingDefaultKind,
-      doors: this.openingDoors,
-      windows: this.openingWindows,
-      garages: this.openingGarages,
-    });
   }
 
   private async setTarget(target: number): Promise<void> {
@@ -506,6 +475,15 @@ export class CowThermostatPanel extends LitElement {
    *     panel's swipe affordance and chip buttons stay tappable.
    */
   private renderAjaxOpenings() {
-    return renderOpeningsStrip(this.openings());
+    return renderOpeningsStrip(
+      findRoomOpenings(this.hass, {
+        areas: this.areas,
+        fallbackArea: this.roomName,
+        defaultKind: this.openingDefaultKind,
+        doors: this.openingDoors,
+        windows: this.openingWindows,
+        garages: this.openingGarages,
+      }),
+    );
   }
 }
