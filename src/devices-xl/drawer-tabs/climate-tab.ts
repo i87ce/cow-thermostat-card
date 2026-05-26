@@ -274,6 +274,35 @@ export class CowXLClimateTab extends LitElement {
     });
   }
 
+  /**
+   * Resolve the humidity reading shown on the Climate tab.
+   *
+   * Lookup order (first hit wins):
+   *   1. `room.humidity` sensor → the wall display's
+   *      sensor.display_<room>_humidity is the most accurate reading
+   *      (it's the actual sensor in the room). This is what every
+   *      walldisplay-* dashboard already configures.
+   *   2. `view.humidity` from the climate entity's `current_humidity`
+   *      attribute → fallback for climate entities that DO publish
+   *      their own humidity reading (some thermostats do).
+   *   3. "—" when nothing's available.
+   *
+   * Without this priority chain the proxy MQTT climate (which has no
+   * `current_humidity` attribute) and the Generic Thermostat (same)
+   * would just show "—" even though the room has a perfectly good
+   * humidity sensor wired up.
+   */
+  private roomHumidityText(view: ReturnType<typeof deriveThermostatView>) {
+    if (this.room?.humidity && this.hass?.states?.[this.room.humidity]) {
+      const n = parseFloat(this.hass.states[this.room.humidity].state);
+      if (Number.isFinite(n)) return html`💧 ${Math.round(n)}%`;
+    }
+    if (view.humidity != null) {
+      return html`💧 ${Math.round(view.humidity)}%`;
+    }
+    return html`—`;
+  }
+
   override render() {
     if (!this.room) return nothing;
 
@@ -503,9 +532,7 @@ export class CowXLClimateTab extends LitElement {
           </div>
           <div class="schedule-label">UMIDITÀ</div>
           <div class="schedule-text">
-            ${view.humidity != null
-              ? html`💧 ${Math.round(view.humidity)}%`
-              : "—"}
+            ${this.roomHumidityText(view)}
           </div>
         </div>
       </div>

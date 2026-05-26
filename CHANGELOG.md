@@ -4,6 +4,24 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and
 this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.4.7] — 2026-05-26
+
+### Fixed — Climate tab humidity always showed "—"
+The XL Climate tab read humidity from `view.humidity`, which is just
+`climate.<entity>.attributes.current_humidity`. Neither the
+`climate.casa_*` MQTT proxies nor the `climate.pavimento_*`
+Generic Thermostats publish that attribute — only the
+`sensor.display_<room>_humidity` does. As a result every room with
+a proxy showed "—" even though the wall display sensor was
+streaming a perfectly good reading.
+
+Added `roomHumidityText()` helper with a three-step priority
+lookup: `room.humidity` sensor first (the actual in-room reading
+that every walldisplay-* dashboard already configures), then
+`view.humidity` (for climate entities that publish their own
+humidity, e.g. some smart TRVs), then "—". Same fallback pattern
+the small thermostat-panel already uses for humidity.
+
 ## [1.4.6] — 2026-05-26
 
 ### Removed — climate mini tile from Lights tab + preset bar from Climate tab
