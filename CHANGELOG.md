@@ -4,137 +4,23 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and
 this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [1.4.4] — 2026-05-26
+## [1.3.9] — 2026-05-26
 
-### Fixed
-- **XL drawer Lights tab: dimmer hidden on on/off-only bulbs.** The
-  per-light tile in the XL drawer's *Luci* tab unconditionally
-  rendered the `−` / slider / `+` row even when the bulb's
-  `supported_color_modes` was `["onoff"]`. Sending `brightness:` to
-  those bulbs is silently dropped by Home Assistant, so users on
-  rooms with mixed-capability lights saw controls that appeared to
-  do nothing. The tile now consults `view.dimmable` (same
-  `isDimmable()` heuristic already used by the small `cow-lights-panel`):
-  - On/off-only bulbs render **only the on/off toggle**, centred in
-    the controls row via a new `.lt-controls.toggle-only` modifier.
-  - The big value text reads `ON` (was `100%`) when the bulb is on
-    and non-dimmable, matching the small panel's `pctDisplay` logic.
-  - Dimmable bulbs are unchanged.
+### Fixed — climate-tab on the XL room dashboard
+The XL drawer's Climate tab hardcoded three mode buttons (Cool /
+Heat / Off) and rendered them unconditionally. Two consequences:
 
-## [1.4.3] — 2026-05-26
+- `climate.casa_*` (MQTT proxy) entities expose `fan_only` for the
+  team-brain's "ventola sola" mode, but the XL drawer offered no
+  way to pick it.
+- `climate.pavimento_*` (Generic Thermostat) entities only support
+  `[off, heat]`, but the XL drawer showed a "Cool" button that
+  did nothing useful when tapped.
 
-### Fixed
-- **`opening_default_kind` no longer overrides keyword-matched
-  devices.** Sala's "Porta Ingresso" was being drawn as a window
-  on the XL Sala & Cucina dashboard because the room's
-  `opening_default_kind: window` config flag was applied
-  unconditionally on top of `inferOpeningKind`'s `door` keyword
-  match. The override precedence is now: explicit per-name lists
-  (`opening_doors`, `opening_windows`, `opening_garages`) win
-  first, then keyword inference, then the config fallback, then
-  the hardcoded `window` last resort. `AjaxOpening` carries a new
-  `kindInferred: "keyword" | "fallback"` flag so consumers can
-  tell the two tiers apart.
-- **`inferOpeningKind` signature changed** from `(name) =>
-  OpeningKind` to `(name) => { kind, byKeyword }`. Internal
-  helper, but listed for completeness.
-
-### Added — XL drawer header counts openings
-The per-room drawer subtitle ("3 luci · 1 tapparella · termostato")
-now also reports the room's Ajax openings, broken down by kind so
-the user can see at a glance whether the room has a door, a
-window, or a garage contact. Format: `N finestre · M porte · K
-garage`, appended after the existing devices.
-
-## [1.4.2] — 2026-05-26
-
-### Changed
-- **Thermostat panel fan-row sits at the visual midpoint.** v1.4.1
-  lifted the fan-row by 60 px to clear the openings strip, but that
-  was too aggressive — `.fan-label` ended up overlapping the
-  bottom of `.mode-row`. The new offset (label at y=569, chips at
-  y=605) splits the difference: ~21 px of air above the chips and
-  ~14 px below, against the openings strip starting at y=652.
-- **Blinds openings strip now sits in the bottom-left slot** (same
-  position as on the thermostat panel) instead of the top-right
-  corner that v1.4.0 carved out. Wall-display rooms typically have
-  exactly one tapparella, so `.scope-wrap` isn't rendered and the
-  strip has 70 px of clean air below `.preset-row`. The previous
-  override that hid `.device-sub` is gone — the "1 tapparella"
-  label is back on every blinds panel.
-- **Multi-cover edge case kept covered.** When `>1` cover and ≥1
-  Ajax opening are present, a new `data-multi-cover` host flag
-  pulls `.scope-wrap` up from y=620 to y=594 so it doesn't crash
-  into the openings strip in the rare two-tapparelle room.
-
-## [1.4.1] — 2026-05-26
-
-### Fixed
-- **Default opening kind flipped to `window`.** In real Italian
-  residential installs, an unnamed Ajax contact (devices labelled
-  "Camera 3", "Bagno Camera 3", "Sala 1", etc.) is overwhelmingly
-  a window sash — door-style icons on every Camera/Bagno wall
-  display weren't matching the room's reality. Keyword inference
-  still wins, so `Porta Ingresso` stays a door and `Garage` stays
-  a garage; only the fall-through default changed.
-- **Thermostat panel openings strip no longer overlaps the Fan
-  chip-row.** When `data-has-openings` is set on the host the
-  `.fan-label` and `.fan-row` are lifted by 60 px (from 603.75 →
-  543.75 and 637.5 → 577.5 respectively) so the bottom-right
-  openings strip (sitting at y=652..697) gets a clean 60 px of
-  air below the fan chips. Rooms with no Ajax openings keep the
-  original Figma layout.
-
-## [1.4.0] — 2026-05-26
-
-### Added — Ajax openings on every wall-display surface
-Previously only the small thermostat panel showed the bottom-right
-strip of Ajax door/window icons. This release wires the same data
-into the remaining wall-display surfaces so a glance at any card
-tells you whether something is open in the room.
-
-Small card (`cow-thermostat-card`)
-- `cow-thermostat-card` shell now forwards `areas`,
-  `opening_default_kind`, `opening_doors`, `opening_windows`,
-  `opening_garages` to all three child panels (thermostat / lights
-  / blinds).
-- `thermostat-panel` drops its inline `.ajax-openings` CSS block and
-  pulls the shared `openingsStripStyles` (single source of truth).
-- `lights-panel` receives the shared CSS so the strip in the
-  bottom-right corner finally renders (the markup was already
-  there in 1.3.x but the styles were missing).
-- `blinds-panel` is wired from scratch: 5 new forwarded props, a
-  `host[data-has-openings]` CSS override that parks the strip in
-  the top-right slot (taking the place of the low-value "N
-  tapparelle" device-sub label, hidden in that state), and the
-  `renderOpeningsStrip` call.
-
-XL room dashboard (`cow-room-dashboard-card`)
-- `CowRoomConfig` grows `areas?`, `opening_default_kind`,
-  `opening_doors`, `opening_windows`, `opening_garages` — same
-  conventions as the small `CowConfig`.
-- Every chip in the header gets a new red `.chip-badge.openings`
-  with the count of open contacts, sitting to the left of the
-  existing covers / lights / climate badges.
-- The Security tab inside the per-room drawer is no longer a
-  "coming soon" placeholder: it renders a responsive auto-fill
-  grid of opening rows (kind icon + device name + Ajax-room
-  subtitle + "Aperta" / "Chiusa" pill), and the drawer's status
-  pill above it reports "N/M aperte" or "Tutto chiuso".
-
-Configuration helper
-- `scripts/ha-derive-mobile-areas.mjs` got a claim-aware second
-  pass: a room never inherits an area that's already owned by
-  another room (manual or derived), so the "Servizi" rest-bucket
-  no longer hoovers up Sala / Ingresso PT just because a stray
-  light or cover happens to live there. Re-running against the
-  live HA instance reports 0 changes — the mobile YAML is already
-  aligned.
-
-Versioning
-- `package.json` bumped to 1.4.0 to match the `VERSION` constant
-  printed by `cow-thermostat-card` on load (drift was 1.3.8 vs
-  1.1.3 — both now agree).
+Mode chips are now derived from `view.hvacModes`: each chip
+renders only when the underlying climate advertises that mode.
+Casa proxies pick up `Fan` automatically, pavimento entities drop
+`Cool`. Off is always present.
 
 ## [1.3.8] — 2026-05-25
 

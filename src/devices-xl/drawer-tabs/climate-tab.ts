@@ -501,20 +501,45 @@ export class CowXLClimateTab extends LitElement {
         <div class="col right">
           <div class="col-label">MODALITÀ</div>
           <div class="modes">
-            <button
-              class="mode-btn"
-              ?data-active=${view.mode === "cool"}
-              @click=${() => this.setMode("cool")}
-            >
-              Cool
-            </button>
-            <button
-              class="mode-btn"
-              ?data-active=${view.mode === "heat"}
-              @click=${() => this.setMode("heat")}
-            >
-              Heat
-            </button>
+            ${
+              // Mode chips are now driven by `view.hvacModes` instead of
+              // being hardcoded Cool/Heat/Off. This lets the same drawer
+              // render correctly for both kinds of climate entities the
+              // house has wired up:
+              //   * climate.casa_*       → off/heat/cool/fan_only (proxy)
+              //   * climate.pavimento_*  → off/heat (Generic Thermostat)
+              // Each chip is rendered only if the climate advertises it,
+              // so the bathroom proxy doesn't get a stray "Cool" button
+              // and the air-conditioning proxy can offer "Fan" without
+              // pulling double-duty in pavimento rooms.
+              view.hvacModes.includes("cool")
+                ? html`<button
+                    class="mode-btn"
+                    ?data-active=${view.mode === "cool"}
+                    @click=${() => this.setMode("cool")}
+                  >
+                    Cool
+                  </button>`
+                : ""
+            }
+            ${view.hvacModes.includes("heat")
+              ? html`<button
+                  class="mode-btn"
+                  ?data-active=${view.mode === "heat"}
+                  @click=${() => this.setMode("heat")}
+                >
+                  Heat
+                </button>`
+              : ""}
+            ${view.hvacModes.includes("fan_only")
+              ? html`<button
+                  class="mode-btn"
+                  ?data-active=${view.mode === "fan_only"}
+                  @click=${() => this.setMode("fan_only")}
+                >
+                  Fan
+                </button>`
+              : ""}
             <button
               class="mode-btn"
               ?data-active=${view.mode === "off"}
