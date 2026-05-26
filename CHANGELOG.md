@@ -4,6 +4,23 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and
 this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.4.4] — 2026-05-26
+
+### Fixed
+- **XL drawer Lights tab: dimmer hidden on on/off-only bulbs.** The
+  per-light tile in the XL drawer's *Luci* tab unconditionally
+  rendered the `−` / slider / `+` row even when the bulb's
+  `supported_color_modes` was `["onoff"]`. Sending `brightness:` to
+  those bulbs is silently dropped by Home Assistant, so users on
+  rooms with mixed-capability lights saw controls that appeared to
+  do nothing. The tile now consults `view.dimmable` (same
+  `isDimmable()` heuristic already used by the small `cow-lights-panel`):
+  - On/off-only bulbs render **only the on/off toggle**, centred in
+    the controls row via a new `.lt-controls.toggle-only` modifier.
+  - The big value text reads `ON` (was `100%`) when the bulb is on
+    and non-dimmable, matching the small panel's `pctDisplay` logic.
+  - Dimmable bulbs are unchanged.
+
 ## [1.4.3] — 2026-05-26
 
 ### Fixed
