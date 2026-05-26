@@ -4,7 +4,7 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and
 this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [1.3.9] — 2026-05-26
+## [1.4.5] — 2026-05-26
 
 ### Fixed — climate-tab on the XL room dashboard
 The XL drawer's Climate tab hardcoded three mode buttons (Cool /
@@ -21,6 +21,10 @@ Mode chips are now derived from `view.hvacModes`: each chip
 renders only when the underlying climate advertises that mode.
 Casa proxies pick up `Fan` automatically, pavimento entities drop
 `Cool`. Off is always present.
+
+(Note: v1.3.9 was tagged on the same code by mistake while the main
+branch was already at v1.4.4 — HACS picked 1.4.4 as latest under
+semver. v1.4.5 supersedes both.)
 
 ## [1.3.8] — 2026-05-25
 
