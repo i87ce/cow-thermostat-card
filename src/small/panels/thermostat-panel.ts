@@ -264,6 +264,18 @@ export class CowThermostatPanel extends LitElement {
       cow-chip-row {
         --cow-accent: var(--cow-accent-primary);
       }
+
+      /* When the room has Ajax openings, lift fan label + fan-row by
+         60 px so the openings strip (bottom: 22.5px, height: 45px,
+         living roughly at y=652..697) doesn't collide with the
+         fan chips (which sit at y=637..687 in the default layout).
+         The host attribute is toggled in willUpdate(). */
+      :host([data-has-openings]) .fan-label {
+        top: 543.75px;
+      }
+      :host([data-has-openings]) .fan-row {
+        top: 577.5px;
+      }
     `,
   ];
 
@@ -294,6 +306,18 @@ export class CowThermostatPanel extends LitElement {
     this.style.setProperty("--cow-accent-active", a.active);
     this.style.setProperty("--cow-accent-surface", a.surface);
     this.style.setProperty("--cow-on-accent", a.textOnAccent);
+    this.toggleAttribute("data-has-openings", this.openings().length > 0);
+  }
+
+  private openings() {
+    return findRoomOpenings(this.hass, {
+      areas: this.areas,
+      fallbackArea: this.roomName,
+      defaultKind: this.openingDefaultKind,
+      doors: this.openingDoors,
+      windows: this.openingWindows,
+      garages: this.openingGarages,
+    });
   }
 
   private async setTarget(target: number): Promise<void> {
@@ -479,15 +503,6 @@ export class CowThermostatPanel extends LitElement {
    *     panel's swipe affordance and chip buttons stay tappable.
    */
   private renderAjaxOpenings() {
-    return renderOpeningsStrip(
-      findRoomOpenings(this.hass, {
-        areas: this.areas,
-        fallbackArea: this.roomName,
-        defaultKind: this.openingDefaultKind,
-        doors: this.openingDoors,
-        windows: this.openingWindows,
-        garages: this.openingGarages,
-      }),
-    );
+    return renderOpeningsStrip(this.openings());
   }
 }

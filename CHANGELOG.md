@@ -4,6 +4,24 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and
 this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.4.1] — 2026-05-26
+
+### Fixed
+- **Default opening kind flipped to `window`.** In real Italian
+  residential installs, an unnamed Ajax contact (devices labelled
+  "Camera 3", "Bagno Camera 3", "Sala 1", etc.) is overwhelmingly
+  a window sash — door-style icons on every Camera/Bagno wall
+  display weren't matching the room's reality. Keyword inference
+  still wins, so `Porta Ingresso` stays a door and `Garage` stays
+  a garage; only the fall-through default changed.
+- **Thermostat panel openings strip no longer overlaps the Fan
+  chip-row.** When `data-has-openings` is set on the host the
+  `.fan-label` and `.fan-row` are lifted by 60 px (from 603.75 →
+  543.75 and 637.5 → 577.5 respectively) so the bottom-right
+  openings strip (sitting at y=652..697) gets a clean 60 px of
+  air below the fan chips. Rooms with no Ajax openings keep the
+  original Figma layout.
+
 ## [1.4.0] — 2026-05-26
 
 ### Added — Ajax openings on every wall-display surface

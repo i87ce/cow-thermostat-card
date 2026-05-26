@@ -376,9 +376,14 @@ export function inferOpeningKind(deviceName: string): OpeningKind {
   if (/\b(porta|portoncin|portone|door|gate|ingresso|balcon)/.test(n)) {
     return "door";
   }
-  // Default: door — Ajax's most common deployment per Ajax Systems' own
-  // installation guides. "Sala 1" / "Cucina 2" name patterns end up here.
-  return "door";
+  // Default: window — in real-world Italian residential installs the
+  // overwhelming majority of Ajax DoorProtect contacts sit on a window
+  // sash (one per room is the typical layout, vs. 2-3 doors per house).
+  // Naming heuristics above catch the door/garage/balcony cases by
+  // keyword; everything else (rooms named "Sala 1", "Cucina 2", "Camera
+  // 3") falls through to here and is far more likely to be a window.
+  // Cards can still flip this per-device via opening_doors / etc.
+  return "window";
 }
 
 /**
