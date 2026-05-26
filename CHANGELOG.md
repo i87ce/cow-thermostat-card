@@ -4,6 +4,44 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and
 this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.4.12] — 2026-05-26
+
+### Added — climate control in the mobile room drawer
+The mobile dashboard's room drawer used to show openings + lights +
+covers but had no climate controls — the only way to change a
+setpoint from the phone was the HA standard more-info popup, which
+broke the "one card, every control" feel of the rest of the
+dashboard.
+
+Added a compact climate block at the top of the drawer body for
+every room that has a `room.climate` entity. It reads everything
+(current temp, humidity, mode, fan, setpoint range) from the
+climate proxy via `deriveThermostatView`, so the mobile, the wall
+display, and the XL drawer all see exactly the same value.
+
+Visual contract:
+
+- Header line with 🌡 icon + STATUS_LABEL / SUB_LABEL ("HEATING ·
+  Sta scaldando", etc.) — same wording as the wall-display panel.
+- Big current temperature in `.toFixed(1)` (no `Math.round`
+  surprises), inline humidity tag, big target on the right with
+  ▼ ▲ bumpers.
+- Mode chip-row driven by `view.hvacModes`: casa_<room> proxies
+  get heat/cool/fan_only/off, the two bathroom floor-only proxies
+  get heat/off.
+- Fan chip-row only when the climate advertises more than one fan
+  mode (so the Generic Thermostat-wrapped bathroom proxies don't
+  show a useless "auto" chip alone).
+- ▼ ▲ bumpers and chips both push the variant accent via the
+  shared `THERMOSTAT_ACCENT` palette (`--cow-accent-surface` /
+  `--cow-accent-primary`) — the block tints orange in heating,
+  blue in cooling, green in idle, grey in off, with a 320 ms
+  ease transition. Identical to the small wall card and the XL
+  drawer.
+- ▼ ▲ are disabled in OFF (no point queueing setpoint writes the
+  orchestrator can't act on), mirroring the same behaviour on
+  the other surfaces.
+
 ## [1.4.11] — 2026-05-26
 
 ### Fixed

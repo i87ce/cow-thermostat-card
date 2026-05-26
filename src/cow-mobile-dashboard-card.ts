@@ -1357,8 +1357,11 @@ export class CowMobileDashboardCard
                 </button>
               </div>
               <div class="drawer-body">
+                ${this.renderClimateRow(room)}
                 ${this.renderDrawerOpenings(room)}
-                ${room.lights.length === 0 && room.covers.length === 0
+                ${!room.climate &&
+                room.lights.length === 0 &&
+                room.covers.length === 0
                   ? html`<div class="qc-row-sub">
                       Nessun dispositivo configurato.
                     </div>`
@@ -1390,6 +1393,146 @@ export class CowMobileDashboardCard
       e.clientY <= rect.bottom;
     if (!inside) this.closeDrawer();
   };
+
+  /**
+   * Compact thermostat block rendered at the top of the room drawer
+   * when the room has a `climate` entity. Reads everything (current
+   * temp, humidity, mode, fan, setpoint range) from the climate
+   * proxy via `deriveThermostatView` — single source of truth, same
+   * as the wall display and the XL drawer.
+   *
+   * The whole block is tinted by the variant accent (heating →
+   * orange, cooling → blue, idle → green, off → grey) via the
+   * `--cow-accent-surface` and `--cow-accent-primary` CSS variables
+   * pushed onto the element's inline style.
+   *
+   * Returns `nothing` when the room has no climate entity (Studio
+   * Alessio, Esterno, Servizi…) — the drawer falls back to the
+   * lights + covers layout alone.
+   */
+  private renderClimateRow(room: NormalizedRoom) {
+    if (!room.climate) return nothing;
+    const entity = room.climate;
+    const ent = this.getEnt(entity);
+    if (!ent) return nothing;
+    const view = deriveThermostatView(ent);
+    const accent = THERMOSTAT_ACCENT[view.variant];
+    const fmt = (n: number, unit: string) =>
+      `${n.toFixed(1).replace(/\.0$/, "")}${unit}`;
+    const cur = view.current != null ? fmt(view.current, "°") : "—";
+    const tgt = view.target != null ? fmt(view.target, "°") : "—";
+    const arrowsDisabled = view.variant === "off";
+    const upT = bumpTarget(view, 1);
+    const downT = bumpTarget(view, -1);
+    // Sit the variant accent on the host of THIS element. The style
+    // bind in template strings can't push to the host directly, so
+    // we wrap the block in a <div> that owns the CSS vars.
+    const accentVars = `--cow-accent-surface:${accent.surface};--cow-accent-primary:${accent.primary};`;
+    return html`
+      <div class="qc-climate" style=${accentVars}>
+        <div class="qc-climate-head">
+          <span aria-hidden="true">🌡</span>
+          <span class="status">
+            ${THERMOSTAT_STATUS_LABEL[view.variant]} · ${THERMOSTAT_SUB_LABEL[view.variant]}
+          </span>
+        </div>
+        <div class="qc-climate-body">
+          <div class="qc-climate-cur">
+            ${cur}
+            ${view.humidity != null
+              ? html`<span class="hum">💧 ${Math.round(view.humidity)}%</span>`
+              : nothing}
+          </div>
+          <div class="qc-climate-set">
+            <button
+              class="qc-climate-bump"
+              ?disabled=${arrowsDisabled}
+              @click=${() =>
+                !arrowsDisabled && downT != null && this.setClimateTarget(entity, downT)}
+              aria-label="Diminuisci setpoint"
+            >
+              ▼
+            </button>
+            <div class="qc-climate-target">${tgt}</div>
+            <button
+              class="qc-climate-bump"
+              ?disabled=${arrowsDisabled}
+              @click=${() =>
+                !arrowsDisabled && upT != null && this.setClimateTarget(entity, upT)}
+              aria-label="Aumenta setpoint"
+            >
+              ▲
+            </button>
+          </div>
+        </div>
+        ${this.renderClimateModeChips(entity, view)}
+        ${view.fanModes.length > 1
+          ? this.renderClimateFanChips(entity, view)
+          : nothing}
+      </div>
+    `;
+  }
+
+  private renderClimateModeChips(
+    entity: string,
+    view: ReturnType<typeof deriveThermostatView>,
+  ) {
+    // Modes are drawn from view.hvacModes so casa_<room> shows
+    // off/heat/cool/fan_only, pavimento-only proxies (i.e. the two
+    // bathrooms wrapped as floor-only) just heat/off. Order them
+    // for consistent visual rhythm: off last so it sits to the right
+    // like a "stop" button.
+    const order: ThermostatVariant extends never ? never : string[] = [
+      "heat",
+      "cool",
+      "fan_only",
+      "off",
+    ];
+    const labels: Record<string, string> = {
+      heat: "Heat",
+      cool: "Cool",
+      fan_only: "Fan",
+      off: "Off",
+    };
+    const chips = order.filter((m) => view.hvacModes.includes(m as never));
+    if (!chips.includes("off")) chips.push("off");
+    return html`
+      <div class="qc-climate-chiprow">
+        ${chips.map(
+          (m) => html`
+            <button
+              class="qc-climate-chip"
+              ?data-active=${view.mode === m}
+              @click=${() => this.setClimateMode(entity, m)}
+            >
+              ${labels[m] ?? m}
+            </button>
+          `,
+        )}
+      </div>
+    `;
+  }
+
+  private renderClimateFanChips(
+    entity: string,
+    view: ReturnType<typeof deriveThermostatView>,
+  ) {
+    return html`
+      <div class="qc-climate-chiprow">
+        ${view.fanModes.map(
+          (f) => html`
+            <button
+              class="qc-climate-chip"
+              ?data-active=${view.fan === f}
+              @click=${() => this.setClimateFan(entity, f)}
+            >
+              ${f}
+            </button>
+          `,
+        )}
+      </div>
+    `;
+  }
 
   private renderLightRow(d: CowMobileDeviceEntry) {
     const ent = this.getEnt(d.entity);
