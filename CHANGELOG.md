@@ -4,6 +4,35 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and
 this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.4.6] — 2026-05-26
+
+### Removed — climate mini tile from Lights tab + preset bar from Climate tab
+Two pieces of the XL drawer were duplicating information without
+adding value, so we cut them:
+
+- **Lights tab** had a 280×320 orange "climate-mini" tile sitting on
+  the left of the light tile row. Same data (variant + current temp
+  + target + fan + humidity) was already in the drawer header pill
+  ("Spento 21°") *and* in the dedicated Climate tab one click away.
+  Three readouts of the same info, plus a chunky tile stealing
+  horizontal scroll space from the actual lights — gone. The
+  `renderClimateMini` method, its CSS, and the `deriveThermostatView`
+  import in lights-tab.ts go with it.
+- **Climate tab** had three hardcoded preset buttons at the bottom
+  (🏠 Comfort 22° / 🌿 Eco 19° / ❄ Antigelo 8°). The casa_<room>
+  proxies already expose the standard HA preset list via
+  `preset_modes`, and the team-brain orchestration decides what to
+  do with them — having a separate flat 3-button bar that bypassed
+  the orchestrator (raw `set_hvac_mode: heat`) was a duplicate
+  control surface that could fight the proxy. The `.actions`
+  section, the `private preset()` method, and its associated CSS
+  are gone.
+
+The Climate tab's footer is now just the mode + fan chips. If you
+want preset chips back in a future iteration, hook them into the
+existing `view.presetModes` (which the proxies already advertise)
+instead of hardcoding three values.
+
 ## [1.4.5] — 2026-05-26
 
 ### Fixed — climate-tab on the XL room dashboard

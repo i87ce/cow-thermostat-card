@@ -247,45 +247,6 @@ export class CowXLClimateTab extends LitElement {
         font-weight: 600;
       }
 
-      .actions {
-        position: absolute;
-        left: 2rem;
-        right: 2rem;
-        bottom: 1rem;
-        height: 3.5rem;
-        display: flex;
-        gap: 1rem;
-      }
-      .act {
-        flex: 1;
-        height: 100%;
-        border-radius: 1rem;
-        font-weight: 600;
-        font-size: 1rem;
-        display: inline-flex;
-        align-items: center;
-        justify-content: center;
-        gap: 0.5rem;
-        cursor: pointer;
-        background: var(--cow-surface-button-bg);
-        color: var(--cow-text-primary);
-        border: 0.0625rem solid var(--cow-surface-border);
-      }
-      .act-comfort {
-        background: var(--cow-thermostat-orange);
-        color: var(--cow-surface-white);
-        border-color: transparent;
-      }
-      .act-eco {
-        background: #2eb86b;
-        color: var(--cow-surface-white);
-        border-color: transparent;
-      }
-      .act-antigelo {
-        background: #3b7ed1;
-        color: var(--cow-surface-white);
-        border-color: transparent;
-      }
     `,
   ];
 
@@ -310,28 +271,6 @@ export class CowXLClimateTab extends LitElement {
     await this.hass.callService("climate", "set_temperature", {
       entity_id: this.room.climate,
       temperature: t,
-    });
-  }
-
-  private async preset(preset: "comfort" | "eco" | "antigelo") {
-    if (!this.room?.climate || !this.hass) return;
-    const targets: Record<string, number> = {
-      comfort: 22,
-      eco: 19,
-      antigelo: 8,
-    };
-    const modes: Record<string, string> = {
-      comfort: "heat",
-      eco: "heat",
-      antigelo: "heat",
-    };
-    await this.hass.callService("climate", "set_hvac_mode", {
-      entity_id: this.room.climate,
-      hvac_mode: modes[preset],
-    });
-    await this.hass.callService("climate", "set_temperature", {
-      entity_id: this.room.climate,
-      temperature: targets[preset],
     });
   }
 
@@ -569,23 +508,6 @@ export class CowXLClimateTab extends LitElement {
               : "—"}
           </div>
         </div>
-      </div>
-      <div class="actions">
-        <button
-          class="act act-comfort"
-          @click=${() => this.preset("comfort")}
-        >
-          🏠 Comfort 22°
-        </button>
-        <button class="act act-eco" @click=${() => this.preset("eco")}>
-          🌿 Eco 19°
-        </button>
-        <button
-          class="act act-antigelo"
-          @click=${() => this.preset("antigelo")}
-        >
-          ❄ Antigelo 8°
-        </button>
       </div>
     `;
   }

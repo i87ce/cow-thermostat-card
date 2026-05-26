@@ -7,7 +7,6 @@ import {
   deriveLightsView,
   brightnessFromPct,
 } from "../../small/state/lights.js";
-import { deriveThermostatView } from "../../small/state/thermostat.js";
 import "../../small/visuals/bulb-visual.js";
 
 /**
@@ -15,9 +14,14 @@ import "../../small/visuals/bulb-visual.js";
  *
  * Layout (within drawer body, parent is 80rem wide, body starts at top=12rem):
  *   - Section caption "LUCI — N IN STANZA" at top
- *   - climate-mini tile (280×320) on the left, sticky for the room context
- *   - N light tiles (296×320) to the right, gap 16
+ *   - N light tiles (296×320) in a horizontally-scrolling row, gap 16
  *   - Bottom action bar with "Tutte ON" / "Tutte OFF" full-width buttons
+ *
+ * The climate "mini" tile that used to sit on the left of the row was
+ * removed: the room's climate state is already shown in the drawer
+ * header pill ("Spento 21°", etc.) and the dedicated Climate tab is one
+ * tap away — having a third climate readout inside the Lights tab was
+ * redundant and stole horizontal space from the light tiles.
  */
 @customElement("cow-xl-lights-tab")
 export class CowXLLightsTab extends LitElement {
@@ -54,71 +58,6 @@ export class CowXLLightsTab extends LitElement {
         scrollbar-width: none;
       }
       .row::-webkit-scrollbar { display: none; }
-      .climate-mini {
-        flex: 0 0 17.5rem;
-        align-self: stretch;
-        background: linear-gradient(
-          150deg,
-          var(--cow-thermostat-orange) 0%,
-          var(--cow-thermostat-orange-dark, #e55a1f) 100%
-        );
-        border-radius: 1.25rem;
-        padding: 1.25rem 1.25rem 1.125rem;
-        color: var(--cow-surface-white);
-        display: grid;
-        grid-template-rows: auto 1fr auto;
-        row-gap: 0.5rem;
-        position: relative;
-        box-shadow: inset 0 0 0 0.0625rem rgba(255, 255, 255, 0.08);
-      }
-      .cm-top {
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        gap: 0.5rem;
-      }
-      .cm-icon {
-        font-size: 1.5rem;
-        line-height: 1;
-      }
-      .cm-label {
-        font-weight: 700;
-        font-size: 0.75rem;
-        letter-spacing: 0.075rem;
-        text-transform: uppercase;
-        opacity: 0.85;
-      }
-      .cm-mid {
-        align-self: center;
-        display: flex;
-        align-items: baseline;
-        gap: 0.25rem;
-      }
-      .cm-temp {
-        font-weight: 300;
-        font-size: 4.25rem;
-        line-height: 1;
-        font-variant-numeric: tabular-nums;
-      }
-      .cm-target {
-        font-weight: 500;
-        font-size: 0.9375rem;
-        opacity: 0.9;
-      }
-      .cm-bot {
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        gap: 0.5rem;
-        font-weight: 500;
-        font-size: 0.8125rem;
-        opacity: 0.85;
-      }
-      .cm-humidity {
-        display: inline-flex;
-        align-items: center;
-        gap: 0.25rem;
-      }
 
       .light-tile {
         flex: 0 0 17rem;
@@ -347,59 +286,6 @@ export class CowXLLightsTab extends LitElement {
     );
   }
 
-  /** Climate mini tile inside Lights tab.
-   *
-   * Renders ONLY when the room has a real climate entity (full thermostat
-   * mini). When the room only has ambient sensors we skip the tile here —
-   * the temperature/humidity is shown in the drawer header chip instead,
-   * and the dedicated Climate tab handles the monitoring view. */
-  private renderClimateMini() {
-    if (!this.room) return nothing;
-
-    if (this.room.climate) {
-      const climate = this.hass?.states?.[this.room.climate];
-      const view = deriveThermostatView(climate);
-      const variantLabel =
-        view.variant === "heating"
-          ? "HEATING"
-          : view.variant === "cooling"
-            ? "COOLING"
-            : view.variant === "off"
-              ? "OFF"
-              : "IDLE";
-      const icon =
-        view.variant === "heating"
-          ? "🔥"
-          : view.variant === "cooling"
-            ? "❄"
-            : view.variant === "off"
-              ? "○"
-              : "⚖";
-      const cur = view.current != null ? `${Math.round(view.current)}°` : "—";
-      const tgt = view.target != null ? `${Math.round(view.target)}°C` : null;
-      return html`
-        <div class="climate-mini" role="group" aria-label="Termostato stanza">
-          <div class="cm-top">
-            <span class="cm-icon">${icon}</span>
-            <span class="cm-label">${variantLabel}</span>
-          </div>
-          <div class="cm-mid">
-            <span class="cm-temp">${cur}</span>
-            ${tgt ? html`<span class="cm-target">→ ${tgt}</span>` : nothing}
-          </div>
-          <div class="cm-bot">
-            <span>Fan ${view.fan}</span>
-            ${view.humidity != null
-              ? html`<span class="cm-humidity">💧 ${Math.round(view.humidity)}%</span>`
-              : html`<span></span>`}
-          </div>
-        </div>
-      `;
-    }
-
-    return nothing;
-  }
-
   private renderLightTile(id: string, label: string) {
     const entity: HassEntity | undefined = this.hass?.states?.[id];
     const view = deriveLightsView(entity);
@@ -505,7 +391,6 @@ export class CowXLLightsTab extends LitElement {
     return html`
       <div class="caption">LUCI — ${captionN} IN STANZA</div>
       <div class="row">
-        ${this.renderClimateMini()}
         ${ids.map((id, i) => this.renderLightTile(id, labels[i] ?? id))}
       </div>
       <div class="actions">
