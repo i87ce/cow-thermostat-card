@@ -14,6 +14,7 @@ import { animKeyframes, animTokens, colorTransition } from "../styles/anim.js";
 import { formatTime } from "../../utils/format.js";
 import {
   findRoomOpenings,
+  openingsStripStyles,
   renderOpeningsStrip,
 } from "../openings.js";
 import type { OpeningKind } from "../config.js";
@@ -62,6 +63,7 @@ export class CowThermostatPanel extends LitElement {
     animTokens,
     animKeyframes,
     panelStyles,
+    openingsStripStyles,
     css`
       .left {
         background: var(--cow-accent-surface, linear-gradient(180deg, #fa6b2e, #ff994d));
@@ -220,45 +222,18 @@ export class CowThermostatPanel extends LitElement {
         --cow-accent: var(--cow-accent-primary);
       }
 
-      /* Ajax openings strip — bottom of the right (white) panel.
-         Auto-discovered from the entity registry via findAjaxOpeningsForClimate;
-         rendered only when at least one Ajax door/window exists in the
-         climate's HA area. Closed = neutral grey, open = stop-alert red.
-         Position mirrors the Fan row's left edge (397.5px) and sits
-         just under it so it doesn't fight the swipe-affordance edge. */
-      .ajax-openings {
-        position: absolute;
-        left: 397.5px;
-        right: 30px;
-        bottom: 22.5px;
-        display: flex;
-        flex-direction: row;
-        align-items: center;
-        gap: 16.875px; /* 9px @ 384 → 9*1.875 */
-        pointer-events: none;
+      /* When the room has Ajax openings, drop fan-label + fan-row into
+         the visual midpoint between the .mode-row (ends at y≈548) and
+         the openings strip (starts at y≈652). Originally fan-row sat
+         at y=637.5 and the openings strip overlapped its chips. The
+         new y≈605 leaves ~21px of air above and ~14px below, which
+         visually centres the fan chips in the lower-right quadrant.
+         Host attribute is toggled in willUpdate(). */
+      :host([data-has-openings]) .fan-label {
+        top: 569.0625px;
       }
-      .ajax-opening {
-        display: inline-flex;
-        align-items: center;
-        justify-content: center;
-        width: 45px; /* 24px @ 384 → 24*1.875 */
-        height: 45px;
-        color: var(--cow-text-disabled, #b3b3bd);
-        transition: color 200ms ease;
-      }
-      .ajax-opening[data-open] {
-        color: var(--cow-stop, #e74c3c);
-      }
-      .ajax-opening svg {
-        width: 100%;
-        height: 100%;
-        display: block;
-      }
-      .ajax-openings-more {
-        font-weight: 600;
-        font-size: 22.5px;
-        color: var(--cow-text-secondary, #8c8c99);
-        margin-left: 4px;
+      :host([data-has-openings]) .fan-row {
+        top: 605.625px;
       }
     `,
   ];
@@ -290,6 +265,18 @@ export class CowThermostatPanel extends LitElement {
     this.style.setProperty("--cow-accent-active", a.active);
     this.style.setProperty("--cow-accent-surface", a.surface);
     this.style.setProperty("--cow-on-accent", a.textOnAccent);
+    this.toggleAttribute("data-has-openings", this.openings().length > 0);
+  }
+
+  private openings() {
+    return findRoomOpenings(this.hass, {
+      areas: this.areas,
+      fallbackArea: this.roomName,
+      defaultKind: this.openingDefaultKind,
+      doors: this.openingDoors,
+      windows: this.openingWindows,
+      garages: this.openingGarages,
+    });
   }
 
   private async setTarget(target: number): Promise<void> {
@@ -475,15 +462,6 @@ export class CowThermostatPanel extends LitElement {
    *     panel's swipe affordance and chip buttons stay tappable.
    */
   private renderAjaxOpenings() {
-    return renderOpeningsStrip(
-      findRoomOpenings(this.hass, {
-        areas: this.areas,
-        fallbackArea: this.roomName,
-        defaultKind: this.openingDefaultKind,
-        doors: this.openingDoors,
-        windows: this.openingWindows,
-        garages: this.openingGarages,
-      }),
-    );
+    return renderOpeningsStrip(this.openings());
   }
 }

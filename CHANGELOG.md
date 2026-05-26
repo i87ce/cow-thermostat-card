@@ -4,6 +4,21 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and
 this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.4.11] — 2026-05-26
+
+### Fixed
+- **Thermostat fan-row no longer overlaps the openings strip.** A
+  regression introduced in the v1.4.5–v1.4.9 climate refactor
+  stream dropped the `host[data-has-openings]` CSS override that
+  lifted `.fan-label` / `.fan-row` away from the bottom-right
+  openings strip. On Camera Padronale the Auto chip was painted
+  behind the window glyph again. Restored: openingsStripStyles is
+  re-imported into the panel's `static styles`, the inline
+  `.ajax-openings` CSS block (200+ duplicated lines) is back to
+  pulling from the shared helper, and willUpdate() toggles
+  `data-has-openings` so the fan-row sits at y=605 instead of
+  y=637.5 whenever the room has Ajax contacts.
+
 ## [1.4.10] — 2026-05-26
 
 ### Fixed
