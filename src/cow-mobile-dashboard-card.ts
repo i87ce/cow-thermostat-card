@@ -64,7 +64,11 @@ import {
   type OpeningKindOverrides,
 } from "./util/ajax-openings.js";
 import {
+  bumpTarget,
   deriveThermostatView,
+  THERMOSTAT_ACCENT,
+  THERMOSTAT_STATUS_LABEL,
+  THERMOSTAT_SUB_LABEL,
   type ThermostatVariant,
 } from "./small/state/thermostat.js";
 import "./shared/hero/mobile-hero.js";
@@ -446,6 +450,36 @@ export class CowMobileDashboardCard
       open ? "open_cover" : "close_cover",
       {},
       { entity_id: ents },
+    );
+  }
+
+  // ── Climate service callers ──────────────────────────────────────
+  // Thin wrappers around climate.set_* services. Used by the in-drawer
+  // climate row so the user can change mode / setpoint / fan on the
+  // climate.casa_<room> proxy directly from the phone, just like the
+  // wall display.
+  private setClimateMode(entity: string, mode: string): void {
+    void this.hass?.callService(
+      "climate",
+      "set_hvac_mode",
+      { hvac_mode: mode },
+      { entity_id: entity },
+    );
+  }
+  private setClimateTarget(entity: string, temperature: number): void {
+    void this.hass?.callService(
+      "climate",
+      "set_temperature",
+      { temperature },
+      { entity_id: entity },
+    );
+  }
+  private setClimateFan(entity: string, fan_mode: string): void {
+    void this.hass?.callService(
+      "climate",
+      "set_fan_mode",
+      { fan_mode },
+      { entity_id: entity },
     );
   }
 

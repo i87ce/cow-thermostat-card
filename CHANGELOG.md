@@ -4,6 +4,20 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and
 this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.4.13] — 2026-05-26
+
+### Fixed
+- **v1.4.12 mobile drawer was DOA.** Two `StrReplace` edits had
+  silently no-op'd on the source, so the build of v1.4.12 shipped
+  `renderClimateRow` referencing `THERMOSTAT_ACCENT`,
+  `THERMOSTAT_STATUS_LABEL`, `THERMOSTAT_SUB_LABEL`, `bumpTarget`,
+  `setClimateMode`, `setClimateTarget`, `setClimateFan` without
+  having actually imported the constants or declared the service
+  callers. Result: a `ReferenceError: THERMOSTAT_ACCENT is not
+  defined` fired the moment any room tile was tapped, which blew
+  up the dialog open and made the whole drawer feel dead. Re-ran
+  the edits, `tsc --noEmit` is clean, smoke-tested in the browser.
+
 ## [1.4.12] — 2026-05-26
 
 ### Added — climate control in the mobile room drawer
