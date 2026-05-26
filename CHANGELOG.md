@@ -4,6 +4,18 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and
 this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.4.10] — 2026-05-26
+
+### Fixed
+- **Blinds-panel room title no longer collides with the clock.** On
+  the wall-display blinds slide for rooms with long names ("Camera
+  Padronale"), the 30 px room font + 28 px time font exceeded the
+  280 px header slot and the "07:20" string was painted over the
+  ellipsis ("Camera Padron.07:20" → unreadable). Both fonts are now
+  aligned to the thermostat-panel values (26.25 px / 24.375 px),
+  matching the design system across the three small-card slides
+  and giving "Camera Padronale" + "23:59" a clean 4 px gap.
+
 ## [1.4.9] — 2026-05-26
 
 ### Changed — XL Climate tab adopts the small panel's accent + behaviour

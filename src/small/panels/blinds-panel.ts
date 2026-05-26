@@ -203,13 +203,17 @@ export class CowBlindsPanel extends LitElement {
         /* Stretched from 200 → 235 to fit "Camera Padronale" without
            ellipsis. The right edge now butts up against the time text,
            which is right-anchored so the layout stays locale-safe
-           (12h vs 24h time strings don't shift the room name). */
+           (12h vs 24h time strings don't shift the room name).
+           Font sizes (26.25 + 24.375) match the thermostat-panel so
+           "Camera Padronale 07:20" fits without colliding — the
+           previous 30/28 px combo was too big for the 280 px slot
+           and the time was painted over the room-name ellipsis. */
         max-width: 235px;
         overflow: hidden;
         text-overflow: ellipsis;
         white-space: nowrap;
         font-weight: 600;
-        font-size: 30px;
+        font-size: 26.25px;
         color: var(--cow-text-room-name, #262633);
       }
       .time {
@@ -217,7 +221,7 @@ export class CowBlindsPanel extends LitElement {
         right: 30px;
         top: 56.25px;
         font-weight: 600;
-        font-size: 28px;
+        font-size: 24.375px;
         color: var(--cow-text-time, #666673);
       }
       .device-sub {
