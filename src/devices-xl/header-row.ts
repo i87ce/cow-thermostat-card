@@ -282,13 +282,20 @@ export class CowXLHeader extends LitElement {
 
   /**
    * Build the right-side info pill. Priority order:
-   *  1. Active room's `temperature` / `humidity` sensors (or, if the
-   *     room only has a `climate` entity, the climate's
-   *     `current_temperature` + `current_humidity` attributes).
-   *  2. Fallback to the global `weatherEntity`'s `temperature` /
-   *     `humidity` so legacy configs still show something.
+   *  1. The active room's `climate` entity, reading from its
+   *     `current_temperature` + `current_humidity` attributes. For
+   *     casa_<room> MQTT proxies these come straight from the
+   *     mqtt.publish automations in cow_climate.yaml that mirror
+   *     sensor.display_<room>_* — so we hit the same single source of
+   *     truth the room drawer's Climate tab uses, and the two
+   *     surfaces can never disagree.
+   *  2. Sensor fallback (`room.temperature` / `room.humidity`) for
+   *     rooms with no climate entity at all — e.g. Lavanderia, which
+   *     only has a contact-sensor temperature reading.
+   *  3. Global `weatherEntity` as a last resort so legacy configs
+   *     still show something on the pill.
    *
-   * Returns `null` when neither source has any data — in that case the
+   * Returns `null` when no source has any data — in that case the
    * pill is hidden entirely.
    */
   private getInfoPill(): { temp?: number; humidity?: number; label?: string } | null {
@@ -304,29 +311,29 @@ export class CowXLHeader extends LitElement {
     let label: string | undefined;
 
     if (room) {
-      const tEntity = room.temperature ? states[room.temperature] : undefined;
-      if (tEntity) {
-        const v = Number(tEntity.state);
-        if (Number.isFinite(v)) temp = v;
-      }
-      const hEntity = room.humidity ? states[room.humidity] : undefined;
-      if (hEntity) {
-        const v = Number(hEntity.state);
-        if (Number.isFinite(v)) humidity = v;
-      }
-      // Climate fallback: many rooms only have a climate entity which
-      // exposes the live ambient via `current_temperature` /
-      // `current_humidity`.
-      if ((temp == null || humidity == null) && room.climate) {
+      // 1. Climate proxy first — single source of truth for any heated
+      //    / cooled room.
+      if (room.climate) {
         const c = states[room.climate];
         if (c) {
           const a = c.attributes as Record<string, unknown>;
-          if (temp == null && typeof a.current_temperature === "number") {
-            temp = a.current_temperature;
-          }
-          if (humidity == null && typeof a.current_humidity === "number") {
-            humidity = a.current_humidity;
-          }
+          if (typeof a.current_temperature === "number") temp = a.current_temperature;
+          if (typeof a.current_humidity === "number") humidity = a.current_humidity;
+        }
+      }
+      // 2. Sensor fallback for rooms with no climate entity.
+      if (temp == null && room.temperature) {
+        const tEntity = states[room.temperature];
+        if (tEntity) {
+          const v = Number(tEntity.state);
+          if (Number.isFinite(v)) temp = v;
+        }
+      }
+      if (humidity == null && room.humidity) {
+        const hEntity = states[room.humidity];
+        if (hEntity) {
+          const v = Number(hEntity.state);
+          if (Number.isFinite(v)) humidity = v;
         }
       }
       if (temp != null || humidity != null) label = room.name;

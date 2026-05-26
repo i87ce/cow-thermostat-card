@@ -275,28 +275,19 @@ export class CowXLClimateTab extends LitElement {
   }
 
   /**
-   * Resolve the humidity reading shown on the Climate tab.
+   * Render the humidity readout shown on the Climate tab.
    *
-   * Lookup order (first hit wins):
-   *   1. `room.humidity` sensor → the wall display's
-   *      sensor.display_<room>_humidity is the most accurate reading
-   *      (it's the actual sensor in the room). This is what every
-   *      walldisplay-* dashboard already configures.
-   *   2. `view.humidity` from the climate entity's `current_humidity`
-   *      attribute → fallback for climate entities that DO publish
-   *      their own humidity reading (some thermostats do).
-   *   3. "—" when nothing's available.
-   *
-   * Without this priority chain the proxy MQTT climate (which has no
-   * `current_humidity` attribute) and the Generic Thermostat (same)
-   * would just show "—" even though the room has a perfectly good
-   * humidity sensor wired up.
+   * Reads strictly from `view.humidity`, i.e. the climate entity's
+   * `current_humidity` attribute. For the casa_<room> MQTT proxies
+   * this is mirrored from sensor.display_<room>_humidity by the
+   * mqtt.publish automations in cow_climate.yaml, so the proxy is
+   * the single source of truth. Falls back to "—" if the climate
+   * doesn't publish humidity (e.g. when the upstream wall display is
+   * offline) — and we deliberately don't fall back to the
+   * `room.humidity` sensor here: if the proxy can't see it, the UI
+   * shouldn't pretend it can.
    */
   private roomHumidityText(view: ReturnType<typeof deriveThermostatView>) {
-    if (this.room?.humidity && this.hass?.states?.[this.room.humidity]) {
-      const n = parseFloat(this.hass.states[this.room.humidity].state);
-      if (Number.isFinite(n)) return html`💧 ${Math.round(n)}%`;
-    }
     if (view.humidity != null) {
       return html`💧 ${Math.round(view.humidity)}%`;
     }
@@ -332,8 +323,15 @@ export class CowXLClimateTab extends LitElement {
           : view.variant === "off"
             ? "SPENTO"
             : "IN MANTENIMENTO";
-    const cur = view.current != null ? `${Math.round(view.current)}°` : "—";
-    const tgt = view.target != null ? `${Math.round(view.target)}°C` : "—";
+    // Keep one decimal so a "24.5°" room doesn't render as "25°" here
+    // while the header pill still shows "24.5°C" — the two surfaces
+    // would otherwise look like they're reading different sensors.
+    // Strip a trailing ".0" so an exact integer setpoint reads "21°"
+    // instead of the slightly ugly "21.0°".
+    const fmt = (n: number, unit: string) =>
+      `${n.toFixed(1).replace(/\.0$/, "")}${unit}`;
+    const cur = view.current != null ? fmt(view.current, "°") : "—";
+    const tgt = view.target != null ? fmt(view.target, "°C") : "—";
 
     const upTarget = bumpTarget(view, 1);
     const downTarget = bumpTarget(view, -1);

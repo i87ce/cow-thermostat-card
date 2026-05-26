@@ -4,6 +4,40 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and
 this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.4.8] — 2026-05-26
+
+### Changed — XL surfaces read temperature & humidity from the proxy only
+Up to now the XL surfaces were inconsistent about where the ambient
+reading came from. The header info pill read `room.temperature` /
+`room.humidity` (the raw display sensors, with one decimal) and
+only fell back to the climate entity. The Climate tab's drawer body
+read `view.current` and rounded it with `Math.round()`. Net result:
+the same room showed "24.5°C" in the chip pill and "25°" in the
+drawer for any half-degree reading. Confusing.
+
+Now every XL surface reads through the climate proxy:
+
+- `header-row.getInfoPill` flips its lookup order: proxy
+  `current_temperature` + `current_humidity` first, sensor
+  fallback only for rooms with no climate entity (Lavanderia,
+  Studio, Garage, Esterno).
+- `climate-tab.renderClimate` formats temp + setpoint with
+  `.toFixed(1)` (strip the trailing ".0") so "24.5°C" stays
+  "24.5°C" and "21°C" stays "21°C" — never "25°" again.
+- `climate-tab.roomHumidityText` drops the `room.humidity`
+  fallback entirely. If the proxy doesn't publish humidity, we
+  show "—" rather than reaching past the proxy to the sensor.
+  The companion change in `cow_climate.yaml` (v1.4.8 of this
+  package) wires up the missing `current_humidity_topic` on
+  every casa_<room> proxy so this never happens in practice
+  for a healthy room.
+
+Pair this release with the updated `examples/ha-cow-climate-
+orchestration.yaml` (which also adds `casa_bagno_padronale` and
+`casa_bagno_ospiti` MQTT proxies). With both deployed the entire
+heated/cooled UI in the house reads ambient values from one
+canonical place per room.
+
 ## [1.4.7] — 2026-05-26
 
 ### Fixed — Climate tab humidity always showed "—"
