@@ -2,6 +2,7 @@ import { LitElement, html, css, nothing } from "lit";
 import { customElement, property, state } from "lit/decorators.js";
 import type { HomeAssistant } from "../types/hass.js";
 import type { CowRoomConfig } from "../config-xl.js";
+import { countOpenContacts, findRoomOpeningsXL } from "../config-xl.js";
 import { buttonReset } from "../styles/button-reset.js";
 
 import "./drawer-tabs/lights-tab.js";
@@ -377,6 +378,18 @@ export class CowXLDrawer extends LitElement {
       ).length;
       return {
         text: open === 0 ? "Tutte chiuse" : `${open}/${arr.length} aperte`,
+        show: true,
+      };
+    }
+    if (this.activeTab === "security" && this.room) {
+      const openings = findRoomOpeningsXL(this.hass, this.room);
+      if (openings.length === 0) return { text: "", show: false };
+      const open = countOpenContacts(openings);
+      return {
+        text:
+          open === 0
+            ? "Tutto chiuso"
+            : `${open}/${openings.length} apert${open === 1 ? "a" : "e"}`,
         show: true,
       };
     }

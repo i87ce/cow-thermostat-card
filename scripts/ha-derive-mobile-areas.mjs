@@ -96,25 +96,63 @@ async function run() {
     process.exit(2);
   }
 
-  // For each room, collect the set of area_ids implied by its entities.
-  const updates = [];
+  // Pass 1: derive a raw area set for every room from its entities.
+  const rawByRoom = new Map();
   for (const room of cardRef.rooms ?? []) {
     const candidateIds = new Set();
-    const considered = [];
-    const pushEnt = (eid, source) => {
+    const pushEnt = (eid) => {
       if (typeof eid !== "string") return;
-      considered.push({ source, entityId: eid });
       const aid = areaForEntity(eid);
       if (aid) candidateIds.add(aid);
     };
-    pushEnt(room.climate, "climate");
-    pushEnt(room.temp, "temp");
-    pushEnt(room.humidity, "humidity");
-    for (const l of room.lights ?? []) pushEnt(typeof l === "string" ? l : l.entity, "light");
-    for (const c of room.covers ?? []) pushEnt(typeof c === "string" ? c : c.entity, "cover");
+    pushEnt(room.climate);
+    pushEnt(room.temp);
+    pushEnt(room.humidity);
+    for (const l of room.lights ?? []) pushEnt(typeof l === "string" ? l : l.entity);
+    for (const c of room.covers ?? []) pushEnt(typeof c === "string" ? c : c.entity);
+    rawByRoom.set(room.name, candidateIds);
+  }
 
-    // Resolve to display names, sort for stable output.
-    const derivedAreas = [...candidateIds]
+  // Pass 2: for every room that already has a manual `areas:` list, treat
+  // those areas as "claimed" so other rooms don't steal them. This stops
+  // the "Servizi" bucket from grabbing Sala/Ingresso PT just because a
+  // stray light or cover entity in that room lives in those areas.
+  // The mobile YAML uses display names, so we resolve them to IDs first.
+  const nameToId = new Map(areas.map((a) => [a.name.toLowerCase(), a.area_id]));
+  const claimedByOthers = new Map(); // roomName -> Set<area_id>
+  for (const room of cardRef.rooms ?? []) {
+    const claimed = new Set();
+    for (const otherRoom of cardRef.rooms ?? []) {
+      if (otherRoom.name === room.name) continue;
+      const manual = Array.isArray(otherRoom.areas) ? otherRoom.areas : null;
+      const source = manual ?? [...(rawByRoom.get(otherRoom.name) ?? [])]
+        .map(areaName)
+        .filter((n) => !!n);
+      for (const a of source) {
+        const aid = typeof a === "string" ? nameToId.get(a.toLowerCase()) : null;
+        if (aid) claimed.add(aid);
+      }
+    }
+    claimedByOthers.set(room.name, claimed);
+  }
+
+  const updates = [];
+  for (const room of cardRef.rooms ?? []) {
+    const raw = rawByRoom.get(room.name) ?? new Set();
+    const claimed = claimedByOthers.get(room.name) ?? new Set();
+    // A room keeps every area it owns directly, PLUS the areas it brings
+    // in via its own entities that no other room has already claimed.
+    const ownAreas = new Set();
+    const currentManual = Array.isArray(room.areas)
+      ? room.areas
+          .map((n) => nameToId.get(n.toLowerCase()))
+          .filter((x) => !!x)
+      : [];
+    for (const aid of currentManual) ownAreas.add(aid);
+    for (const aid of raw) {
+      if (!claimed.has(aid)) ownAreas.add(aid);
+    }
+    const derivedAreas = [...ownAreas]
       .map(areaName)
       .filter((n) => !!n)
       .sort();
@@ -125,7 +163,6 @@ async function run() {
       currentAreas: current,
       derivedAreas,
       changed,
-      considered,
     });
   }
 
@@ -139,6 +176,8 @@ async function run() {
     console.log(`    derived: [${u.derivedAreas.join(", ")}]${flag}`);
     if (u.changed) console.log(`    ⟶ WILL CHANGE`);
   }
+  const changes = updates.filter((u) => u.changed).length;
+  console.log(`\nSummary: ${changes} room${changes === 1 ? "" : "s"} would change.`);
 
   if (!APPLY) {
     console.log("\nDry-run — pass --apply to push to HA.");

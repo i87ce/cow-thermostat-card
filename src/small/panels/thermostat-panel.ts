@@ -12,6 +12,7 @@ import { animKeyframes, animTokens, colorTransition } from "../styles/anim.js";
 import { formatTime } from "../../utils/format.js";
 import {
   findRoomOpenings,
+  openingsStripStyles,
   renderOpeningsStrip,
 } from "../openings.js";
 import type { OpeningKind } from "../config.js";
@@ -105,6 +106,7 @@ export class CowThermostatPanel extends LitElement {
     animTokens,
     animKeyframes,
     panelStyles,
+    openingsStripStyles,
     css`
       .left {
         background: var(--cow-accent-surface, linear-gradient(180deg, #fa6b2e, #ff994d));
@@ -261,47 +263,6 @@ export class CowThermostatPanel extends LitElement {
 
       cow-chip-row {
         --cow-accent: var(--cow-accent-primary);
-      }
-
-      /* Ajax openings strip — bottom of the right (white) panel.
-         Auto-discovered from the entity registry via findAjaxOpeningsForClimate;
-         rendered only when at least one Ajax door/window exists in the
-         climate's HA area. Closed = neutral grey, open = stop-alert red.
-         Position mirrors the Fan row's left edge (397.5px) and sits
-         just under it so it doesn't fight the swipe-affordance edge. */
-      .ajax-openings {
-        position: absolute;
-        left: 397.5px;
-        right: 30px;
-        bottom: 22.5px;
-        display: flex;
-        flex-direction: row;
-        align-items: center;
-        gap: 16.875px; /* 9px @ 384 → 9*1.875 */
-        pointer-events: none;
-      }
-      .ajax-opening {
-        display: inline-flex;
-        align-items: center;
-        justify-content: center;
-        width: 45px; /* 24px @ 384 → 24*1.875 */
-        height: 45px;
-        color: var(--cow-text-disabled, #b3b3bd);
-        transition: color 200ms ease;
-      }
-      .ajax-opening[data-open] {
-        color: var(--cow-stop, #e74c3c);
-      }
-      .ajax-opening svg {
-        width: 100%;
-        height: 100%;
-        display: block;
-      }
-      .ajax-openings-more {
-        font-weight: 600;
-        font-size: 22.5px;
-        color: var(--cow-text-secondary, #8c8c99);
-        margin-left: 4px;
       }
     `,
   ];

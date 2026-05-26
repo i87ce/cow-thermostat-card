@@ -27,7 +27,7 @@ import "./cow-mobile-dashboard-card.js";
 
 type Kind = "thermostat" | "lights" | "blinds";
 
-const VERSION = "1.1.3";
+const VERSION = "1.4.0";
 
 const ACCENT_DOT: Record<Kind, (cfg: CowConfig, hass?: HomeAssistant) => string> =
   {
@@ -236,6 +236,11 @@ export class CowThermostatCard extends LitElement implements LovelaceCard {
                     .roomName=${cfg.room}
                     .outdoorEntity=${cfg.outdoor_temp ?? ""}
                     .humidityEntity=${cfg.local_humidity ?? ""}
+                    .areas=${cfg.areas}
+                    .openingDefaultKind=${cfg.opening_default_kind}
+                    .openingDoors=${cfg.opening_doors}
+                    .openingWindows=${cfg.opening_windows}
+                    .openingGarages=${cfg.opening_garages}
                   ></cow-thermostat-panel>
                 `;
               }
@@ -246,6 +251,11 @@ export class CowThermostatCard extends LitElement implements LovelaceCard {
                     .hass=${this.hass}
                     .devices=${cfg.lights}
                     .roomName=${cfg.room}
+                    .areas=${cfg.areas}
+                    .openingDefaultKind=${cfg.opening_default_kind}
+                    .openingDoors=${cfg.opening_doors}
+                    .openingWindows=${cfg.opening_windows}
+                    .openingGarages=${cfg.opening_garages}
                   ></cow-lights-panel>
                 `;
               }
@@ -255,6 +265,11 @@ export class CowThermostatCard extends LitElement implements LovelaceCard {
                   .hass=${this.hass}
                   .devices=${cfg.covers}
                   .roomName=${cfg.room}
+                  .areas=${cfg.areas}
+                  .openingDefaultKind=${cfg.opening_default_kind}
+                  .openingDoors=${cfg.opening_doors}
+                  .openingWindows=${cfg.opening_windows}
+                  .openingGarages=${cfg.opening_garages}
                 ></cow-blinds-panel>
               `;
             })}

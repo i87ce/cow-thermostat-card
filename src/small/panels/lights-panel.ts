@@ -13,7 +13,11 @@ import type { DeviceEntry, OpeningKind } from "../config.js";
 import { panelStyles } from "../styles/shell.js";
 import { animKeyframes, animTokens, colorTransition } from "../styles/anim.js";
 import { formatTime } from "../../utils/format.js";
-import { findRoomOpenings, renderOpeningsStrip } from "../openings.js";
+import {
+  findRoomOpenings,
+  openingsStripStyles,
+  renderOpeningsStrip,
+} from "../openings.js";
 
 import "../components/light-tile.js";
 import "../visuals/bulb-visual.js";
@@ -130,6 +134,7 @@ export class CowLightsPanel extends LitElement {
     animTokens,
     animKeyframes,
     panelStyles,
+    openingsStripStyles,
     css`
       .left {
         background: var(--cow-accent-surface);

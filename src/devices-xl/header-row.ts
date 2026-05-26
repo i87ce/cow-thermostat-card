@@ -2,7 +2,11 @@ import { LitElement, html, css, nothing, type TemplateResult } from "lit";
 import { customElement, property } from "lit/decorators.js";
 import type { HomeAssistant } from "../types/hass.js";
 import type { CowRoomConfig } from "../config-xl.js";
-import { countActiveByCategory } from "../config-xl.js";
+import {
+  countActiveByCategory,
+  countOpenContacts,
+  findRoomOpeningsXL,
+} from "../config-xl.js";
 
 import "../small/components/info-badge.js";
 
@@ -235,6 +239,13 @@ export class CowXLHeader extends LitElement {
       background: var(--cow-heating-primary);
       color: var(--cow-surface-white);
     }
+    .chip-badge.openings {
+      /* alert red — same hue the small-card opening strip uses for the
+         "open" state, so the visual language is consistent between the
+         wall display chip and the small thermostat panel. */
+      background: var(--cow-stop, #e74c3c);
+      color: var(--cow-surface-white);
+    }
     .chip[data-active] .chip-badge {
       /* On the active (dark) chip background, invert badges to white-on-text */
       background: var(--cow-surface-white);
@@ -391,7 +402,11 @@ export class CowXLHeader extends LitElement {
         <div class="group-chips">
           ${g.items.map(({ room, index }) => {
             const counts = countActiveByCategory(room, states);
-            const total = counts.lights + counts.covers + counts.climate;
+            const openContacts = countOpenContacts(
+              findRoomOpeningsXL(this.hass, room),
+            );
+            const total =
+              counts.lights + counts.covers + counts.climate + openContacts;
             return html`
               <button
                 class="chip"
@@ -400,6 +415,12 @@ export class CowXLHeader extends LitElement {
                 @click=${() => this.onChipTap(index)}
               >
                 <div class="chip-badges">
+                  ${openContacts > 0
+                    ? html`<span
+                        class="chip-badge openings"
+                        title="${openContacts} apertur${openContacts === 1 ? "a aperta" : "e aperte"}"
+                      >${openContacts}</span>`
+                    : nothing}
                   ${counts.covers > 0
                     ? html`<span
                         class="chip-badge covers"

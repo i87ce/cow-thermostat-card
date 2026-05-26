@@ -1,6 +1,6 @@
 {
   "name": "cow-thermostat-card",
-  "version": "1.3.8",
+  "version": "1.4.0",
   "description": "Cave of Wonders room card — Thermostat, Lights, Blinds for Home Assistant on Shelly Wall Display",
   "main": "dist/cow-thermostat-card.js",
   "type": "module",

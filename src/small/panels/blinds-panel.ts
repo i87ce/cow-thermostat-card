@@ -7,10 +7,15 @@ import {
   type BlindsVariant,
   type BlindsView,
 } from "../state/blinds.js";
-import type { DeviceEntry } from "../config.js";
+import type { DeviceEntry, OpeningKind } from "../config.js";
 import { panelStyles } from "../styles/shell.js";
 import { animKeyframes, animTokens, colorTransition } from "../styles/anim.js";
 import { formatTime } from "../../utils/format.js";
+import {
+  findRoomOpenings,
+  openingsStripStyles,
+  renderOpeningsStrip,
+} from "../openings.js";
 
 import "../components/action-button.js";
 import "../components/scope-row.js";
@@ -97,6 +102,14 @@ export class CowBlindsPanel extends LitElement {
   @property({ attribute: false }) hass?: HomeAssistant;
   @property({ type: Array }) devices: DeviceEntry[] = [];
   @property({ type: String }) roomName = "";
+
+  /* ─── Ajax openings (forwarded from card config) ──────────────── */
+  @property({ type: Array }) areas: string[] = [];
+  @property({ type: String }) openingDefaultKind?: OpeningKind;
+  @property({ type: Array }) openingDoors: string[] = [];
+  @property({ type: Array }) openingWindows: string[] = [];
+  @property({ type: Array }) openingGarages: string[] = [];
+
   @state() private scope: string = "all";
   @state() private now = new Date();
   private timer?: number;
@@ -105,6 +118,7 @@ export class CowBlindsPanel extends LitElement {
     animTokens,
     animKeyframes,
     panelStyles,
+    openingsStripStyles,
     css`
       .left {
         background: var(--cow-accent-surface);
@@ -116,6 +130,29 @@ export class CowBlindsPanel extends LitElement {
       }
       :host > :not(.left):not(.right) {
         z-index: 1;
+      }
+
+      /* Ajax openings strip override — the shared helper places it at
+         bottom:22.5 but the blinds panel already crowds that zone with
+         preset-row (top:526) + scope-wrap (top:620). Push it to the
+         top-right slot instead, where it occupies space normally held
+         by .device-sub. When openings are present we suppress the
+         device-sub label (it's a low-value "2 tapparelle" line that
+         the scope-row repeats anyway) so the two never fight. */
+      :host([data-has-openings]) .ajax-openings {
+        top: 82.5px;
+        bottom: auto;
+        left: auto;
+        right: 30px;
+        justify-content: flex-end;
+        gap: 11.25px;
+      }
+      :host([data-has-openings]) .ajax-opening {
+        width: 33.75px;
+        height: 33.75px;
+      }
+      :host([data-has-openings]) .device-sub {
+        display: none;
       }
       .icon {
         position: absolute;
@@ -279,6 +316,18 @@ export class CowBlindsPanel extends LitElement {
     this.style.setProperty("--cow-accent-light", a.light);
     this.style.setProperty("--cow-accent-active", a.active);
     this.style.setProperty("--cow-accent-surface", a.surface);
+    this.toggleAttribute("data-has-openings", this.openings().length > 0);
+  }
+
+  private openings() {
+    return findRoomOpenings(this.hass, {
+      areas: this.areas,
+      fallbackArea: this.roomName,
+      defaultKind: this.openingDefaultKind,
+      doors: this.openingDoors,
+      windows: this.openingWindows,
+      garages: this.openingGarages,
+    });
   }
 
   private async open(): Promise<void> {
@@ -408,6 +457,7 @@ export class CowBlindsPanel extends LitElement {
             </div>
           `
         : ""}
+      ${renderOpeningsStrip(this.openings())}
     `;
   }
 

@@ -5,6 +5,9 @@
  * (weather, media player) in the header and scene shortcuts in the body.
  */
 
+import type { OpeningKind } from "./small/config.js";
+export type { OpeningKind };
+
 export interface CowRoomConfig {
   /** Display name shown on the chip and as the drawer title */
   name: string;
@@ -32,6 +35,21 @@ export interface CowRoomConfig {
   cover?: string | string[];
   /** Optional friendly labels per cover entity */
   cover_labels?: string[];
+  /**
+   * HA areas this room "owns" — drives Ajax openings discovery in the
+   * chip badge and security tab. Multi-area entries support composite
+   * rooms (e.g. Sala-Cucina open plan with `areas: [Sala, Cucina]`).
+   * When omitted the discovery falls back to fuzzy-matching ``name``.
+   */
+  areas?: string[];
+  /** Default opening kind for devices not in the per-list overrides. */
+  opening_default_kind?: OpeningKind;
+  /** Device names (case-insensitive) that are doors. */
+  opening_doors?: string[];
+  /** Device names that are windows. */
+  opening_windows?: string[];
+  /** Device names that are garage doors. */
+  opening_garages?: string[];
 }
 
 export interface CowSceneConfig {
@@ -163,6 +181,19 @@ export function validateXLConfig(input: unknown): CowRoomDashboardConfig {
       "'rooms' is required and must contain at least 1 room",
     );
   }
+  const stringList = (v: unknown): string[] | undefined => {
+    if (v == null) return undefined;
+    if (!Array.isArray(v)) return undefined;
+    const out = v
+      .filter((x): x is string => typeof x === "string" && x.length > 0)
+      .map((s) => s.trim());
+    return out.length > 0 ? out : undefined;
+  };
+  const openingKind = (v: unknown): OpeningKind | undefined => {
+    if (v !== "door" && v !== "window" && v !== "garage") return undefined;
+    return v;
+  };
+
   const rooms: CowRoomConfig[] = cfg.rooms.map((r, i) => {
     if (typeof r !== "object" || r === null) {
       throw new CowXLConfigError(`rooms[${i}] must be an object`);
@@ -171,6 +202,9 @@ export function validateXLConfig(input: unknown): CowRoomDashboardConfig {
     if (typeof room.name !== "string" || room.name.length === 0) {
       throw new CowXLConfigError(`rooms[${i}].name is required`);
     }
+    const openingDefaults = (room.opening_defaults as
+      | Record<string, unknown>
+      | undefined)?.kind;
     return {
       name: room.name,
       icon: typeof room.icon === "string" ? room.icon : undefined,
@@ -188,6 +222,12 @@ export function validateXLConfig(input: unknown): CowRoomDashboardConfig {
       cover_labels: Array.isArray(room.cover_labels)
         ? (room.cover_labels as string[])
         : undefined,
+      areas: stringList(room.areas),
+      opening_default_kind:
+        openingKind(room.opening_default_kind) ?? openingKind(openingDefaults),
+      opening_doors: stringList(room.opening_doors),
+      opening_windows: stringList(room.opening_windows),
+      opening_garages: stringList(room.opening_garages),
     };
   });
 
@@ -317,4 +357,50 @@ export function countActiveDevices(
 ): number {
   const c = countActiveByCategory(room, states);
   return c.lights + c.covers + c.climate;
+}
+
+/**
+ * Resolve the Ajax openings owned by a room. Uses ``room.areas`` when
+ * provided, otherwise fuzzy-matches ``room.name`` against the area
+ * registry. Returns the deduped + kind-overridden list — same shape as
+ * the small panels' ``findRoomOpenings`` helper.
+ *
+ * Imported lazily inside the helper so config-xl.ts (which is parsed
+ * during YAML validation, no HA needed) doesn't pull the full hass
+ * type at parse time.
+ */
+import type { HomeAssistant } from "./types/hass.js";
+import {
+  findAjaxOpeningsInArea,
+  applyKindOverrides,
+  type AjaxOpening,
+} from "./util/ajax-openings.js";
+
+export function findRoomOpeningsXL(
+  hass: HomeAssistant | undefined,
+  room: CowRoomConfig,
+): AjaxOpening[] {
+  const areas =
+    room.areas && room.areas.length > 0 ? room.areas : [room.name];
+  if (areas.length === 0) return [];
+  const seen = new Set<string>();
+  const out: AjaxOpening[] = [];
+  for (const a of areas) {
+    for (const o of findAjaxOpeningsInArea(hass, a)) {
+      if (seen.has(o.entityId)) continue;
+      seen.add(o.entityId);
+      out.push(o);
+    }
+  }
+  return applyKindOverrides(out, {
+    default: room.opening_default_kind,
+    doors: room.opening_doors,
+    windows: room.opening_windows,
+    garages: room.opening_garages,
+  });
+}
+
+/** Number of Ajax openings currently open in the room. */
+export function countOpenContacts(openings: AjaxOpening[]): number {
+  return openings.reduce((n, o) => n + (o.isOpen ? 1 : 0), 0);
 }
