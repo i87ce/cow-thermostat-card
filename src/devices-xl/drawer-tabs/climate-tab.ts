@@ -105,21 +105,23 @@ export class CowXLClimateTab extends LitElement {
       }
 
       .setpoint-big {
+        /* Tappable surface — opens the native-keyboard setpoint
+           modal. The visual stays identical to the original <div>
+           (same 7rem light weight, white inherited color). Order
+           matters: button reset first, then explicit typography, so
+           "font-family: inherit" can't silently clobber the size /
+           weight (the same regression that hit ".target" in the
+           small wall panel in v1.4.15). */
+        background: transparent;
+        border: 0;
+        padding: 0;
+        color: inherit;
+        font-family: inherit;
         font-weight: 300;
         font-size: 7rem;
         line-height: 1;
         margin-top: 0.5rem;
         font-variant-numeric: tabular-nums;
-        /* Tappable surface — opens the native-keyboard setpoint
-           modal. The visual remains identical (same font weight,
-           size, color); only the cursor, active-state opacity, and
-           ARIA semantics change. */
-        background: transparent;
-        border: 0;
-        padding: 0;
-        margin-top: 0.5rem;
-        color: inherit;
-        font-family: inherit;
         text-align: left;
         cursor: pointer;
         -webkit-appearance: none;

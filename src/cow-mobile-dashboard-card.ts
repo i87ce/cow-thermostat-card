@@ -1009,24 +1009,27 @@ export class CowMobileDashboardCard
         gap: 8px;
       }
       .qc-climate-target {
-        font-size: 22px;
-        font-weight: 600;
-        line-height: 1;
-        min-width: 44px;
-        text-align: center;
-        font-variant-numeric: tabular-nums;
-        /* Tappable: opens the numeric-keypad setpoint modal. We keep
-           the visual identical (same font weight, size, white text on
-           accent) — only cursor, padding, and active-state opacity
-           differ from the previous static <div>. */
+        /* Tappable: opens the numeric-keypad setpoint modal. The
+           visual stays identical to the original <div> (22px, weight
+           600, white on accent). Order matters here — button reset
+           first, then explicit typography last, so "font-family:
+           inherit" can never silently clobber size / weight (the
+           regression that hit ".target" in the small wall panel in
+           v1.4.15 was exactly this kind of ordering bug). */
         appearance: none;
         -webkit-appearance: none;
         border: 0;
         background: transparent;
         color: inherit;
         font-family: inherit;
+        font-size: 22px;
+        font-weight: 600;
+        line-height: 1;
+        font-variant-numeric: tabular-nums;
+        min-width: 44px;
         padding: 4px 6px;
         border-radius: 8px;
+        text-align: center;
         cursor: pointer;
         -webkit-tap-highlight-color: transparent;
         transition: background 160ms ease, opacity 160ms ease;

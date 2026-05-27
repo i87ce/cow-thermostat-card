@@ -4,6 +4,28 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and
 this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.4.16] — 2026-05-27
+
+### Fixed
+- **Setpoint number rendered tiny on the wall display panel after
+  v1.4.15.** Turning `<div class="target">` into `<button class=
+  "target">` brought along a button reset that wrote `font: inherit`
+  AFTER the `font-weight: 700; font-size: 60px;` declarations. `font`
+  is a shorthand — it wipes weight, size, line-height, the lot —
+  and the cascade rule "last declaration wins" promoted it past the
+  Figma-spec typography, so the giant "Set to 37°C" rendered at the
+  ambient 16px (visible in the screenshot the user reported: the
+  number was about a third of the size of the room temperature
+  display next to it). Replaced the shorthand with the longhand
+  `font-family: inherit` and reordered the rule so the reset
+  declarations sit BEFORE the typography ones, which makes the bug
+  un-reproduceable even if someone later swaps `font-family` for
+  the shorthand again. Applied the same ordering preventatively to
+  `.setpoint-big` in the XL drawer and `.qc-climate-target` in the
+  mobile drawer; both already rendered correctly (they used the
+  longhand from the start) but the new order documents the
+  invariant.
+
 ## [1.4.15] — 2026-05-27
 
 ### Added — tap-to-type setpoint on every climate card

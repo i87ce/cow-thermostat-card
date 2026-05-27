@@ -174,25 +174,31 @@ export class CowThermostatPanel extends LitElement {
         position: absolute;
         left: 397.5px;
         top: 165px;
-        font-weight: 700;
-        font-size: 60px;
-        line-height: 1;
-        color: var(--cow-text-primary, #1f1f2e);
-        /* Tappable: opens the native-keyboard setpoint modal. We
-           render the number as a <button> so it's keyboard-focusable
-           and announces correctly to assistive tech, but the visual
-           styling stays identical to the previous <div>. */
+        /* Tappable: opens the native-keyboard setpoint modal. The
+           number itself renders as a <button> so it's keyboard-
+           focusable and announces correctly to assistive tech, but
+           the visual styling must stay identical to the previous
+           <div>. Order matters here: the reset (background, border,
+           padding, appearance, tap-highlight, font-family) MUST come
+           BEFORE the typography (font-weight, font-size, line-height)
+           — otherwise the "font" shorthand or "font-family: inherit"
+           would silently wipe the weight + size and we'd render the
+           setpoint at the inherited 16px instead of the 60px Figma
+           spec. (This was the regression in v1.4.15.) */
         background: transparent;
         border: 0;
         padding: 0;
         margin: 0;
-        font: inherit;
+        color: var(--cow-text-primary, #1f1f2e);
+        font-family: inherit;
+        font-weight: 700;
+        font-size: 60px;
+        line-height: 1;
+        text-align: left;
         cursor: pointer;
         -webkit-appearance: none;
         appearance: none;
         -webkit-tap-highlight-color: transparent;
-        text-align: left;
-        line-height: inherit;
         transition: opacity 120ms ease;
       }
       .target[disabled] {
