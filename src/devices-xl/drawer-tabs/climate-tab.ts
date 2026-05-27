@@ -1,5 +1,5 @@
 import { LitElement, html, css, nothing } from "lit";
-import { customElement, property } from "lit/decorators.js";
+import { customElement, property, state } from "lit/decorators.js";
 import type { HomeAssistant } from "../../types/hass.js";
 import type { CowRoomConfig } from "../../config-xl.js";
 import { buttonReset } from "../../styles/button-reset.js";
@@ -10,6 +10,7 @@ import {
   THERMOSTAT_STATUS_LABEL,
   THERMOSTAT_SUB_LABEL,
 } from "../../small/state/thermostat.js";
+import "../../shared/setpoint-modal.js";
 
 /**
  * Climate tab — replicates Figma "11. Mix — Drawer Climate" body.
@@ -25,6 +26,7 @@ import {
 export class CowXLClimateTab extends LitElement {
   @property({ attribute: false }) hass?: HomeAssistant;
   @property({ attribute: false }) room?: CowRoomConfig;
+  @state() private setpointModalOpen = false;
 
   static override styles = [
     buttonReset,
@@ -108,6 +110,28 @@ export class CowXLClimateTab extends LitElement {
         line-height: 1;
         margin-top: 0.5rem;
         font-variant-numeric: tabular-nums;
+        /* Tappable surface — opens the native-keyboard setpoint
+           modal. The visual remains identical (same font weight,
+           size, color); only the cursor, active-state opacity, and
+           ARIA semantics change. */
+        background: transparent;
+        border: 0;
+        padding: 0;
+        margin-top: 0.5rem;
+        color: inherit;
+        font-family: inherit;
+        text-align: left;
+        cursor: pointer;
+        -webkit-appearance: none;
+        appearance: none;
+        -webkit-tap-highlight-color: transparent;
+        transition: opacity 120ms ease;
+      }
+      .setpoint-big[disabled] {
+        cursor: default;
+      }
+      .setpoint-big:not([disabled]):active {
+        opacity: 0.7;
       }
       .setpoint-controls {
         margin-top: 1.5rem;
@@ -302,6 +326,28 @@ export class CowXLClimateTab extends LitElement {
     });
   }
 
+  private openSetpointModal = (): void => {
+    if (!this.room?.climate) return;
+    const view = deriveThermostatView(this.hass?.states?.[this.room.climate]);
+    if (view.variant === "off") return;
+    this.setpointModalOpen = true;
+    // Imperatively open inside the click handler so iOS Safari keeps
+    // the user-gesture chain alive through the input.focus() call —
+    // see the same comment in the small wall panel. The modal is
+    // always rendered, so the element is in the DOM by tap time.
+    const modal = this.renderRoot.querySelector("cow-setpoint-modal");
+    modal?.show();
+  };
+
+  private closeSetpointModal = (): void => {
+    this.setpointModalOpen = false;
+  };
+
+  private onSetpointConfirm = (e: CustomEvent<{ value: number }>): void => {
+    this.setpointModalOpen = false;
+    void this.setTarget(e.detail.value);
+  };
+
   /**
    * Render the humidity readout shown on the Climate tab.
    *
@@ -495,7 +541,15 @@ export class CowXLClimateTab extends LitElement {
         </div>
         <div class="col" style="align-items:flex-start;">
           <div class="col-label">IMPOSTATO A</div>
-          <div class="setpoint-big">${tgt}</div>
+          <button
+            class="setpoint-big"
+            type="button"
+            ?disabled=${arrowsDisabled}
+            @click=${this.openSetpointModal}
+            aria-label="Modifica setpoint"
+          >
+            ${tgt}
+          </button>
           <div class="setpoint-controls">
             <button
               class="arrow-btn"
@@ -591,6 +645,18 @@ export class CowXLClimateTab extends LitElement {
           </div>
         </div>
       </div>
+      <cow-setpoint-modal
+        .open=${this.setpointModalOpen}
+        .value=${view.target}
+        .min=${view.minTemp}
+        .max=${view.maxTemp}
+        .step=${view.step}
+        .accent=${THERMOSTAT_ACCENT[view.variant].primary}
+        .heading=${`Imposta ${this.room?.name || "stanza"}`}
+        .subtitle=${`Tra ${view.minTemp}° e ${view.maxTemp}° · step ${view.step}°`}
+        @cow-setpoint-confirm=${this.onSetpointConfirm}
+        @cow-setpoint-cancel=${this.closeSetpointModal}
+      ></cow-setpoint-modal>
     `;
   }
 }

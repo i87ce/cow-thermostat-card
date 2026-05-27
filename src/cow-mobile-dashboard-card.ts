@@ -72,6 +72,7 @@ import {
   type ThermostatVariant,
 } from "./small/state/thermostat.js";
 import "./shared/hero/mobile-hero.js";
+import "./shared/setpoint-modal.js";
 
 // ─────────────────────────────────────────────────────────────────────
 // Config
@@ -241,6 +242,14 @@ export class CowMobileDashboardCard
    * whole grid to reach an inline panel felt like getting lost.
    */
   @state() private drawerRoom: number | null = null;
+  /**
+   * Entity id of the climate whose setpoint modal is currently open,
+   * or `null` when no modal is showing. Stored on the host rather
+   * than on the per-row helper so the same `<cow-setpoint-modal>`
+   * instance can be reused across rooms (only one drawer is open at
+   * a time, so we don't need a stack).
+   */
+  @state() private setpointModalEntity: string | null = null;
   /**
    * Live reference to the `<dialog>` element used as the modal drawer.
    * We control it imperatively via `showModal()` / `close()` because
@@ -482,6 +491,49 @@ export class CowMobileDashboardCard
       { entity_id: entity },
     );
   }
+
+  /**
+   * Open the setpoint modal for the given climate entity. The modal
+   * is rendered once at the host root and reused — the entity id is
+   * the only state we need to carry, since `deriveThermostatView` is
+   * cheap and gives us min/max/step/current target straight from the
+   * proxy at render time.
+   */
+  private openSetpointModal = (entity: string): void => {
+    if (!this.hass) return;
+    const view = deriveThermostatView(this.hass.states[entity]);
+    if (view.variant === "off") return;
+    this.setpointModalEntity = entity;
+    // Imperatively wire the modal RIGHT NOW so the iOS Safari
+    // user-gesture chain stays intact through input.focus(). We
+    // can't wait for Lit's async re-render to push the right
+    // value/min/max/accent into the modal (the gesture token would
+    // be gone by then), so we set the props directly. Lit will set
+    // them again on its next render pass, which is a no-op.
+    const modal = this.renderRoot.querySelector("cow-setpoint-modal");
+    if (modal) {
+      const accent = THERMOSTAT_ACCENT[view.variant];
+      const room = this.rooms.find((r) => r.climate === entity);
+      modal.value = view.target;
+      modal.min = view.minTemp;
+      modal.max = view.maxTemp;
+      modal.step = view.step;
+      modal.accent = accent.primary;
+      modal.heading = room ? `Imposta ${room.name}` : "Imposta temperatura";
+      modal.subtitle = `Tra ${view.minTemp}° e ${view.maxTemp}° · step ${view.step}°`;
+      modal.show();
+    }
+  };
+
+  private closeSetpointModal = (): void => {
+    this.setpointModalEntity = null;
+  };
+
+  private onSetpointConfirm = (e: CustomEvent<{ value: number }>): void => {
+    const entity = this.setpointModalEntity;
+    this.setpointModalEntity = null;
+    if (entity) this.setClimateTarget(entity, e.detail.value);
+  };
 
   // ── Render ───────────────────────────────────────────────────────
 
@@ -963,6 +1015,30 @@ export class CowMobileDashboardCard
         min-width: 44px;
         text-align: center;
         font-variant-numeric: tabular-nums;
+        /* Tappable: opens the numeric-keypad setpoint modal. We keep
+           the visual identical (same font weight, size, white text on
+           accent) — only cursor, padding, and active-state opacity
+           differ from the previous static <div>. */
+        appearance: none;
+        -webkit-appearance: none;
+        border: 0;
+        background: transparent;
+        color: inherit;
+        font-family: inherit;
+        padding: 4px 6px;
+        border-radius: 8px;
+        cursor: pointer;
+        -webkit-tap-highlight-color: transparent;
+        transition: background 160ms ease, opacity 160ms ease;
+      }
+      .qc-climate-target[disabled] {
+        cursor: default;
+      }
+      .qc-climate-target:not([disabled]):hover {
+        background: rgba(255, 255, 255, 0.15);
+      }
+      .qc-climate-target:not([disabled]):active {
+        background: rgba(255, 255, 255, 0.25);
       }
       .qc-climate-bump {
         appearance: none;
@@ -1224,6 +1300,44 @@ export class CowMobileDashboardCard
         ${this.renderHero()} ${this.renderSummary()} ${this.renderRooms()}
       </div>
       ${this.renderDrawer()}
+      ${this.renderSetpointModal()}
+    `;
+  }
+
+  /**
+   * Single shared `<cow-setpoint-modal>` instance for the whole card.
+   * The active entity is tracked on `this.setpointModalEntity`; the
+   * modal pulls min/max/step/current target straight from
+   * `deriveThermostatView` at render time so it always shows the live
+   * value the proxy reports. Rendered at the root so it stacks above
+   * the room-drawer `<dialog>` via the browser top layer.
+   */
+  private renderSetpointModal() {
+    const entityId = this.setpointModalEntity;
+    const ent = entityId ? this.hass?.states?.[entityId] : undefined;
+    const view = deriveThermostatView(ent);
+    const accent = THERMOSTAT_ACCENT[view.variant];
+    // Room name for the modal heading — find the room that owns this
+    // climate entity, falling back to a generic title when we can't
+    // (shouldn't happen, but the modal must never render NaN/undefined
+    // in the heading).
+    const room = entityId
+      ? this.rooms.find((r) => r.climate === entityId)
+      : undefined;
+    const heading = room ? `Imposta ${room.name}` : "Imposta temperatura";
+    return html`
+      <cow-setpoint-modal
+        .open=${entityId != null}
+        .value=${view.target}
+        .min=${view.minTemp}
+        .max=${view.maxTemp}
+        .step=${view.step}
+        .accent=${accent.primary}
+        .heading=${heading}
+        .subtitle=${`Tra ${view.minTemp}° e ${view.maxTemp}° · step ${view.step}°`}
+        @cow-setpoint-confirm=${this.onSetpointConfirm}
+        @cow-setpoint-cancel=${this.closeSetpointModal}
+      ></cow-setpoint-modal>
     `;
   }
 
@@ -1607,7 +1721,15 @@ export class CowMobileDashboardCard
             >
               ▼
             </button>
-            <div class="qc-climate-target">${tgt}</div>
+            <button
+              class="qc-climate-target"
+              type="button"
+              ?disabled=${arrowsDisabled}
+              @click=${() => this.openSetpointModal(entity)}
+              aria-label="Modifica setpoint"
+            >
+              ${tgt}
+            </button>
             <button
               class="qc-climate-bump"
               ?disabled=${arrowsDisabled}

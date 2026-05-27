@@ -4,6 +4,55 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and
 this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.4.15] — 2026-05-27
+
+### Added — tap-to-type setpoint on every climate card
+The only way to change a setpoint used to be the ▼ ▲ bumpers, which
+nudge by `target_temp_step` (0.5° on the casa_<room> proxies). Going
+from 19° to 24° took ten taps. Now the setpoint number itself is
+tappable on all three climate surfaces:
+
+- **Small wall display panel** (`cow-thermostat-panel`, the 720×720
+  Shelly Wall Display card) — the big "Set to 21.5°C" number.
+- **XL drawer Climate tab** (`cow-xl-climate-tab`) — the 7rem
+  "IMPOSTATO A" number in the middle column.
+- **Mobile dashboard climate row** (`cow-mobile-dashboard-card`'s
+  `renderClimateRow`) — the white target chip between the ▼ ▲
+  bumpers in the room drawer.
+
+Tapping any of those opens a shared `<cow-setpoint-modal>` —
+implemented in `src/shared/setpoint-modal.ts` — with a native
+`<input type="text" inputmode="decimal">`. The `inputmode` attribute
+is what makes mobile Safari / Chrome / WebView surface the numeric
+keypad without dragging in the `<input type="number">` baggage
+(spinner UI, comma-vs-period rejection on Italian locales). The
+parser accepts both `,` and `.` as decimal separators because
+Italian users will type `21,5` and the locale-aware keypad gives
+them a comma key.
+
+The modal validates against the climate's own `min_temp` / `max_temp`
+and snaps to `target_temp_step` before firing `set_temperature`, so
+out-of-range entries get a clear error message instead of silently
+clamping. OFF climates leave the setpoint number rendered as `—` and
+the tap target disabled — same rule the ▼ ▲ bumpers already use,
+because `set_temperature` against an off proxy gets queued without
+taking effect.
+
+iOS Safari quirk: we open the dialog imperatively (`modal.show()`)
+from inside the click handler instead of relying on Lit's async
+re-render after flipping a state flag — otherwise the input.focus()
+call lands outside the user-gesture window and the on-screen
+keyboard stays hidden until the user taps the input a second time.
+The reactive `open` prop also opens the dialog (kept as a fallback
+for non-touch callers), but the imperative call is what makes the
+keyboard pop on first tap.
+
+The modal renders into the browser top layer via `<dialog>` +
+`showModal()`, so it stacks above the mobile room drawer's own
+`<dialog>` without z-index gymnastics — same trick the room drawer
+itself uses to escape HA Lovelace's nested `contain: layout`
+wrappers.
+
 ## [1.4.14] — 2026-05-26
 
 ### Fixed

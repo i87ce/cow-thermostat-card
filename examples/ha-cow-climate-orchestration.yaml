@@ -45,7 +45,7 @@ mqtt:
       modes: ["off", "heat", "cool", "fan_only"]
       fan_modes: ["auto", "low", "medium", "high"]
       min_temp: 15
-      max_temp: 28
+      max_temp: 50  # TEMP: was 28 — bumped for floor-heating test (room ~35°C, need setpoint > current to trigger pavimento). Revert to 30 once test is done.
       temp_step: 0.5
       retain: true
       optimistic: true
@@ -63,7 +63,7 @@ mqtt:
       modes: ["off", "heat", "cool", "fan_only"]
       fan_modes: ["auto", "low", "medium", "high"]
       min_temp: 15
-      max_temp: 28
+      max_temp: 50  # TEMP: was 28 — bumped for floor-heating test (room ~35°C, need setpoint > current to trigger pavimento). Revert to 30 once test is done.
       temp_step: 0.5
       retain: true
       optimistic: true
@@ -81,7 +81,7 @@ mqtt:
       modes: ["off", "heat", "cool", "fan_only"]
       fan_modes: ["auto", "low", "medium", "high"]
       min_temp: 15
-      max_temp: 28
+      max_temp: 50  # TEMP: was 28 — bumped for floor-heating test (room ~35°C, need setpoint > current to trigger pavimento). Revert to 30 once test is done.
       temp_step: 0.5
       retain: true
       optimistic: true
@@ -99,7 +99,7 @@ mqtt:
       modes: ["off", "heat", "cool", "fan_only"]
       fan_modes: ["auto", "low", "medium", "high"]
       min_temp: 15
-      max_temp: 28
+      max_temp: 50  # TEMP: was 28 — bumped for floor-heating test (room ~35°C, need setpoint > current to trigger pavimento). Revert to 30 once test is done.
       temp_step: 0.5
       retain: true
       optimistic: true
@@ -117,7 +117,7 @@ mqtt:
       modes: ["off", "heat", "cool", "fan_only"]
       fan_modes: ["auto", "low", "medium", "high"]
       min_temp: 15
-      max_temp: 28
+      max_temp: 50  # TEMP: was 28 — bumped for floor-heating test (room ~35°C, need setpoint > current to trigger pavimento). Revert to 30 once test is done.
       temp_step: 0.5
       retain: true
       optimistic: true
@@ -141,7 +141,7 @@ mqtt:
       unique_id: casa_bagno_padronale
       modes: ["off", "heat"]
       min_temp: 15
-      max_temp: 28
+      max_temp: 50  # TEMP: was 28 — bumped for floor-heating test (room ~35°C, need setpoint > current to trigger pavimento). Revert to 30 once test is done.
       temp_step: 0.5
       retain: true
       optimistic: true
@@ -156,7 +156,7 @@ mqtt:
       unique_id: casa_bagno_ospiti
       modes: ["off", "heat"]
       min_temp: 15
-      max_temp: 28
+      max_temp: 50  # TEMP: was 28 — bumped for floor-heating test (room ~35°C, need setpoint > current to trigger pavimento). Revert to 30 once test is done.
       temp_step: 0.5
       retain: true
       optimistic: true

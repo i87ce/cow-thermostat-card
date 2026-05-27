@@ -22,6 +22,7 @@ import type { OpeningKind } from "../config.js";
 import "../components/action-button.js";
 import "../components/chip-row.js";
 import "../visuals/thermostat-icon.js";
+import "../../shared/setpoint-modal.js";
 
 /**
  * Thermostat panel — pixel-exact reproduction of Figma frames
@@ -57,6 +58,7 @@ export class CowThermostatPanel extends LitElement {
   @property({ type: Array }) openingGarages: string[] = [];
 
   @state() private now = new Date();
+  @state() private setpointModalOpen = false;
   private timer?: number;
 
   static override styles = [
@@ -176,6 +178,28 @@ export class CowThermostatPanel extends LitElement {
         font-size: 60px;
         line-height: 1;
         color: var(--cow-text-primary, #1f1f2e);
+        /* Tappable: opens the native-keyboard setpoint modal. We
+           render the number as a <button> so it's keyboard-focusable
+           and announces correctly to assistive tech, but the visual
+           styling stays identical to the previous <div>. */
+        background: transparent;
+        border: 0;
+        padding: 0;
+        margin: 0;
+        font: inherit;
+        cursor: pointer;
+        -webkit-appearance: none;
+        appearance: none;
+        -webkit-tap-highlight-color: transparent;
+        text-align: left;
+        line-height: inherit;
+        transition: opacity 120ms ease;
+      }
+      .target[disabled] {
+        cursor: default;
+      }
+      .target:not([disabled]):active {
+        opacity: 0.7;
       }
       .arrow {
         position: absolute;
@@ -315,6 +339,33 @@ export class CowThermostatPanel extends LitElement {
     if (next != null) void this.setTarget(next);
   }
 
+  private openSetpointModal = (): void => {
+    // Match the bump-button rule: setpoint editing is disabled while
+    // the climate is OFF, because the proxy queues set_temperature
+    // without effect until a mode is picked again.
+    if (this.view().variant === "off") return;
+    this.setpointModalOpen = true;
+    // Imperatively open synchronously inside the click handler — the
+    // reactive `open` prop also opens the dialog, but on iOS Safari
+    // the deferred focus() call lands outside the user-gesture
+    // window and the on-screen keyboard stays hidden until the user
+    // taps the input a second time. Calling `show()` here preserves
+    // the gesture chain. The modal is rendered unconditionally in
+    // the template, so the element is in the DOM by the time the
+    // user can tap the setpoint.
+    const modal = this.renderRoot.querySelector("cow-setpoint-modal");
+    modal?.show();
+  };
+
+  private closeSetpointModal = (): void => {
+    this.setpointModalOpen = false;
+  };
+
+  private onSetpointConfirm = (e: CustomEvent<{ value: number }>): void => {
+    this.setpointModalOpen = false;
+    void this.setTarget(e.detail.value);
+  };
+
   private humidityText(v: ThermostatView): string | null {
     if (this.humidityEntity && this.hass?.states[this.humidityEntity]) {
       const s = this.hass.states[this.humidityEntity].state;
@@ -401,9 +452,15 @@ export class CowThermostatPanel extends LitElement {
       <div class="time">${formatTime(this.now, this.hass?.locale?.language)}</div>
       <div class="sub">${SUB_LABEL[v.variant]}</div>
       <div class="set-label">Set to</div>
-      <div class="target">
+      <button
+        class="target"
+        type="button"
+        ?disabled=${v.variant === "off"}
+        @click=${this.openSetpointModal}
+        aria-label="Modifica setpoint"
+      >
         ${v.variant === "off" ? "—" : target != null ? `${target}°C` : "—"}
-      </div>
+      </button>
       <cow-action-button
         class="arrow up"
         variant="arrow"
@@ -443,6 +500,18 @@ export class CowThermostatPanel extends LitElement {
           `
         : ""}
       ${this.renderAjaxOpenings()}
+      <cow-setpoint-modal
+        .open=${this.setpointModalOpen}
+        .value=${v.target}
+        .min=${v.minTemp}
+        .max=${v.maxTemp}
+        .step=${v.step}
+        .accent=${ACCENT[v.variant].primary}
+        .heading=${`Imposta ${this.roomName || "stanza"}`}
+        .subtitle=${`Tra ${v.minTemp}° e ${v.maxTemp}° · step ${v.step}°`}
+        @cow-setpoint-confirm=${this.onSetpointConfirm}
+        @cow-setpoint-cancel=${this.closeSetpointModal}
+      ></cow-setpoint-modal>
     `;
   }
 
