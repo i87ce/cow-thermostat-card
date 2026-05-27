@@ -214,6 +214,22 @@ Some changes ship YAML alongside the card:
   in HACS. After editing, the user must reload the relevant YAML
   domain (`mqtt`, `automation`) or restart HA core. See
   `docs/06-house-hvac-architecture.md`.
+
+  **Fresh HAOS install checklist (Bug B, 2026-05-27):** this YAML
+  must be installed in full — in particular the
+  `cow_climate_publish_state_echo` automation — or every
+  `climate.casa_*` proxy will reset to its YAML defaults
+  (`off` / 21.0 °C / `auto`) on every HA restart and every HAOS
+  reboot. The broker side needs no extra config: the core-mosquitto
+  add-on ships with `persistence true` baked into its bundled
+  `/etc/mosquitto/mosquitto.conf` and a persistent `/data/` bind
+  mount, so retained messages survive container and host restarts
+  out of the box. But persistence is meaningless without something
+  on the broker to persist, and `mqtt: climate:` with
+  `optimistic: true` never publishes to the `*/state` topic — the
+  echo automation is what gives the broker a retained STATE message
+  to keep. See `docs/06-house-hvac-architecture.md` §F-bis
+  "Persistence requirement" for the full mechanism.
 - Lovelace dashboards (mobile, walldisplay-*) — managed by the
   scripts under `scripts/ha-patch-*` and `scripts/ha-push-*`.
   Pattern: read storage YAML via WS API, mutate, write back, no
