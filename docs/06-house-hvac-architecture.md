@@ -345,6 +345,41 @@ reading (e.g. switch to an Aqara T1 in some room), we change a
 single mqtt.publish action in `cow_climate.yaml` and every surface
 picks up the new feed.
 
+The same boundary applies to **`hvac_action`** — the attribute the
+card uses to switch between the `idle` (green "Target raggiunto") and
+the `heating` (orange "Sta scaldando") variants. The MQTT climate
+platform does not derive `hvac_action` on its own; it can only mirror
+whatever is published to `action_topic`. We therefore added
+`action_topic: "cow/casa/<room>/action/state"` to every of the 7
+proxies and a fourth automation (`cow_climate_publish_action`) that
+watches the underlying truth — the 7 floor-display relays
+(`switch.display_<room>`) and the 6 `climate.koolnova_*` zones — and
+publishes one of `off | heating | cooling | fan | idle` to each
+proxy's action topic with `retain: true`. The action is `heating` as
+soon as **either** the floor relay closes **or** any Koolnova in the
+room reports `heat`, because they're a team per Section F-bis. The
+retain flag means the proxy picks up the last-known action straight
+after an HA restart, before the underlying entities have finished
+re-initialising. The automation also triggers on
+`homeassistant.start` to republish from ground truth if the broker
+ever drifted during an outage.
+
+```
+switch.display_<room>  ───┐
+                          ├─→ cow_climate_publish_action ──→ cow/casa/<room>/action/state (retain)
+climate.koolnova_<room> ──┘                                  │
+                                                             ▼
+                                          climate.casa_<room>.hvac_action
+                                                             │
+                                                  every card surface
+```
+
+Card code path: `deriveThermostatView` in
+`src/small/state/thermostat.ts` keeps reading **only** from the
+proxy — no peeking past it to the raw entities — so the
+"every surface reads from the proxy" contract holds, and the card
+package needs no TypeScript change to surface heating state.
+
 ### Pilot validation — 2026-05-24
 
 Forced state changes on `climate.casa_ingresso_pt` (current room

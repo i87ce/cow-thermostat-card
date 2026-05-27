@@ -4,6 +4,33 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and
 this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Fixed
+- **Climate cards now reflect heating / cooling state.** Every UI
+  surface — the small wall-display `cow-thermostat-panel`, the XL
+  drawer Climate tab, and the mobile dashboard's room drawer climate
+  row — used to stay locked on the green `idle` variant ("Target
+  raggiunto") even when the underlying floor relay was actively
+  heating. Root cause was on the Home Assistant side: the 7
+  `climate.casa_*` MQTT proxies declared in
+  `examples/ha-cow-climate-orchestration.yaml` had no `action_topic`,
+  so their `hvac_action` attribute was permanently `null` and the
+  card's `deriveThermostatView` fell through to the `idle` branch.
+  Fixed by adding `action_topic: "cow/casa/<room>/action/state"` to
+  every proxy and a new `cow_climate_publish_action` automation that
+  watches the 7 `switch.display_<room>` floor relays + the 6
+  `climate.koolnova_*` zones and publishes one of
+  `off | heating | cooling | fan | idle` to each proxy with
+  `retain: true`. No TypeScript change — the proxy stays the single
+  source of truth per `docs/06-house-hvac-architecture.md` §F-bis;
+  `deriveThermostatView` now just sees a real `hvac_action` value
+  through the same code path it has used since v1.3.x. Verified
+  end-to-end on `climate.casa_bagno_ospiti`: forcing the Shelly
+  relay on with the proxy in `heat` flips `hvac_action` to
+  `"heating"` within ~1 s, and all card surfaces switch to the
+  orange "Sta scaldando" variant.
+
 ## [1.4.15] — 2026-05-27
 
 ### Added — tap-to-type setpoint on every climate card

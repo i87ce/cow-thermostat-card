@@ -57,6 +57,7 @@ mqtt:
       fan_mode_state_topic: "cow/casa/sala_cucina/fan/state"
       current_temperature_topic: "cow/casa/sala_cucina/current/state"
       current_humidity_topic: "cow/casa/sala_cucina/humidity/state"
+      action_topic: "cow/casa/sala_cucina/action/state"
 
     - name: "Casa Camera"
       unique_id: casa_camera
@@ -75,6 +76,7 @@ mqtt:
       fan_mode_state_topic: "cow/casa/camera/fan/state"
       current_temperature_topic: "cow/casa/camera/current/state"
       current_humidity_topic: "cow/casa/camera/humidity/state"
+      action_topic: "cow/casa/camera/action/state"
 
     - name: "Casa Studio Chiara"
       unique_id: casa_studio_chiara
@@ -93,6 +95,7 @@ mqtt:
       fan_mode_state_topic: "cow/casa/studio_chiara/fan/state"
       current_temperature_topic: "cow/casa/studio_chiara/current/state"
       current_humidity_topic: "cow/casa/studio_chiara/humidity/state"
+      action_topic: "cow/casa/studio_chiara/action/state"
 
     - name: "Casa Camera Padronale"
       unique_id: casa_camera_padronale
@@ -111,6 +114,7 @@ mqtt:
       fan_mode_state_topic: "cow/casa/camera_padronale/fan/state"
       current_temperature_topic: "cow/casa/camera_padronale/current/state"
       current_humidity_topic: "cow/casa/camera_padronale/humidity/state"
+      action_topic: "cow/casa/camera_padronale/action/state"
 
     - name: "Casa Ingresso PT"
       unique_id: casa_ingresso_pt
@@ -129,6 +133,7 @@ mqtt:
       fan_mode_state_topic: "cow/casa/ingresso_pt/fan/state"
       current_temperature_topic: "cow/casa/ingresso_pt/current/state"
       current_humidity_topic: "cow/casa/ingresso_pt/humidity/state"
+      action_topic: "cow/casa/ingresso_pt/action/state"
 
     # ── Floor-only proxies (no Koolnova zone) ───────────────────────────
     # The two bathrooms have no air-side HVAC zone, just a floor loop.
@@ -151,6 +156,7 @@ mqtt:
       temperature_state_topic: "cow/casa/bagno_padronale/setpoint/state"
       current_temperature_topic: "cow/casa/bagno_padronale/current/state"
       current_humidity_topic: "cow/casa/bagno_padronale/humidity/state"
+      action_topic: "cow/casa/bagno_padronale/action/state"
 
     - name: "Casa Bagno Ospiti"
       unique_id: casa_bagno_ospiti
@@ -166,6 +172,7 @@ mqtt:
       temperature_state_topic: "cow/casa/bagno_ospiti/setpoint/state"
       current_temperature_topic: "cow/casa/bagno_ospiti/current/state"
       current_humidity_topic: "cow/casa/bagno_ospiti/humidity/state"
+      action_topic: "cow/casa/bagno_ospiti/action/state"
 
 # --- Republish current temperature + humidity into each proxy ----------------
 # Single feed: every proxy reads its current_temperature and current_humidity
@@ -434,3 +441,121 @@ automation:
                       - service: climate.set_hvac_mode
                         target: { entity_id: "{{ r.koolnova }}" }
                         data: { hvac_mode: "off" }
+
+  # ------------------------------------------------------------------------
+  # Derive + publish hvac_action for every casa_<room> proxy.
+  #
+  # Without this automation the MQTT climate proxies expose
+  # `hvac_action: null` because nothing ever publishes to action_topic, so
+  # every card surface (small wall panel, XL drawer Climate tab, mobile
+  # dashboard room drawer) falls through deriveThermostatView's idle branch
+  # and shows green "Target raggiunto" while the floor relay is actively
+  # heating. We fix it at the proxy level — single source of truth — by
+  # watching the underlying floor switches + Koolnova climates, computing
+  # the action, and publishing to cow/casa/<room>/action/state with
+  # retain: true so the proxy state survives an HA restart.
+  #
+  # Action vocabulary (HA MQTT climate docs):
+  #   off, heating, cooling, drying, fan, idle
+  # We emit: off | heating | cooling | fan | idle (no drying — Koolnova's
+  # dry mode is unused in the current install).
+  #
+  # Trigger fan-out is wide because any of these can change the action:
+  #   - 7 floor-display switches (the SAWD1 valve relays)
+  #   - 6 Koolnova climate entities
+  #   - 7 casa_<room> proxies (mode_user changes cycle the action too)
+  #   - homeassistant.start so retained action is republished if it ever
+  #     drifted from the underlying truth during an HA outage.
+  #
+  # Heating fires when EITHER the floor switch is on OR the Koolnova is
+  # heating — they're a team per docs/06-house-hvac-architecture.md §F-bis
+  # and the user needs to see "sta scaldando" if any of them is working.
+  # ------------------------------------------------------------------------
+  - id: cow_climate_publish_action
+    alias: "Cow Climate — Publish hvac_action to MQTT proxies"
+    description: "Derive heating/cooling/fan/idle/off from floor relays + Koolnova zones; publish to cow/casa/<room>/action/state (retain)."
+    mode: queued
+    max: 50
+    trigger:
+      - platform: state
+        entity_id:
+          - switch.display_sala
+          - switch.display_camera_1
+          - switch.display_camera_2
+          - switch.display_camera_padronale
+          - switch.display_ingresso_pt
+          - switch.display_bagno_padronale
+          - switch.display_bagno_ospiti
+          - climate.koolnova_sala
+          - climate.koolnova_cucina
+          - climate.koolnova_camera_1
+          - climate.koolnova_camera_2
+          - climate.koolnova_camera_3
+          - climate.koolnova_ingresso_pt
+          - climate.casa_sala_cucina
+          - climate.casa_camera
+          - climate.casa_studio_chiara
+          - climate.casa_camera_padronale
+          - climate.casa_ingresso_pt
+          - climate.casa_bagno_padronale
+          - climate.casa_bagno_ospiti
+      - platform: homeassistant
+        event: start
+    variables:
+      # List-of-dicts form (not a mapping) because HA's Jinja env doesn't
+      # ship the `dict2items` filter from Ansible. `repeat.for_each` happily
+      # iterates a list of dicts and `repeat.item.<field>` works as expected.
+      rooms:
+        - slug: sala_cucina
+          proxy: climate.casa_sala_cucina
+          koolnova: ["climate.koolnova_sala", "climate.koolnova_cucina"]
+          pavimento_switch: switch.display_sala
+        - slug: camera
+          proxy: climate.casa_camera
+          koolnova: ["climate.koolnova_camera_1"]
+          pavimento_switch: switch.display_camera_1
+        - slug: studio_chiara
+          proxy: climate.casa_studio_chiara
+          koolnova: ["climate.koolnova_camera_2"]
+          pavimento_switch: switch.display_camera_2
+        - slug: camera_padronale
+          proxy: climate.casa_camera_padronale
+          koolnova: ["climate.koolnova_camera_3"]
+          pavimento_switch: switch.display_camera_padronale
+        - slug: ingresso_pt
+          proxy: climate.casa_ingresso_pt
+          koolnova: ["climate.koolnova_ingresso_pt"]
+          pavimento_switch: switch.display_ingresso_pt
+        - slug: bagno_padronale
+          proxy: climate.casa_bagno_padronale
+          koolnova: []
+          pavimento_switch: switch.display_bagno_padronale
+        - slug: bagno_ospiti
+          proxy: climate.casa_bagno_ospiti
+          koolnova: []
+          pavimento_switch: switch.display_bagno_ospiti
+    action:
+      - repeat:
+          for_each: "{{ rooms }}"
+          sequence:
+            - variables:
+                r: "{{ repeat.item }}"
+                proxy_mode: "{{ states(r.proxy) }}"
+                floor_on: "{{ is_state(r.pavimento_switch, 'on') }}"
+                air_heating: "{{ r.koolnova | map('states') | select('equalto', 'heat') | list | count > 0 }}"
+                air_cooling: "{{ r.koolnova | map('states') | select('equalto', 'cool') | list | count > 0 }}"
+                air_active: "{{ r.koolnova | map('states') | select('in', ['heat','cool','dry','fan_only']) | list | count > 0 }}"
+                action: >-
+                  {%- if proxy_mode == 'off' -%}off
+                  {%- elif proxy_mode == 'heat' -%}
+                    {%- if floor_on or air_heating -%}heating{%- else -%}idle{%- endif -%}
+                  {%- elif proxy_mode == 'cool' -%}
+                    {%- if air_cooling -%}cooling{%- else -%}idle{%- endif -%}
+                  {%- elif proxy_mode == 'fan_only' -%}
+                    {%- if air_active -%}fan{%- else -%}idle{%- endif -%}
+                  {%- else -%}idle{%- endif -%}
+            - service: mqtt.publish
+              data:
+                topic: "cow/casa/{{ r.slug }}/action/state"
+                payload: "{{ action }}"
+                retain: true
