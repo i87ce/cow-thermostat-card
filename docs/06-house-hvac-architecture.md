@@ -209,7 +209,7 @@ coordinated commands on the two underlying systems.
 | 5 | **Sala + Cucina** | **always managed as a single proxy** `climate.casa_sala_cucina` | Even though Koolnova has 2 separate zones, the user wants 1 thermostat. The automation sets both Koolnova zones identically |
 | 6 | Pavimento setpoint when shared (Sala / Cucina) | not applicable — single proxy means single setpoint already | (Was open before #5 collapsed Sala+Cucina) |
 | 7 | Fan speed in `heat` with delta ≤ threshold | applied only when Koolnova is actually running; UI shows "auto" / "silent" otherwise | Avoids user confusion when fan setting isn't audible |
-| 8 | Persistence of proxy state across HA restart | built-in via template climate state machine | No extra work |
+| 8 | Persistence of proxy state across HA restart | broker-side retain + dedicated echo automation (see "Persistence requirement" below) | Initial assumption that `mqtt: climate:` retain would Just Work was wrong — `optimistic: true` skips the state publish. Bug B fix (2026-05-27) added the echo. |
 
 ### Algorithm — what the automation runs on every proxy change
 
@@ -295,9 +295,10 @@ add-on serving Zigbee2MQTT, so the broker was free of charge. The
 **seven** proxies are declared under `mqtt: climate:` with:
 
 - `optimistic: true` — HA updates the proxy's state locally on each
-  command, no echo automation needed.
+  command for snappy UX (no broker round-trip on every tap).
 - `retain: true` — Mosquitto persists last setpoint / mode / fan
-  across HA restarts.
+  across HA restarts. *Requires the state-echo automation*, see
+  "Persistence requirement" below.
 - One MQTT topic family per room: `cow/casa/<room>/{mode,setpoint,
   fan,current,humidity}/{state,set}`.
 
@@ -379,6 +380,107 @@ Card code path: `deriveThermostatView` in
 proxy — no peeking past it to the raw entities — so the
 "every surface reads from the proxy" contract holds, and the card
 package needs no TypeScript change to surface heating state.
+
+### Persistence requirement — MQTT state echo
+
+The naïve mental model is: "`mqtt: climate:` proxies have
+`retain: true`, so Mosquitto persists their setpoint / mode / fan,
+and an HA restart repopulates them automatically." That mental
+model is wrong, and we paid for it (Bug B, 2026-05-27): every
+`ha core restart` (and every HAOS reboot) reset all 7 proxies to
+their YAML defaults — `off`, 21.0 °C, `auto` — losing whatever
+the user had configured.
+
+The root cause is the interaction between `optimistic: true` and
+HA's own MQTT publish logic. With `optimistic`:
+
+- HA flips the proxy's local state the instant a command lands
+  (good — no broker round-trip on every tap of the ▼ ▲ bumpers).
+- HA publishes the command to `cow/casa/<room>/<field>/set` with
+  `retain: true` (so the broker holds the retained *command*).
+- HA does **not** publish anything to `cow/casa/<room>/<field>/
+  state` — the state topic stays empty on the broker forever.
+
+Active proof from the diagnosis run: after a `climate.set_temperature
+(climate.casa_sala_cucina, 22.5)` we observed exactly
+`cow/casa/sala_cucina/setpoint/set => '22.5' (retain=True)` on the
+broker, with no companion `setpoint/state` publish. The 12 retained
+topics we saw before the test were all `current/state` and
+`humidity/state` — published explicitly by the temperature /
+humidity echo automations above, not by the proxy itself.
+
+So `retain: true` had nothing to persist for mode / setpoint / fan.
+On restart, HA's MQTT integration re-subscribes to `*/state`, the
+broker has nothing retained for it, and the proxies come up with
+the YAML defaults.
+
+**Fix**: the small `cow_climate_publish_state_echo` automation in
+`cow_climate.yaml` listens on every `cow/casa/+/{mode,setpoint,
+fan}/set` and republishes the same payload to the matching
+`/state` topic with `retain: true`. End-to-end flow becomes:
+
+```
+UI tap
+   │
+   ▼
+climate.casa_<room>.set_temperature(X)
+   │   (optimistic — UI state flips immediately)
+   ▼
+HA publishes  cow/casa/<room>/setpoint/set => "X"  retain=true
+   │
+   ▼  (mqtt platform trigger fires the echo)
+echo automation
+   │
+   ▼
+HA publishes  cow/casa/<room>/setpoint/state => "X"  retain=true
+   │
+   ▼
+mosquitto.db on disk  (/data/mosquitto.db in the add-on data volume)
+   │
+   ▼  (HA / HAOS restart, broker comes back up, file is re-read)
+HA's MQTT integration re-subscribes to cow/casa/+/setpoint/state
+   │
+   ▼
+broker delivers retained "X" to HA
+   │
+   ▼
+climate.casa_<room>.temperature = X  ← user's setting is back
+```
+
+Why we kept `optimistic: true` rather than dropping it:
+
+- Dropping `optimistic` alone does **not** fix the bug. Without
+  optimistic HA waits for the state topic to confirm the command,
+  but nothing else in the system was publishing to `*/state`, so
+  the UI state would stay stale forever. We'd need the echo
+  regardless.
+- With the echo in place the round-trip latency is single-digit
+  milliseconds — but it's still a round trip, and the UI updates
+  visibly slower than under optimistic. No upside to paying it.
+- Optimistic + echo is the canonical pattern HA's own docs
+  recommend for MQTT climate when you want both snappy UX *and*
+  retained state.
+
+Broker-side, the **core-mosquitto add-on already ships with
+persistence enabled** by default. Its built-in
+`/etc/mosquitto/mosquitto.conf` contains:
+
+```
+persistence true
+persistence_location /data/
+```
+
+…and `/data/` inside the container is a bind mount onto
+`/mnt/data/supervisor/addons/data/core_mosquitto/` on the host,
+so `mosquitto.db` survives container restarts and HAOS reboots
+out of the box. We checked this — no add-on config change is
+needed. A fresh HAOS install with the default core-mosquitto
+add-on will work as long as the echo automation is present.
+
+If a future maintenance step moves to a different MQTT broker
+(self-hosted Mosquitto, EMQX, HiveMQ…) the same constraints
+apply: enable on-disk persistence on the broker AND keep the
+echo automation alive. Either alone is insufficient.
 
 ### Pilot validation — 2026-05-24
 

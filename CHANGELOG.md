@@ -30,6 +30,26 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   relay on with the proxy in `heat` flips `hvac_action` to
   `"heating"` within ~1 s, and all card surfaces switch to the
   orange "Sta scaldando" variant.
+- **Climate proxies reset to off / 21° / auto after every HA restart.**
+  Root cause: `mqtt: climate:` declares the 7 `climate.casa_*` proxies
+  with `optimistic: true` (snappy local UI updates) plus `retain: true`
+  (intended to persist the last setpoint / mode / fan across HA
+  restarts). The combo doesn't work: with `optimistic: true` HA flips
+  the proxy's local state on every command and publishes to the
+  `*/set` topic, but never publishes back to `*/state` — so
+  `retain: true` keeps the retained command on the broker while the
+  state topic stays empty, and on restart HA's MQTT integration
+  re-subscribes to `*/state` and finds nothing. The broker side was
+  fine — the core-mosquitto add-on already ships with
+  `persistence true` and a persistent `/data/` volume out of the
+  box. Fix is a new `cow_climate_publish_state_echo` automation in
+  `examples/ha-cow-climate-orchestration.yaml` that mirrors every
+  `cow/casa/+/{mode,setpoint,fan}/set` to the matching `/state`
+  topic with retain=true. End-to-end persistence (HA restart, full
+  HAOS reboot) now works. See `docs/06-house-hvac-architecture.md`
+  §F-bis "Persistence requirement" for the full mechanism and why
+  we kept `optimistic: true` rather than dropping it.
+
 - **Setpoint number rendered tiny on the wall display panel after
   v1.4.15.** Turning `<div class="target">` into `<button class=
   "target">` brought along a button reset that wrote `font: inherit`

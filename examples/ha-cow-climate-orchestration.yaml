@@ -28,6 +28,22 @@
 # room sensor) we change a single mqtt.publish action in this file and
 # every surface picks up the new feed automatically.
 #
+# Persistence across HA / broker restart (Bug B, 2026-05-27):
+# `optimistic: true` is a UX win — the proxy's local state flips the
+# instant a command lands, no broker round-trip. The catch is that HA
+# never publishes the new state back to `*/state` when optimistic is on;
+# only `*/set` gets published. So `retain: true` keeps the retained
+# COMMAND on the broker but the STATE topic stays empty, and on every
+# HA / broker restart the proxies reset to YAML defaults (off / 21° /
+# auto), losing whatever the user had set. The `cow_climate_publish_
+# state_echo` automation below closes the loop: every `cow/casa/+/{mode,
+# setpoint,fan}/set` is mirrored to the matching `/state` topic with
+# retain=true. Combined with the core-mosquitto add-on's built-in
+# `persistence true` + `/data/mosquitto.db` (default since the add-on
+# ships an opinionated /etc/mosquitto/mosquitto.conf), the last-known
+# setpoints / modes / fans survive HAOS reboots too.
+# See docs/06-house-hvac-architecture.md §F-bis "Persistence requirement".
+#
 # Seven proxies — one per heated/cooled room:
 #   * 5 dual-system: Koolnova HVAC + hydronic floor
 #       casa_sala_cucina, casa_camera, casa_studio_chiara,
@@ -250,6 +266,48 @@ automation:
         data:
           topic: "{{ topic_by_sensor[trigger.entity_id] }}"
           payload: "{{ trigger.to_state.state }}"
+          retain: true
+
+  # ------------------------------------------------------------------------
+  # Echo proxy commands to retained state topics — Bug B fix (2026-05-27).
+  #
+  # See the file header for the full story. Short version: `mqtt: climate:`
+  # with `optimistic: true` updates HA's local proxy state on every command
+  # but never publishes back to the `*/state` topic, so `retain: true` has
+  # nothing to persist. This automation listens on every `*/set` topic and
+  # republishes the same payload to the matching `*/state` topic with
+  # retain=true, giving the broker a retained STATE message it can hand back
+  # to HA on next subscribe. End-to-end: UI command -> `/set` (retained) ->
+  # this echo -> `/state` (retained) -> mosquitto.db on disk -> survives
+  # HAOS reboot -> HA resubscribes -> proxy repopulates to the last value.
+  #
+  # We keep `optimistic: true` rather than dropping it because the echo
+  # runs in single-digit milliseconds; dropping optimistic would only
+  # add latency without buying anything (without the echo, the round
+  # trip never completes because nothing else publishes to `*/state`).
+  # ------------------------------------------------------------------------
+  - id: cow_climate_publish_state_echo
+    alias: "Cow Climate — Echo proxy commands to retained state topics"
+    description: >-
+      Mirror every cow/casa/<room>/{mode,setpoint,fan}/set publish to the
+      matching /state topic with retain=true, so the broker has retained
+      STATE values to hand back to HA after a restart. Without this the
+      mqtt: climate: proxies reset to defaults on every restart because
+      optimistic: true short-circuits HA's own publish-back to /state.
+    mode: queued
+    max: 30
+    trigger:
+      - platform: mqtt
+        topic: "cow/casa/+/mode/set"
+      - platform: mqtt
+        topic: "cow/casa/+/setpoint/set"
+      - platform: mqtt
+        topic: "cow/casa/+/fan/set"
+    action:
+      - service: mqtt.publish
+        data:
+          topic: "{{ trigger.topic | regex_replace(find='/set$', replace='/state') }}"
+          payload: "{{ trigger.payload }}"
           retain: true
 
   # ------------------------------------------------------------------------
