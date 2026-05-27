@@ -65,6 +65,16 @@ built-in thermostat profile is active**. We verified this with
 component. So nothing to disable on the Shelly side — the loop is
 HA-driven from day one.
 
+> ⚠ **Don't forget `switch:0.in_mode`.** Even without a thermostat
+> profile, `switch:0` factory-ships with `in_mode: "follow"`, which
+> makes the relay (`O`) mirror the SW input. That looked like the
+> relay was working from HA's point of view but the valve never
+> actually opened — `Switch.GetStatus` returned `source: "Auto power
+> on (off)"` even right after `turn_on`. Force `in_mode: "detached"`
+> on every display via `scripts/shelly-display-detach-switch.mjs`.
+> Idempotent, picks IPs from the HA device registry, must be re-run
+> after a factory reset.
+
 Entities exposed per display:
 
 | Entity | Role |
@@ -381,6 +391,25 @@ later from a clean state:
   Folded into rule #5 in Section F-bis: `climate.casa_sala_cucina`
   drives `koolnova_sala` and `koolnova_cucina` together as a single
   proxy. No separate UI for Cucina.
+- **B-fix. ~~Floor valves never opened — relay slaved to SW input~~** —
+  **resolved 2026-05-27.** Symptom: every `climate.pavimento_<room>`
+  showed `hvac_action: heating` on demand, the Generic Thermostat
+  was calling `switch.display_<room>.turn_on`, and the HA state of
+  that switch did flip to `on`, **but the physical valve on terminal
+  O never energised**. Reason: the SAWD1 factory-default for
+  `switch:0` is `in_mode: "follow"`, which makes the relay output
+  (`O`) literally mirror the input pin (`SW`). With nothing wired
+  on `SW` the relay sat at OFF and silently ignored every RPC
+  command — `Switch.GetStatus` reported `output: false, source:
+  "Auto power on (off)"` even right after a `turn_on` call. The
+  fix is to flip every display to `in_mode: "detached"` so the
+  relay takes RPC commands again; `SW` stays available as
+  `binary_sensor.display_<room>_input_0` for the future C5 boost
+  button. Applied via `scripts/shelly-display-detach-switch.mjs`
+  (idempotent, discovers IPs from the HA device registry). Six of
+  seven displays updated; Bagno Padronale was offline at the time
+  and will be picked up on the next run.
+
 - **C6. ~~Repoint user-facing surfaces to the new proxies~~** —
   **resolved 2026-05-26.** All seven dashboards (6 walldisplay-*
   + 1 XL walldisplay-sala-cucina) and the mobile dashboard now
