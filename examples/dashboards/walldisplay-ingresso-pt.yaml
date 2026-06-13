@@ -1,10 +1,7 @@
-# Ingresso PT — Wall Display 4"
+# Ingresso PT — Wall Display 4" (SAWD1 @ 172.16.2.15)
 #
-# Solo termostato. Da abilitare quando l'entità climate sarà esposta in HA.
-# Per ora la card mostrerà errore se applicata: l'entità non esiste.
-#
-# URL on the SAWD1 (when ready):
-#   https://<ha-host>/walldisplay-ingresso-pt/0?kiosk&block_context_menu&cache
+# Live HA slug: walldisplay-scala
+# URL: https://<ha-host>/walldisplay-scala/0?kiosk&block_context_menu&cache
 
 title: Ingresso PT
 views:
@@ -14,10 +11,18 @@ views:
     cards:
       - type: custom:cow-thermostat-card
         room: "Ingresso PT"
-        # climate: climate.ingresso_pt_termostato   # decommentare quando configurato in HA
-        # local_temp: sensor.shellywalldisplay_ingresso_pt_temperature
-        # local_humidity: sensor.shellywalldisplay_ingresso_pt_humidity
-        # initial_view: thermostat
-        # PLACEHOLDER: la card oggi richiede almeno una di climate/light/cover.
-        # Lasciare commentato finché il termostato non è esposto in HA.
-        light: light.placeholder_ingresso_pt
+        climate: climate.casa_ingresso_pt
+        local_temp: sensor.display_ingresso_pt_temperature
+        local_humidity: sensor.display_ingresso_pt_humidity
+        outdoor_temp: sensor.koolnova_temperatura_esterna
+        initial_view: thermostat
+        areas:
+          - Ingresso PT
+        opening_default_kind: window
+        lights:
+          - entity: light.luce_scala
+            label: Scala
+          - entity: light.sgabuzzino_pt
+            label: Sgabuzzino
+        hidden_studio_door: true
+        studio_door_entity: button.studio_unlock

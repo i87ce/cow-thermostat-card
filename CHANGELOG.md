@@ -4,6 +4,16 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and
 this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.4.17] — 2026-06-13
+
+### Added
+- **Hidden triple-tap studio door unlock on the small thermostat panel.**
+  When `hidden_studio_door: true` is set in the card YAML, three quick
+  taps on the left-pane current temperature call `studio_door_entity`
+  (lock unlock, cover open, script turn_on, or `button.press`). Intended
+  for the Ingresso PT wall display only — leave the flag off everywhere
+  else.
+
 ## [1.4.16] — 2026-05-27
 
 ### Fixed

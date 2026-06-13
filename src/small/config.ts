@@ -56,6 +56,15 @@ export interface CowConfig {
   opening_windows: string[];
   /** Device names that are garage doors. */
   opening_garages: string[];
+  /**
+   * When true, triple-tapping the left-pane current temperature opens
+   * ``studio_door_entity``. Intended as a hidden affordance on a
+   * single wall display (e.g. Ingresso PT) — leave false everywhere
+   * else.
+   */
+  hidden_studio_door: boolean;
+  /** Lock / cover / switch / script that opens the studio door. */
+  studio_door_entity?: string;
 }
 
 export class CowConfigError extends Error {
@@ -257,6 +266,23 @@ export function validateConfig(input: unknown): CowConfig {
     return v;
   })();
 
+  const hiddenStudioDoor = cfg.hidden_studio_door === true;
+  const studioDoorEntity = ((): string | undefined => {
+    const v = cfg.studio_door_entity;
+    if (v == null) return undefined;
+    if (typeof v !== "string" || !v.includes(".")) {
+      throw new CowConfigError(
+        "'studio_door_entity' must be a valid entity_id (domain.object)",
+      );
+    }
+    return v;
+  })();
+  if (hiddenStudioDoor && !studioDoorEntity) {
+    throw new CowConfigError(
+      "'hidden_studio_door: true' requires 'studio_door_entity'",
+    );
+  }
+
   return {
     type: "custom:cow-thermostat-card",
     room,
@@ -272,5 +298,7 @@ export function validateConfig(input: unknown): CowConfig {
     opening_doors: stringList(cfg.opening_doors, "opening_doors"),
     opening_windows: stringList(cfg.opening_windows, "opening_windows"),
     opening_garages: stringList(cfg.opening_garages, "opening_garages"),
+    hidden_studio_door: hiddenStudioDoor,
+    studio_door_entity: studioDoorEntity,
   };
 }

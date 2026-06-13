@@ -56,10 +56,14 @@ export class CowThermostatPanel extends LitElement {
   @property({ type: Array }) openingDoors: string[] = [];
   @property({ type: Array }) openingWindows: string[] = [];
   @property({ type: Array }) openingGarages: string[] = [];
+  @property({ type: Boolean }) hiddenStudioDoor = false;
+  @property({ type: String }) studioDoorEntity = "";
 
   @state() private now = new Date();
   @state() private setpointModalOpen = false;
   private timer?: number;
+  private studioDoorTapCount = 0;
+  private studioDoorTapTimer?: number;
 
   static override styles = [
     animTokens,
@@ -275,6 +279,7 @@ export class CowThermostatPanel extends LitElement {
   override disconnectedCallback(): void {
     super.disconnectedCallback();
     if (this.timer) window.clearInterval(this.timer);
+    if (this.studioDoorTapTimer) window.clearTimeout(this.studioDoorTapTimer);
   }
 
   private get climate(): HassEntity | undefined {
@@ -372,6 +377,72 @@ export class CowThermostatPanel extends LitElement {
     void this.setTarget(e.detail.value);
   };
 
+  private onStudioDoorTap = (): void => {
+    if (!this.hiddenStudioDoor || !this.studioDoorEntity) return;
+
+    this.studioDoorTapCount += 1;
+    if (this.studioDoorTapTimer) window.clearTimeout(this.studioDoorTapTimer);
+
+    if (this.studioDoorTapCount >= 3) {
+      this.studioDoorTapCount = 0;
+      this.studioDoorTapTimer = undefined;
+      void this.openStudioDoor();
+      return;
+    }
+
+    this.studioDoorTapTimer = window.setTimeout(() => {
+      this.studioDoorTapCount = 0;
+      this.studioDoorTapTimer = undefined;
+    }, 2000);
+  };
+
+  private async openStudioDoor(): Promise<void> {
+    if (!this.hass || !this.studioDoorEntity) return;
+    const domain = this.studioDoorEntity.split(".")[0];
+    if (domain === "lock") {
+      await this.hass.callService(
+        "lock",
+        "unlock",
+        {},
+        { entity_id: this.studioDoorEntity },
+      );
+      return;
+    }
+    if (domain === "cover") {
+      await this.hass.callService(
+        "cover",
+        "open_cover",
+        {},
+        { entity_id: this.studioDoorEntity },
+      );
+      return;
+    }
+    if (domain === "script") {
+      await this.hass.callService(
+        "script",
+        "turn_on",
+        {},
+        { entity_id: this.studioDoorEntity },
+      );
+      return;
+    }
+    if (domain === "button") {
+      await this.hass.callService(
+        "button",
+        "press",
+        {},
+        { entity_id: this.studioDoorEntity },
+      );
+      return;
+    }
+    await this.hass.callService(
+      domain,
+      "turn_on",
+      {},
+      { entity_id: this.studioDoorEntity },
+    );
+  }
+
   private humidityText(v: ThermostatView): string | null {
     if (this.humidityEntity && this.hass?.states[this.humidityEntity]) {
       const s = this.hass.states[this.humidityEntity].state;
@@ -445,7 +516,10 @@ export class CowThermostatPanel extends LitElement {
         .variant=${v.variant}
       ></cow-thermostat-icon>
       <div class="status">${STATUS_LABEL[v.variant]}</div>
-      <div class="display">
+      <div
+        class="display"
+        @click=${this.hiddenStudioDoor ? this.onStudioDoorTap : undefined}
+      >
         ${current != null
           ? html`${current}°`
           : html`<span class="dash">—</span>`}

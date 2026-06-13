@@ -27,7 +27,7 @@ import "./cow-mobile-dashboard-card.js";
 
 type Kind = "thermostat" | "lights" | "blinds";
 
-const VERSION = "1.4.16";
+const VERSION = "1.4.17";
 
 const ACCENT_DOT: Record<Kind, (cfg: CowConfig, hass?: HomeAssistant) => string> =
   {
@@ -241,6 +241,8 @@ export class CowThermostatCard extends LitElement implements LovelaceCard {
                     .openingDoors=${cfg.opening_doors}
                     .openingWindows=${cfg.opening_windows}
                     .openingGarages=${cfg.opening_garages}
+                    .hiddenStudioDoor=${cfg.hidden_studio_door}
+                    .studioDoorEntity=${cfg.studio_door_entity ?? ""}
                   ></cow-thermostat-panel>
                 `;
               }
