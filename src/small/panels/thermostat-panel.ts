@@ -1,4 +1,4 @@
-import { LitElement, html, css } from "lit";
+import { LitElement, html, css, svg } from "lit";
 import { customElement, property, state } from "lit/decorators.js";
 import type { HomeAssistant, HassEntity } from "../../types/hass.js";
 import {
@@ -18,6 +18,7 @@ import {
   renderOpeningsStrip,
 } from "../openings.js";
 import type { OpeningKind } from "../config.js";
+import { openingIconSvg } from "../../util/ajax-openings.js";
 
 import "../components/action-button.js";
 import "../components/chip-row.js";
@@ -42,6 +43,21 @@ const ACCENT = THERMOSTAT_ACCENT;
 const STATUS_LABEL = THERMOSTAT_STATUS_LABEL;
 const SUB_LABEL = THERMOSTAT_SUB_LABEL;
 
+/** MDI lock-open — shown for 3 s after HA accepts the unlock. */
+const STUDIO_UNLOCK_ICON = svg`<svg
+  viewBox="0 0 24 24"
+  width="100"
+  height="100"
+  fill="currentColor"
+  aria-hidden="true"
+>
+  <path
+    d="M18 8h-1V6c0-2.76-2.24-5-5-5S7 3.24 7 6v2H6c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V10c0-1.1-.9-2-2-2zm-6 9c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2-.9 2-2 2zm3.1-9H8.9V6c0-1.71 1.39-3.1 3.1-3.1 1.71 0 3.1 1.39 3.1 3.1v2z"
+  />
+</svg>`;
+
+type StudioDoorFeedback = "door" | "unlock";
+
 @customElement("cow-thermostat-panel")
 export class CowThermostatPanel extends LitElement {
   @property({ attribute: false }) hass?: HomeAssistant;
@@ -64,6 +80,8 @@ export class CowThermostatPanel extends LitElement {
   private timer?: number;
   private studioDoorTapCount = 0;
   private studioDoorTapTimer?: number;
+  @state() private studioDoorFeedback?: StudioDoorFeedback;
+  private studioDoorUnlockTimer?: number;
 
   static override styles = [
     animTokens,
@@ -109,6 +127,13 @@ export class CowThermostatPanel extends LitElement {
       }
       .display .dash {
         opacity: 0.7;
+      }
+      .display-icon {
+        display: flex;
+        align-items: center;
+        height: 120px;
+        color: inherit;
+        animation: cow-fade-in var(--cow-dur-base) var(--cow-ease-out);
       }
       .unit {
         position: absolute;
@@ -280,6 +305,7 @@ export class CowThermostatPanel extends LitElement {
     super.disconnectedCallback();
     if (this.timer) window.clearInterval(this.timer);
     if (this.studioDoorTapTimer) window.clearTimeout(this.studioDoorTapTimer);
+    if (this.studioDoorUnlockTimer) window.clearTimeout(this.studioDoorUnlockTimer);
   }
 
   private get climate(): HassEntity | undefined {
@@ -379,6 +405,7 @@ export class CowThermostatPanel extends LitElement {
 
   private onStudioDoorTap = (): void => {
     if (!this.hiddenStudioDoor || !this.studioDoorEntity) return;
+    if (this.studioDoorFeedback) return;
 
     this.studioDoorTapCount += 1;
     if (this.studioDoorTapTimer) window.clearTimeout(this.studioDoorTapTimer);
@@ -386,7 +413,8 @@ export class CowThermostatPanel extends LitElement {
     if (this.studioDoorTapCount >= 3) {
       this.studioDoorTapCount = 0;
       this.studioDoorTapTimer = undefined;
-      void this.openStudioDoor();
+      this.studioDoorFeedback = "door";
+      void this.unlockStudioDoor();
       return;
     }
 
@@ -395,6 +423,20 @@ export class CowThermostatPanel extends LitElement {
       this.studioDoorTapTimer = undefined;
     }, 2000);
   };
+
+  private async unlockStudioDoor(): Promise<void> {
+    try {
+      await this.openStudioDoor();
+      this.studioDoorFeedback = "unlock";
+      if (this.studioDoorUnlockTimer) window.clearTimeout(this.studioDoorUnlockTimer);
+      this.studioDoorUnlockTimer = window.setTimeout(() => {
+        this.studioDoorFeedback = undefined;
+        this.studioDoorUnlockTimer = undefined;
+      }, 3000);
+    } catch {
+      this.studioDoorFeedback = undefined;
+    }
+  }
 
   private async openStudioDoor(): Promise<void> {
     if (!this.hass || !this.studioDoorEntity) return;
@@ -451,6 +493,20 @@ export class CowThermostatPanel extends LitElement {
     }
     if (v.humidity != null) return `💧 ${Math.round(v.humidity)}%`;
     return null;
+  }
+
+  private renderDisplayMain(current: number | null) {
+    if (this.studioDoorFeedback === "door") {
+      return html`<span class="display-icon"
+        >${openingIconSvg("door", false, 100)}</span
+      >`;
+    }
+    if (this.studioDoorFeedback === "unlock") {
+      return html`<span class="display-icon">${STUDIO_UNLOCK_ICON}</span>`;
+    }
+    return current != null
+      ? html`${current}°`
+      : html`<span class="dash">—</span>`;
   }
 
   private outdoorText(): string | null {
@@ -520,9 +576,7 @@ export class CowThermostatPanel extends LitElement {
         class="display"
         @click=${this.hiddenStudioDoor ? this.onStudioDoorTap : undefined}
       >
-        ${current != null
-          ? html`${current}°`
-          : html`<span class="dash">—</span>`}
+        ${this.renderDisplayMain(current)}
       </div>
       <div class="unit">${v.variant === "off" ? SUB_LABEL.off : "Celsius"}</div>
       ${hum ? html`<div class="humidity">${hum}</div>` : ""}

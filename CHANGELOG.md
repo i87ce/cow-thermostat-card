@@ -4,6 +4,14 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and
 this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.4.18] — 2026-06-14
+
+### Added
+- **Visual feedback for the hidden studio-door triple-tap.** On the
+  third tap the left-pane temperature is replaced by a door icon while
+  Home Assistant is called; when the service succeeds, an open-padlock
+  icon shows for three seconds, then the temperature returns.
+
 ## [1.4.17] — 2026-06-13
 
 ### Added
