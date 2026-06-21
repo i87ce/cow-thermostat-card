@@ -56,7 +56,6 @@ import type {
 import { fontFaces, typography } from "./styles/typography.js";
 import {
   applyKindOverrides,
-  findAjaxOpenings,
   findAjaxOpeningsInArea,
   openingIconSvg,
   type AjaxOpening,
@@ -101,6 +100,11 @@ export interface CowMobileRoom {
    * ``"Sala & Cucina"`` — that's exactly the case this field solves).
    */
   areas?: string[];
+  /**
+   * When false, hide Ajax opening sensors for this room. Use while a
+   * garage door still uses a tilt sensor instead of a contact.
+   */
+  openings_enabled?: boolean;
 }
 
 export interface CowMobilePersonEntry {
@@ -163,6 +167,7 @@ interface NormalizedRoom {
   lights: CowMobileDeviceEntry[];
   covers: CowMobileDeviceEntry[];
   areas: string[];
+  openingsEnabled: boolean;
 }
 
 function normaliseDevices(
@@ -187,6 +192,7 @@ function normaliseRoom(r: CowMobileRoom): NormalizedRoom {
     areas: Array.isArray(r.areas)
       ? r.areas.filter((a): a is string => typeof a === "string" && a.length > 0)
       : [],
+    openingsEnabled: r.openings_enabled !== false,
   };
 }
 
@@ -355,6 +361,7 @@ export class CowMobileDashboardCard
   }
 
   private roomOpenings(room: NormalizedRoom): AjaxOpening[] {
+    if (!room.openingsEnabled) return [];
     // Prefer the explicit ``areas: [...]`` list when the user
     // configured it (handles multi-area rooms like ``"Sala & Cucina"``
     // and disambiguates short names like ``"Camera"`` vs ``"Camera 1"``
@@ -378,10 +385,16 @@ export class CowMobileDashboardCard
     return applyKindOverrides(raw, this.kindOverrides());
   }
   private houseOpenings(): AjaxOpening[] {
-    return applyKindOverrides(
-      findAjaxOpenings(this.hass),
-      this.kindOverrides(),
-    );
+    const seen = new Set<string>();
+    const out: AjaxOpening[] = [];
+    for (const room of this.rooms) {
+      for (const o of this.roomOpenings(room)) {
+        if (seen.has(o.entityId)) continue;
+        seen.add(o.entityId);
+        out.push(o);
+      }
+    }
+    return out;
   }
 
   // ── Setpoint helpers (room.climate) ─────────────────────────────
@@ -460,6 +473,98 @@ export class CowMobileDashboardCard
       {},
       { entity_id: ents },
     );
+  }
+
+  // TEMPORANEO — controllo clima casa generale tramite il termostato
+  // climate.clima_casa_auto (generic_thermostat che pilota la Camera
+  // padronale con keep-alive: accende/spegne di fatto tutta la casa finché
+  // non si comandano le serrande per stanza). In futuro: per-stanza via cow.
+  private climaMode(on: boolean): void {
+    void this.hass?.callService(
+      "climate",
+      "set_hvac_mode",
+      { hvac_mode: on ? "cool" : "off" },
+      { entity_id: "climate.clima_casa_auto" },
+    );
+  }
+  private climaBump(delta: number): void {
+    const cur = Number(
+      this.getEnt("climate.clima_casa_auto")?.attributes?.temperature,
+    );
+    if (!Number.isFinite(cur)) return;
+    void this.hass?.callService(
+      "climate",
+      "set_temperature",
+      { temperature: Math.round((cur + delta) * 2) / 2 },
+      { entity_id: "climate.clima_casa_auto" },
+    );
+  }
+  private runScript(entityId: string): void {
+    void this.hass?.callService("script", "turn_on", {}, { entity_id: entityId });
+  }
+
+  // Riga clima casa (on/off freddo + setpoint) sotto luci/tapparelle.
+  private renderClimaCasa() {
+    const ent = this.getEnt("climate.clima_casa_auto");
+    if (!ent) return nothing;
+    const on = ent.state === "cool";
+    const tgt = Number(ent.attributes?.temperature);
+    const cur = Number(ent.attributes?.current_temperature);
+    const action = ent.attributes?.hvac_action;
+    const sub = !on
+      ? "spento"
+      : action === "cooling"
+        ? "raffredda"
+        : "mantenimento";
+    return html`
+      <div class="summary-text" style="margin-top:0.6rem;">
+        Clima casa —
+        ${Number.isFinite(cur) ? `media ${cur.toFixed(1)}° · ` : ""}${sub}${on &&
+        Number.isFinite(tgt)
+          ? ` · obiettivo ${tgt.toFixed(1)}°`
+          : ""}
+      </div>
+      <div class="summary-actions">
+        <button data-accent ?disabled=${!on} @click=${() => this.climaMode(false)}>
+          Spegni clima
+        </button>
+        <button data-accent-soft ?disabled=${on} @click=${() => this.climaMode(true)}>
+          Accendi freddo
+        </button>
+      </div>
+      ${on
+        ? html`
+            <div class="summary-actions">
+              <button data-cov @click=${() => this.climaBump(-0.5)}>− 0,5°</button>
+              <button data-cov-soft @click=${() => this.climaBump(0.5)}>+ 0,5°</button>
+            </div>
+          `
+        : nothing}
+    `;
+  }
+
+  // Pulsanti scena Buongiorno / Buonanotte.
+  private renderScenes() {
+    const bg = this.getEnt("script.buongiorno");
+    const bn = this.getEnt("script.buonanotte");
+    if (!bg && !bn) return nothing;
+    return html`
+      <div class="summary-actions">
+        ${bg
+          ? html`<button
+              data-accent-soft
+              @click=${() => this.runScript("script.buongiorno")}
+            >
+              ☀️ Buongiorno
+            </button>`
+          : nothing}
+        ${bn
+          ? html`<button data-accent @click=${() => this.runScript("script.buonanotte")}>
+              🌙 Buonanotte
+            </button>`
+          : nothing}
+      </div>
+    `;
   }
 
   // ── Climate service callers ──────────────────────────────────────
@@ -2050,6 +2155,7 @@ export class CowMobileDashboardCard
               </div>
             `
           : nothing}
+        ${this.renderClimaCasa()} ${this.renderScenes()}
       </div>
     `;
   }
