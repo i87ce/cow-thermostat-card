@@ -72,8 +72,10 @@ export class CowThermostatPanel extends LitElement {
   @property({ type: Array }) openingDoors: string[] = [];
   @property({ type: Array }) openingWindows: string[] = [];
   @property({ type: Array }) openingGarages: string[] = [];
+  @property({ type: Boolean }) openingsEnabled = true;
   @property({ type: Boolean }) hiddenStudioDoor = false;
   @property({ type: String }) studioDoorEntity = "";
+  @property({ type: Array }) studioDoorLights: string[] = [];
 
   @state() private now = new Date();
   @state() private setpointModalOpen = false;
@@ -337,6 +339,7 @@ export class CowThermostatPanel extends LitElement {
       doors: this.openingDoors,
       windows: this.openingWindows,
       garages: this.openingGarages,
+      enabled: this.openingsEnabled,
     });
   }
 
@@ -427,6 +430,11 @@ export class CowThermostatPanel extends LitElement {
   private async unlockStudioDoor(): Promise<void> {
     try {
       await this.openStudioDoor();
+      try {
+        await this.turnOnStudioLights();
+      } catch {
+        /* Door unlocked — don't block padlock feedback if lights fail. */
+      }
       this.studioDoorFeedback = "unlock";
       if (this.studioDoorUnlockTimer) window.clearTimeout(this.studioDoorUnlockTimer);
       this.studioDoorUnlockTimer = window.setTimeout(() => {
@@ -482,6 +490,16 @@ export class CowThermostatPanel extends LitElement {
       "turn_on",
       {},
       { entity_id: this.studioDoorEntity },
+    );
+  }
+
+  private async turnOnStudioLights(): Promise<void> {
+    if (!this.hass || this.studioDoorLights.length === 0) return;
+    await this.hass.callService(
+      "light",
+      "turn_on",
+      { brightness: 255 },
+      { entity_id: this.studioDoorLights },
     );
   }
 

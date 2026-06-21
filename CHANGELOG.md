@@ -4,6 +4,14 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and
 this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.4.19] — 2026-06-14
+
+### Added
+- **`studio_door_lights` — auto-illuminate on studio unlock.** Optional
+  list of `light.*` entities turned on at 100% brightness after a
+  successful hidden triple-tap unlock. Wired on Ingresso PT for
+  `light.luce_calda_studio` and `light.luce_fredda_studio`.
+
 ## [1.4.18] — 2026-06-14
 
 ### Added

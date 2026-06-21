@@ -57,6 +57,11 @@ export interface CowConfig {
   /** Device names that are garage doors. */
   opening_garages: string[];
   /**
+   * When false, hide Ajax opening sensors on this card. Use while a
+   * sensor is misconfigured (e.g. tilt instead of contact).
+   */
+  openings_enabled?: boolean;
+  /**
    * When true, triple-tapping the left-pane current temperature opens
    * ``studio_door_entity``. Intended as a hidden affordance on a
    * single wall display (e.g. Ingresso PT) — leave false everywhere
@@ -65,6 +70,8 @@ export interface CowConfig {
   hidden_studio_door: boolean;
   /** Lock / cover / switch / script that opens the studio door. */
   studio_door_entity?: string;
+  /** Lights turned on at 100% when the studio door unlock succeeds. */
+  studio_door_lights: string[];
 }
 
 export class CowConfigError extends Error {
@@ -283,6 +290,22 @@ export function validateConfig(input: unknown): CowConfig {
     );
   }
 
+  const studioDoorLights = ((): string[] => {
+    const raw = cfg.studio_door_lights;
+    if (raw == null) return [];
+    if (!Array.isArray(raw)) {
+      throw new CowConfigError("'studio_door_lights' must be a list");
+    }
+    return raw.map((v, i) => {
+      if (typeof v !== "string" || !v.startsWith(DOMAIN_LIGHT)) {
+        throw new CowConfigError(
+          `'studio_door_lights[${i}]' must be a ${DOMAIN_LIGHT}* entity`,
+        );
+      }
+      return v;
+    });
+  })();
+
   return {
     type: "custom:cow-thermostat-card",
     room,
@@ -298,7 +321,9 @@ export function validateConfig(input: unknown): CowConfig {
     opening_doors: stringList(cfg.opening_doors, "opening_doors"),
     opening_windows: stringList(cfg.opening_windows, "opening_windows"),
     opening_garages: stringList(cfg.opening_garages, "opening_garages"),
+    openings_enabled: cfg.openings_enabled === false ? false : undefined,
     hidden_studio_door: hiddenStudioDoor,
     studio_door_entity: studioDoorEntity,
+    studio_door_lights: studioDoorLights,
   };
 }

@@ -26,3 +26,6 @@ views:
             label: Sgabuzzino
         hidden_studio_door: true
         studio_door_entity: button.studio_unlock
+        studio_door_lights:
+          - light.luce_calda_studio
+          - light.luce_fredda_studio
