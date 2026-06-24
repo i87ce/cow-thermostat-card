@@ -6,9 +6,9 @@ import type { HomeAssistant } from "../types/hass.js";
 const CLIMA_CASA = "climate.clima_casa_auto";
 
 /**
- * Whole-house climate shortcuts on the XL idle dashboard — sits directly
- * under the scene row (Tutto OFF / Apri tutto / …), mirroring mobile
- * `renderClimaCasa()`.
+ * Whole-house shortcuts on the XL idle dashboard — sits directly under the
+ * scene row (Tutto OFF / Apri tutto / …): clima casa + Buongiorno /
+ * Buonanotte, mirroring mobile `renderClimaCasa()` + `renderScenes()`.
  *
  * TEMPORANEO: generic_thermostat keep-alive via Camera padronale until
  * per-room control is operational.
@@ -77,8 +77,25 @@ export class CowXLClimaCasa extends LitElement {
         font-size: 0.95rem;
         color: var(--cow-text-primary);
       }
+      .scripts {
+        margin-top: 0.75rem;
+      }
+      .btn[data-morning] {
+        background: rgba(255, 199, 46, 0.2);
+        border-color: rgba(255, 199, 46, 0.45);
+        color: #8a5f00;
+      }
+      .btn[data-night] {
+        background: rgba(255, 199, 46, 0.32);
+        border-color: transparent;
+        color: #6b4a00;
+      }
     `,
   ];
+
+  private runScript(entityId: string): void {
+    void this.hass?.callService("script", "turn_on", {}, { entity_id: entityId });
+  }
 
   private setMode(on: boolean): void {
     void this.hass?.callService(
@@ -104,12 +121,14 @@ export class CowXLClimaCasa extends LitElement {
 
   override render() {
     const ent = this.hass?.states?.[CLIMA_CASA];
-    if (!ent) return nothing;
+    const bg = this.hass?.states?.["script.buongiorno"];
+    const bn = this.hass?.states?.["script.buonanotte"];
+    if (!ent && !bg && !bn) return nothing;
 
-    const on = ent.state === "cool";
-    const tgt = Number(ent.attributes?.temperature);
-    const cur = Number(ent.attributes?.current_temperature);
-    const action = ent.attributes?.hvac_action;
+    const on = ent?.state === "cool";
+    const tgt = Number(ent?.attributes?.temperature);
+    const cur = Number(ent?.attributes?.current_temperature);
+    const action = ent?.attributes?.hvac_action;
     const sub = !on
       ? "spento"
       : action === "cooling"
@@ -117,55 +136,85 @@ export class CowXLClimaCasa extends LitElement {
         : "mantenimento";
 
     return html`
-      <div class="status">
-        Clima casa —
-        ${Number.isFinite(cur) ? `media ${cur.toFixed(1)}° · ` : ""}${sub}${on &&
-        Number.isFinite(tgt)
-          ? ` · obiettivo ${tgt.toFixed(1)}°`
-          : ""}
-      </div>
-      <div class="row">
-        <button
-          type="button"
-          class="btn"
-          data-off
-          ?disabled=${!on}
-          @click=${() => this.setMode(false)}
-        >
-          Spegni clima
-        </button>
-        <button
-          type="button"
-          class="btn"
-          data-on
-          ?disabled=${on}
-          @click=${() => this.setMode(true)}
-        >
-          Accendi freddo
-        </button>
-      </div>
-      ${on
+      ${ent
         ? html`
-            <div class="row" style="margin-top:0.5rem;">
+            <div class="status">
+              Clima casa —
+              ${Number.isFinite(cur) ? `media ${cur.toFixed(1)}° · ` : ""}${sub}${on &&
+              Number.isFinite(tgt)
+                ? ` · obiettivo ${tgt.toFixed(1)}°`
+                : ""}
+            </div>
+            <div class="row">
               <button
                 type="button"
                 class="btn"
-                data-soft
-                @click=${() => this.bump(-0.5)}
+                data-off
+                ?disabled=${!on}
+                @click=${() => this.setMode(false)}
               >
-                − 0,5°
+                Spegni clima
               </button>
-              <span class="setpoint">
-                obiettivo ${Number.isFinite(tgt) ? tgt.toFixed(1) : "—"}°
-              </span>
               <button
                 type="button"
                 class="btn"
-                data-soft
-                @click=${() => this.bump(0.5)}
+                data-on
+                ?disabled=${on}
+                @click=${() => this.setMode(true)}
               >
-                + 0,5°
+                Accendi freddo
               </button>
+            </div>
+            ${on
+              ? html`
+                  <div class="row" style="margin-top:0.5rem;">
+                    <button
+                      type="button"
+                      class="btn"
+                      data-soft
+                      @click=${() => this.bump(-0.5)}
+                    >
+                      − 0,5°
+                    </button>
+                    <span class="setpoint">
+                      obiettivo ${Number.isFinite(tgt) ? tgt.toFixed(1) : "—"}°
+                    </span>
+                    <button
+                      type="button"
+                      class="btn"
+                      data-soft
+                      @click=${() => this.bump(0.5)}
+                    >
+                      + 0,5°
+                    </button>
+                  </div>
+                `
+              : nothing}
+          `
+        : nothing}
+      ${bg || bn
+        ? html`
+            <div class="row scripts">
+              ${bg
+                ? html`<button
+                    type="button"
+                    class="btn"
+                    data-morning
+                    @click=${() => this.runScript("script.buongiorno")}
+                  >
+                    ☀️ Buongiorno
+                  </button>`
+                : nothing}
+              ${bn
+                ? html`<button
+                    type="button"
+                    class="btn"
+                    data-night
+                    @click=${() => this.runScript("script.buonanotte")}
+                  >
+                    🌙 Buonanotte
+                  </button>`
+                : nothing}
             </div>
           `
         : nothing}
