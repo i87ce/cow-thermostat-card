@@ -107,7 +107,7 @@ export class CowRoomDashboardCard
         bottom: 2.6rem;
         display: flex;
         flex-direction: column;
-        gap: 0.3rem;
+        gap: 0.5rem;
         justify-content: flex-start;
       }
       .home-actions[data-shrunk] {

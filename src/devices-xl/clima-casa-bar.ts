@@ -6,8 +6,8 @@ import type { HomeAssistant } from "../types/hass.js";
 const CLIMA_CASA = "climate.clima_casa_auto";
 
 /**
- * Whole-house shortcuts on the XL idle dashboard — one compact row of four
- * actions under the scene row, mirroring mobile clima + day scripts.
+ * Second row under Luci/tapparelle — same 17.5×4 rem tiles: clima toggle,
+ * setpoint (− / value / +), Buongiorno, Buonanotte.
  */
 @customElement("cow-xl-clima-casa")
 export class CowXLClimaCasa extends LitElement {
@@ -19,73 +19,85 @@ export class CowXLClimaCasa extends LitElement {
       :host {
         display: block;
       }
-      .status {
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        gap: 0.4rem;
-        font-weight: 500;
-        font-size: 0.6875rem;
-        color: var(--cow-text-secondary);
-        margin-bottom: 0.2rem;
-        min-height: 0.9rem;
-        line-height: 1.1;
-      }
       .row {
         display: flex;
         justify-content: center;
-        gap: 0.5rem;
+        gap: 1rem;
       }
-      .btn {
-        flex: 1;
-        min-width: 0;
-        height: 2rem;
-        border-radius: 0.75rem;
-        font-weight: 600;
-        font-size: 0.75rem;
-        border: 0.0625rem solid var(--cow-surface-border);
+      .tile {
+        width: 17.5rem;
+        height: 4rem;
         background: var(--cow-surface-white);
+        border: 0.0625rem solid var(--cow-surface-border);
+        border-radius: 1rem;
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+        padding: 0 1rem;
+        font-weight: 600;
+        font-size: 1rem;
         color: var(--cow-text-primary);
-        padding: 0 0.35rem;
-        white-space: nowrap;
-        overflow: hidden;
-        text-overflow: ellipsis;
       }
-      .btn[data-on] {
+      .tile[data-on] {
         background: var(--cow-accent-active, #2f9e6e);
         border-color: transparent;
         color: #fff;
       }
-      .btn[data-off] {
-        background: var(--cow-danger, #c0473b);
-        border-color: transparent;
-        color: #fff;
-      }
-      .btn[data-morning] {
+      .tile[data-morning] {
         background: rgba(255, 199, 46, 0.2);
         border-color: rgba(255, 199, 46, 0.45);
         color: #8a5f00;
       }
-      .btn[data-night] {
+      .tile[data-night] {
         background: rgba(255, 199, 46, 0.32);
         border-color: transparent;
         color: #6b4a00;
       }
-      .btn:disabled {
+      .dot {
+        width: 0.625rem;
+        height: 0.625rem;
+        border-radius: 50%;
+        flex: 0 0 0.625rem;
+      }
+      .icon {
+        font-size: 1.125rem;
+        flex: 0 0 auto;
+      }
+      .setpoint {
+        width: 17.5rem;
+        height: 4rem;
+        display: flex;
+        align-items: stretch;
+        border: 0.0625rem solid var(--cow-surface-border);
+        border-radius: 1rem;
+        background: var(--cow-surface-white);
+        overflow: hidden;
+      }
+      .setpoint button {
+        flex: 0 0 3.25rem;
+        font-weight: 700;
+        font-size: 1.25rem;
+        color: var(--cow-text-primary);
+        background: transparent;
+        border: 0;
+      }
+      .setpoint button:disabled {
         opacity: 0.35;
         cursor: not-allowed;
       }
-      .sp-btn {
-        width: 1.5rem;
-        height: 1.5rem;
-        flex: 0 0 1.5rem;
-        border-radius: 0.45rem;
-        border: 0.0625rem solid var(--cow-surface-border);
-        background: var(--cow-surface-white);
+      .setpoint .val {
+        flex: 1;
+        display: flex;
+        align-items: center;
+        justify-content: center;
         font-weight: 700;
-        font-size: 0.8125rem;
+        font-size: 1.25rem;
         color: var(--cow-text-primary);
-        line-height: 1;
+        border-left: 0.0625rem solid var(--cow-surface-border);
+        border-right: 0.0625rem solid var(--cow-surface-border);
+      }
+      .setpoint[data-off] .val {
+        color: var(--cow-text-secondary);
       }
     `,
   ];
@@ -94,11 +106,13 @@ export class CowXLClimaCasa extends LitElement {
     void this.hass?.callService("script", "turn_on", {}, { entity_id: entityId });
   }
 
-  private setMode(on: boolean): void {
+  private toggleClima(): void {
+    const ent = this.hass?.states?.[CLIMA_CASA];
+    if (!ent) return;
     void this.hass?.callService(
       "climate",
       "set_hvac_mode",
-      { hvac_mode: on ? "cool" : "off" },
+      { hvac_mode: ent.state === "cool" ? "off" : "cool" },
       { entity_id: CLIMA_CASA },
     );
   }
@@ -124,92 +138,71 @@ export class CowXLClimaCasa extends LitElement {
 
     const on = ent?.state === "cool";
     const tgt = Number(ent?.attributes?.temperature);
-    const cur = Number(ent?.attributes?.current_temperature);
-    const action = ent?.attributes?.hvac_action;
-    const sub = !on
-      ? "spento"
-      : action === "cooling"
-        ? "raffredda"
-        : "mantenimento";
-
-    const showClimaOff = !!ent;
-    const showClimaOn = !!ent;
-    const showMorning = !!bg;
-    const showNight = !!bn;
 
     return html`
-      ${ent && on
-        ? html`
-            <div class="status">
-              <span>
-                ${Number.isFinite(cur) ? `${cur.toFixed(1)}° · ` : ""}${sub}${Number.isFinite(tgt)
-                  ? ` · ${tgt.toFixed(1)}°`
-                  : ""}
-              </span>
-              ${on
-                ? html`
-                    <button
-                      type="button"
-                      class="sp-btn"
-                      aria-label="Diminuisci setpoint"
-                      @click=${() => this.bump(-0.5)}
-                    >
-                      −
-                    </button>
-                    <button
-                      type="button"
-                      class="sp-btn"
-                      aria-label="Aumenta setpoint"
-                      @click=${() => this.bump(0.5)}
-                    >
-                      +
-                    </button>
-                  `
-                : nothing}
-            </div>
-          `
-        : nothing}
       <div class="row">
-        ${showClimaOff
+        ${ent
           ? html`<button
               type="button"
-              class="btn"
-              data-off
-              ?disabled=${!on}
-              @click=${() => this.setMode(false)}
+              class="tile"
+              ?data-on=${on}
+              @click=${this.toggleClima}
             >
-              Spegni
+              <span
+                class="dot"
+                style=${`background:${on ? "#fff" : "#66BFFF"}`}
+              ></span>
+              <span class="icon">❄</span>
+              <span>${on ? "Spegni clima" : "Accendi freddo"}</span>
             </button>`
           : nothing}
-        ${showClimaOn
-          ? html`<button
-              type="button"
-              class="btn"
-              data-on
-              ?disabled=${on}
-              @click=${() => this.setMode(true)}
-            >
-              Freddo
-            </button>`
+        ${ent
+          ? html`
+              <div class="setpoint" ?data-off=${!on}>
+                <button
+                  type="button"
+                  ?disabled=${!on}
+                  aria-label="Diminuisci setpoint"
+                  @click=${() => this.bump(-0.5)}
+                >
+                  −
+                </button>
+                <span class="val"
+                  >${on && Number.isFinite(tgt) ? `${tgt.toFixed(1)}°` : "—"}</span
+                >
+                <button
+                  type="button"
+                  ?disabled=${!on}
+                  aria-label="Aumenta setpoint"
+                  @click=${() => this.bump(0.5)}
+                >
+                  +
+                </button>
+              </div>
+            `
           : nothing}
-        ${showMorning
+        ${bg
           ? html`<button
               type="button"
-              class="btn"
+              class="tile"
               data-morning
               @click=${() => this.runScript("script.buongiorno")}
             >
-              ☀️ Buongiorno
+              <span class="dot" style="background:#FFC72E"></span>
+              <span class="icon">☀️</span>
+              <span>Buongiorno</span>
             </button>`
           : nothing}
-        ${showNight
+        ${bn
           ? html`<button
               type="button"
-              class="btn"
+              class="tile"
               data-night
               @click=${() => this.runScript("script.buonanotte")}
             >
-              🌙 Buonanotte
+              <span class="dot" style="background:#1F1F2E"></span>
+              <span class="icon">🌙</span>
+              <span>Buonanotte</span>
             </button>`
           : nothing}
       </div>

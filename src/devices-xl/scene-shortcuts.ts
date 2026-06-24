@@ -21,38 +21,30 @@ export class CowXLScenes extends LitElement {
       .row {
         display: flex;
         justify-content: center;
-        gap: 0.5rem;
+        gap: 1rem;
       }
       .scene {
-        flex: 1;
-        min-width: 0;
-        max-width: 17.5rem;
-        height: 2.2rem;
+        width: 17.5rem;
+        height: 4rem;
         background: var(--cow-surface-white);
         border: 0.0625rem solid var(--cow-surface-border);
-        border-radius: 0.75rem;
+        border-radius: 1rem;
         display: flex;
         align-items: center;
-        gap: 0.5rem;
-        padding: 0 0.65rem;
+        gap: 0.75rem;
+        padding: 0 1rem;
         font-weight: 600;
-        font-size: 0.8125rem;
+        font-size: 1rem;
         color: var(--cow-text-primary);
       }
       .dot {
-        width: 0.5rem;
-        height: 0.5rem;
+        width: 0.625rem;
+        height: 0.625rem;
         border-radius: 50%;
-        flex: 0 0 0.5rem;
+        flex: 0 0 0.625rem;
       }
       .icon {
-        font-size: 0.95rem;
-        flex: 0 0 auto;
-      }
-      .label {
-        overflow: hidden;
-        text-overflow: ellipsis;
-        white-space: nowrap;
+        font-size: 1.125rem;
       }
     `,
   ];
@@ -84,7 +76,7 @@ export class CowXLScenes extends LitElement {
                     >${s.icon}</span
                   >`
                 : ""}
-              <span class="label">${s.name}</span>
+              <span>${s.name}</span>
             </button>
           `,
         )}
