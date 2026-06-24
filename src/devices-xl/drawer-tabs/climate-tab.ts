@@ -328,93 +328,6 @@ export class CowXLClimateTab extends LitElement {
     });
   }
 
-  // TEMPORANEO — clima casa generale via climate.clima_casa_auto (termostato
-  // whole-house con keep-alive che pilota la Camera padronale). on/off freddo
-  // + setpoint. Bypassa il proxy casa_* / orchestratore. Da rimuovere quando
-  // il controllo per-stanza sarà operativo.
-  private setClimaCasa(on: boolean): void {
-    void this.hass?.callService(
-      "climate",
-      "set_hvac_mode",
-      { hvac_mode: on ? "cool" : "off" },
-      { entity_id: "climate.clima_casa_auto" },
-    );
-  }
-
-  private bumpClimaCasa(delta: number): void {
-    const cur = Number(
-      this.hass?.states?.["climate.clima_casa_auto"]?.attributes?.temperature,
-    );
-    if (!Number.isFinite(cur)) return;
-    void this.hass?.callService(
-      "climate",
-      "set_temperature",
-      { temperature: Math.round((cur + delta) * 2) / 2 },
-      { entity_id: "climate.clima_casa_auto" },
-    );
-  }
-
-  private renderClimaCasaBar() {
-    const ent = this.hass?.states?.["climate.clima_casa_auto"];
-    if (!ent) return nothing;
-    const on = ent.state === "cool";
-    const tgt = Number(ent.attributes?.temperature);
-    const cur = Number(ent.attributes?.current_temperature);
-    const btn =
-      "flex:1;padding:0.7rem;border-radius:0.9rem;border:0;font-size:0.95rem;font-weight:600;cursor:pointer;";
-    const idle =
-      "background:var(--cow-surface-white,#f0f0f0);color:var(--cow-text,#333);";
-    return html`
-      <div style="margin:0 0 0.9rem;">
-        <div style="display:flex;gap:0.6rem;">
-          <button
-            type="button"
-            @click=${() => this.setClimaCasa(true)}
-            style="${btn}${on ? "background:var(--cow-accent-active,#2f9e6e);color:#fff;" : idle}"
-          >
-            Clima casa: Accendi freddo
-          </button>
-          <button
-            type="button"
-            @click=${() => this.setClimaCasa(false)}
-            style="${btn}${!on ? "background:var(--cow-danger,#c0473b);color:#fff;" : idle}"
-          >
-            Spegni
-          </button>
-        </div>
-        ${on
-          ? html`
-              <div
-                style="display:flex;gap:0.6rem;align-items:center;margin-top:0.5rem;"
-              >
-                <button
-                  type="button"
-                  @click=${() => this.bumpClimaCasa(-0.5)}
-                  style="${btn}${idle}"
-                >
-                  − 0,5°
-                </button>
-                <span style="flex:1.4;text-align:center;font-weight:700;">
-                  obiettivo ${Number.isFinite(tgt) ? tgt.toFixed(1) : "—"}°${Number.isFinite(
-                    cur,
-                  )
-                    ? ` · media ${cur.toFixed(1)}°`
-                    : ""}
-                </span>
-                <button
-                  type="button"
-                  @click=${() => this.bumpClimaCasa(0.5)}
-                  style="${btn}${idle}"
-                >
-                  + 0,5°
-                </button>
-              </div>
-            `
-          : nothing}
-      </div>
-    `;
-  }
-
   private openSetpointModal = (): void => {
     if (!this.room?.climate) return;
     const view = deriveThermostatView(this.hass?.states?.[this.room.climate]);
@@ -613,7 +526,6 @@ export class CowXLClimateTab extends LitElement {
     const arrowsDisabled = view.variant === "off";
     return html`
       <div class="caption">CLIMA — ${variantLabel}</div>
-      ${this.renderClimaCasaBar()}
       <div class="full">
         <div class="col">
           <div class="col-label">${THERMOSTAT_STATUS_LABEL[view.variant]}</div>

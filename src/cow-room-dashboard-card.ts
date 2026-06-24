@@ -19,6 +19,7 @@ import { globalShellXL } from "./styles/global-xl.js";
 import "./devices-xl/header-row.js";
 import "./devices-xl/hero-card.js";
 import "./devices-xl/scene-shortcuts.js";
+import "./devices-xl/clima-casa-bar.js";
 import "./devices-xl/drawer.js";
 import "./devices-xl/music/music-pill.js";
 import "./devices-xl/music/music-ribbon.js";
@@ -424,6 +425,8 @@ export class CowRoomDashboardCard
           .scenes=${scenes}
           @cow-scene-tap=${this.onSceneTap}
         ></cow-xl-scenes>
+
+        <cow-xl-clima-casa .hass=${this.hass}></cow-xl-clima-casa>
 
         <div class="drawer-peek">
           <div class="handle"></div>
