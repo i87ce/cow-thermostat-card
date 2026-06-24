@@ -17,10 +17,6 @@ export class CowXLScenes extends LitElement {
     css`
       :host {
         display: block;
-        position: absolute;
-        left: 1.5rem;
-        right: 1.5rem;
-        top: 40.5rem;
       }
       .row {
         display: flex;
@@ -31,7 +27,7 @@ export class CowXLScenes extends LitElement {
         flex: 1;
         min-width: 0;
         max-width: 17.5rem;
-        height: 2.75rem;
+        height: 2.2rem;
         background: var(--cow-surface-white);
         border: 0.0625rem solid var(--cow-surface-border);
         border-radius: 0.75rem;

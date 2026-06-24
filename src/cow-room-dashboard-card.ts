@@ -97,8 +97,21 @@ export class CowRoomDashboardCard
       .hero-wrap[data-shrunk] {
         top: 25rem;
       }
-      cow-xl-scenes {
-        /* positioned by its own styles (top: 43rem) */
+      /* Luci/tapparelle + clima/scripts — stacked directly under the hero,
+         not overlapping it. Sits in the “action band” below the clock card. */
+      .home-actions {
+        position: absolute;
+        left: 1.5rem;
+        right: 1.5rem;
+        top: 42.35rem;
+        bottom: 2.6rem;
+        display: flex;
+        flex-direction: column;
+        gap: 0.3rem;
+        justify-content: flex-start;
+      }
+      .home-actions[data-shrunk] {
+        top: 43.1rem;
       }
       .drawer-peek {
         position: absolute;
@@ -421,12 +434,13 @@ export class CowRoomDashboardCard
               ></cow-xl-hero>
             </div>`}
 
-        <cow-xl-scenes
-          .scenes=${scenes}
-          @cow-scene-tap=${this.onSceneTap}
-        ></cow-xl-scenes>
-
-        <cow-xl-clima-casa .hass=${this.hass}></cow-xl-clima-casa>
+        <div class="home-actions" ?data-shrunk=${showRibbon}>
+          <cow-xl-scenes
+            .scenes=${scenes}
+            @cow-scene-tap=${this.onSceneTap}
+          ></cow-xl-scenes>
+          <cow-xl-clima-casa .hass=${this.hass}></cow-xl-clima-casa>
+        </div>
 
         <div class="drawer-peek">
           <div class="handle"></div>

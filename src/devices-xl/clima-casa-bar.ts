@@ -18,21 +18,18 @@ export class CowXLClimaCasa extends LitElement {
     css`
       :host {
         display: block;
-        position: absolute;
-        left: 1.5rem;
-        right: 1.5rem;
-        top: 43.5rem;
       }
       .status {
         display: flex;
         align-items: center;
         justify-content: center;
-        gap: 0.5rem;
+        gap: 0.4rem;
         font-weight: 500;
-        font-size: 0.75rem;
+        font-size: 0.6875rem;
         color: var(--cow-text-secondary);
-        margin-bottom: 0.35rem;
-        min-height: 1.125rem;
+        margin-bottom: 0.2rem;
+        min-height: 0.9rem;
+        line-height: 1.1;
       }
       .row {
         display: flex;
@@ -42,10 +39,10 @@ export class CowXLClimaCasa extends LitElement {
       .btn {
         flex: 1;
         min-width: 0;
-        height: 2.35rem;
+        height: 2rem;
         border-radius: 0.75rem;
         font-weight: 600;
-        font-size: 0.8125rem;
+        font-size: 0.75rem;
         border: 0.0625rem solid var(--cow-surface-border);
         background: var(--cow-surface-white);
         color: var(--cow-text-primary);
@@ -79,14 +76,14 @@ export class CowXLClimaCasa extends LitElement {
         cursor: not-allowed;
       }
       .sp-btn {
-        width: 1.75rem;
-        height: 1.75rem;
-        flex: 0 0 1.75rem;
-        border-radius: 0.5rem;
+        width: 1.5rem;
+        height: 1.5rem;
+        flex: 0 0 1.5rem;
+        border-radius: 0.45rem;
         border: 0.0625rem solid var(--cow-surface-border);
         background: var(--cow-surface-white);
         font-weight: 700;
-        font-size: 0.875rem;
+        font-size: 0.8125rem;
         color: var(--cow-text-primary);
         line-height: 1;
       }
@@ -141,13 +138,11 @@ export class CowXLClimaCasa extends LitElement {
     const showNight = !!bn;
 
     return html`
-      ${ent
+      ${ent && on
         ? html`
             <div class="status">
               <span>
-                Clima —
-                ${Number.isFinite(cur) ? `${cur.toFixed(1)}° · ` : ""}${sub}${on &&
-                Number.isFinite(tgt)
+                ${Number.isFinite(cur) ? `${cur.toFixed(1)}° · ` : ""}${sub}${Number.isFinite(tgt)
                   ? ` · ${tgt.toFixed(1)}°`
                   : ""}
               </span>
@@ -204,7 +199,7 @@ export class CowXLClimaCasa extends LitElement {
               data-morning
               @click=${() => this.runScript("script.buongiorno")}
             >
-              ☀️ AM
+              ☀️ Buongiorno
             </button>`
           : nothing}
         ${showNight
@@ -214,7 +209,7 @@ export class CowXLClimaCasa extends LitElement {
               data-night
               @click=${() => this.runScript("script.buonanotte")}
             >
-              🌙 Notte
+              🌙 Buonanotte
             </button>`
           : nothing}
       </div>
