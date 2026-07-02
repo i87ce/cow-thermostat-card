@@ -335,111 +335,14 @@ script:
               - service: cover.close_cover
                 target:
                   entity_id: "{{ all_serrande }}"
-            default:
-              - choose:
-                  # ── fan_only global OR all zones at setpoint ──────
-                  - conditions:
-                      - condition: template
-                        value_template: >-
-                          {{ aria_mode == 'fan_only' or all_at_setpoint | trim == 'true' }}
-                    sequence:
-                      - service: cover.open_cover
-                        target:
-                          entity_id: "{{ all_serrande }}"
-                      - delay:
-                          seconds: 2
-                      - service: climate.set_hvac_mode
-                        target:
-                          entity_id: "{{ mitsu }}"
-                        data:
-                          hvac_mode: "fan_only"
-                      - service: climate.set_fan_mode
-                        target:
-                          entity_id: "{{ mitsu }}"
-                        data:
-                          fan_mode: "{{ mitsu_fan }}"
-                  # ── No active air zones ───────────────────────────
-                  - conditions:
-                      - condition: template
-                        value_template: "{{ active_air_count | int == 0 }}"
-                    sequence:
-                      - service: climate.set_hvac_mode
-                        target:
-                          entity_id: "{{ mitsu }}"
-                        data:
-                          hvac_mode: "off"
-                      - service: cover.close_cover
-                        target:
-                          entity_id: "{{ all_serrande }}"
-                  # ── Conditioning: deficit zones ─────────────────────
-                  - conditions:
-                      - condition: template
-                        value_template: "{{ deficit_serrande | trim != '' }}"
-                    sequence:
-                      - repeat:
-                          for_each: "{{ deficit_serrande.split(',') if deficit_serrande | trim else [] }}"
-                          sequence:
-                            - service: script.cow_climate_open_serranda
-                              data:
-                                entity: "{{ repeat.item | trim }}"
-                      - delay:
-                          seconds: 2
-                      - choose:
-                          - conditions:
-                              - condition: template
-                                value_template: "{{ aria_mode == 'heat' }}"
-                            sequence:
-                              - service: climate.set_hvac_mode
-                                target:
-                                  entity_id: "{{ mitsu }}"
-                                data:
-                                  hvac_mode: "heat"
-                              - service: climate.set_temperature
-                                target:
-                                  entity_id: "{{ mitsu }}"
-                                data:
-                                  temperature: "{{ HEAT_T }}"
-                          - conditions:
-                              - condition: template
-                                value_template: "{{ aria_mode == 'cool' }}"
-                            sequence:
-                              - service: climate.set_hvac_mode
-                                target:
-                                  entity_id: "{{ mitsu }}"
-                                data:
-                                  hvac_mode: "cool"
-                              - service: climate.set_temperature
-                                target:
-                                  entity_id: "{{ mitsu }}"
-                                data:
-                                  temperature: "{{ COOL_T }}"
-                          - conditions:
-                              - condition: template
-                                value_template: "{{ aria_mode == 'dry' }}"
-                            sequence:
-                              - service: climate.set_hvac_mode
-                                target:
-                                  entity_id: "{{ mitsu }}"
-                                data:
-                                  hvac_mode: "dry"
-                              - service: climate.set_temperature
-                                target:
-                                  entity_id: "{{ mitsu }}"
-                                data:
-                                  temperature: "{{ COOL_T }}"
-                      - service: climate.set_fan_mode
-                        target:
-                          entity_id: "{{ mitsu }}"
-                        data:
-                          fan_mode: "{{ mitsu_fan }}"
-                      - repeat:
-                          for_each: "{{ at_setpoint_serrande.split(',') if at_setpoint_serrande | trim else [] }}"
-                          sequence:
-                            - service: script.cow_climate_close_serranda
-                              data:
-                                entity: "{{ repeat.item | trim }}"
-                  # ── Fallback: fan circulate ───────────────────────
-                default:
+        default:
+          - choose:
+              # ── fan_only global OR all zones at setpoint ──────
+              - conditions:
+                  - condition: template
+                    value_template: >-
+                      {{ aria_mode == 'fan_only' or all_at_setpoint | trim == 'true' }}
+                sequence:
                   - service: cover.open_cover
                     target:
                       entity_id: "{{ all_serrande }}"
@@ -455,6 +358,103 @@ script:
                       entity_id: "{{ mitsu }}"
                     data:
                       fan_mode: "{{ mitsu_fan }}"
+              # ── No active air zones ───────────────────────────
+              - conditions:
+                  - condition: template
+                    value_template: "{{ active_air_count | int == 0 }}"
+                sequence:
+                  - service: climate.set_hvac_mode
+                    target:
+                      entity_id: "{{ mitsu }}"
+                    data:
+                      hvac_mode: "off"
+                  - service: cover.close_cover
+                    target:
+                      entity_id: "{{ all_serrande }}"
+              # ── Conditioning: deficit zones ─────────────────────
+              - conditions:
+                  - condition: template
+                    value_template: "{{ deficit_serrande | trim != '' }}"
+                sequence:
+                  - repeat:
+                      for_each: "{{ deficit_serrande.split(',') if deficit_serrande | trim else [] }}"
+                      sequence:
+                        - service: script.cow_climate_open_serranda
+                          data:
+                            entity: "{{ repeat.item | trim }}"
+                  - delay:
+                      seconds: 2
+                  - choose:
+                      - conditions:
+                          - condition: template
+                            value_template: "{{ aria_mode == 'heat' }}"
+                        sequence:
+                          - service: climate.set_hvac_mode
+                            target:
+                              entity_id: "{{ mitsu }}"
+                            data:
+                              hvac_mode: "heat"
+                          - service: climate.set_temperature
+                            target:
+                              entity_id: "{{ mitsu }}"
+                            data:
+                              temperature: "{{ HEAT_T }}"
+                      - conditions:
+                          - condition: template
+                            value_template: "{{ aria_mode == 'cool' }}"
+                        sequence:
+                          - service: climate.set_hvac_mode
+                            target:
+                              entity_id: "{{ mitsu }}"
+                            data:
+                              hvac_mode: "cool"
+                          - service: climate.set_temperature
+                            target:
+                              entity_id: "{{ mitsu }}"
+                            data:
+                              temperature: "{{ COOL_T }}"
+                      - conditions:
+                          - condition: template
+                            value_template: "{{ aria_mode == 'dry' }}"
+                        sequence:
+                          - service: climate.set_hvac_mode
+                            target:
+                              entity_id: "{{ mitsu }}"
+                            data:
+                              hvac_mode: "dry"
+                          - service: climate.set_temperature
+                            target:
+                              entity_id: "{{ mitsu }}"
+                            data:
+                              temperature: "{{ COOL_T }}"
+                  - service: climate.set_fan_mode
+                    target:
+                      entity_id: "{{ mitsu }}"
+                    data:
+                      fan_mode: "{{ mitsu_fan }}"
+                  - repeat:
+                      for_each: "{{ at_setpoint_serrande.split(',') if at_setpoint_serrande | trim else [] }}"
+                      sequence:
+                        - service: script.cow_climate_close_serranda
+                          data:
+                            entity: "{{ repeat.item | trim }}"
+              # ── Fallback: fan circulate ───────────────────────
+            default:
+              - service: cover.open_cover
+                target:
+                  entity_id: "{{ all_serrande }}"
+              - delay:
+                  seconds: 2
+              - service: climate.set_hvac_mode
+                target:
+                  entity_id: "{{ mitsu }}"
+                data:
+                  hvac_mode: "fan_only"
+              - service: climate.set_fan_mode
+                target:
+                  entity_id: "{{ mitsu }}"
+                data:
+                  fan_mode: "{{ mitsu_fan }}"
 
       # Mirror fixed temps on casa_aria proxy for UI readback
       - service: mqtt.publish
@@ -705,46 +705,47 @@ automation:
                                 entity_id: "{{ rs.pavimento }}"
                               data:
                                 temperature: "{{ setpoint - FLOOR_OFFSET }}"
-                        default:
-                          - service: climate.set_hvac_mode
-                            target:
-                              entity_id: "{{ rs.pavimento }}"
-                            data:
-                              hvac_mode: "off"
-        default:
-          - condition: template
-            value_template: "{{ (slug | trim) != '' and slug | trim != 'all' }}"
-          - variables:
-              r: "{{ rooms[slug | trim] }}"
-              room_mode: "{{ states(r.proxy) }}"
-              setpoint: "{{ state_attr(r.proxy, 'temperature') | float(20) }}"
-              want_heat: >-
-                {% if r.floor_only %}
-                  {{ room_mode == 'heat' }}
-                {% else %}
-                  {{ aria_mode == 'heat' and room_mode == 'heat' }}
-                {% endif %}
-          - choose:
-              - conditions:
-                  - condition: template
-                    value_template: "{{ want_heat | trim == 'true' }}"
-                sequence:
+                      default:
+                        - service: climate.set_hvac_mode
+                          target:
+                            entity_id: "{{ rs.pavimento }}"
+                          data:
+                            hvac_mode: "off"
+          - conditions:
+              - condition: template
+                value_template: "{{ (slug | trim) != '' and slug | trim != 'all' }}"
+            sequence:
+              - variables:
+                  r: "{{ rooms[slug | trim] }}"
+                  room_mode: "{{ states(r.proxy) }}"
+                  setpoint: "{{ state_attr(r.proxy, 'temperature') | float(20) }}"
+                  want_heat: >-
+                    {% if r.floor_only %}
+                      {{ room_mode == 'heat' }}
+                    {% else %}
+                      {{ aria_mode == 'heat' and room_mode == 'heat' }}
+                    {% endif %}
+              - choose:
+                  - conditions:
+                      - condition: template
+                        value_template: "{{ want_heat | trim == 'true' }}"
+                    sequence:
+                      - service: climate.set_hvac_mode
+                        target:
+                          entity_id: "{{ r.pavimento }}"
+                        data:
+                          hvac_mode: "heat"
+                      - service: climate.set_temperature
+                        target:
+                          entity_id: "{{ r.pavimento }}"
+                        data:
+                          temperature: "{{ setpoint - FLOOR_OFFSET }}"
+                default:
                   - service: climate.set_hvac_mode
                     target:
                       entity_id: "{{ r.pavimento }}"
                     data:
-                      hvac_mode: "heat"
-                  - service: climate.set_temperature
-                    target:
-                      entity_id: "{{ r.pavimento }}"
-                    data:
-                      temperature: "{{ setpoint - FLOOR_OFFSET }}"
-              default:
-                - service: climate.set_hvac_mode
-                  target:
-                    entity_id: "{{ r.pavimento }}"
-                  data:
-                    hvac_mode: "off"
+                      hvac_mode: "off"
 
   - id: cow_climate_safety_damper_open
     alias: "Cow Climate — REGOLA 1 watchdog"
