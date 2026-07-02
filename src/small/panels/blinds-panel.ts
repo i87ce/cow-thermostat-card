@@ -109,6 +109,7 @@ export class CowBlindsPanel extends LitElement {
   @property({ type: Array }) openingDoors: string[] = [];
   @property({ type: Array }) openingWindows: string[] = [];
   @property({ type: Array }) openingGarages: string[] = [];
+  @property({ type: Boolean }) openingsEnabled = true;
 
   @state() private scope: string = "all";
   @state() private now = new Date();
@@ -323,6 +324,7 @@ export class CowBlindsPanel extends LitElement {
       doors: this.openingDoors,
       windows: this.openingWindows,
       garages: this.openingGarages,
+      enabled: this.openingsEnabled,
     });
   }
 

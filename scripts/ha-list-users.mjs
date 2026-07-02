@@ -14,7 +14,7 @@ if (!HOST || !TOKEN) {
 
 const KIOSK_IDS = new Set([
   "1f88e5d9479544708563c1cd4adb18dc", // sala
-  "66ba4172212449b4a90d577a91ec8187", // c1
+  "bd25e50163eb4cd89664ba9e89316d1d", // c1 (recreated 2026-05; old 66ba4172… was deleted)
   "92b02cbdbf2f448bb869b23b6b8720fe", // c2
   "c38e6d3f2289466b96b41f458bb466e6", // cp
   "b3368b8a3d6341b382416c1a9d86e329", // bo

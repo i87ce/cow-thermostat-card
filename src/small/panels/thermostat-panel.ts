@@ -19,6 +19,11 @@ import {
 } from "../openings.js";
 import type { OpeningKind } from "../config.js";
 import { openingIconSvg } from "../../util/ajax-openings.js";
+import {
+  climateModeChipLabel,
+  SYSTEM_MODE_CHIP_ORDER,
+  usesSplitClimate,
+} from "../state/split-climate.js";
 
 import "../components/action-button.js";
 import "../components/chip-row.js";
@@ -62,6 +67,8 @@ type StudioDoorFeedback = "door" | "unlock";
 export class CowThermostatPanel extends LitElement {
   @property({ attribute: false }) hass?: HomeAssistant;
   @property({ type: String }) entity = "";
+  /** Global air entity (mode + fan), e.g. climate.casa_aria */
+  @property({ type: String }) systemClimate = "";
   @property({ type: String }) roomName = "";
   @property({ type: String }) outdoorEntity = "";
   @property({ type: String }) humidityEntity = "";
@@ -296,6 +303,44 @@ export class CowThermostatPanel extends LitElement {
       :host([data-has-openings]) .fan-row {
         top: 605.625px;
       }
+      .air-label {
+        position: absolute;
+        left: 397.5px;
+        top: 603.75px;
+        font-weight: 400;
+        font-size: 22.5px;
+        color: var(--cow-text-secondary, #8c8c99);
+      }
+      .air-row {
+        position: absolute;
+        left: 397.5px;
+        top: 637.5px;
+        right: 30px;
+      }
+      :host([data-split-climate]) .mode-label {
+        top: 450px;
+      }
+      :host([data-split-climate]) .mode-row {
+        top: 486px;
+      }
+      :host([data-split-climate]) .fan-label {
+        top: 548px;
+      }
+      :host([data-split-climate]) .fan-row {
+        top: 584px;
+      }
+      :host([data-split-climate]) .air-label {
+        top: 646px;
+      }
+      :host([data-split-climate]) .air-row {
+        top: 682px;
+      }
+      :host([data-split-climate][data-has-openings]) .air-label {
+        top: 620px;
+      }
+      :host([data-split-climate][data-has-openings]) .air-row {
+        top: 656px;
+      }
     `,
   ];
 
@@ -315,8 +360,25 @@ export class CowThermostatPanel extends LitElement {
     return this.hass.states[this.entity];
   }
 
-  private view(): ThermostatView {
+  private get systemClimateEntity(): HassEntity | undefined {
+    if (!this.hass || !this.systemClimate) return undefined;
+    return this.hass.states[this.systemClimate];
+  }
+
+  private roomView(): ThermostatView {
     return deriveThermostatView(this.climate);
+  }
+
+  private systemView(): ThermostatView {
+    return deriveThermostatView(this.systemClimateEntity);
+  }
+
+  private isSplitClimate(): boolean {
+    return usesSplitClimate(this.systemClimate, this.roomView());
+  }
+
+  private view(): ThermostatView {
+    return this.roomView();
   }
 
   override willUpdate(): void {
@@ -329,6 +391,7 @@ export class CowThermostatPanel extends LitElement {
     this.style.setProperty("--cow-accent-surface", a.surface);
     this.style.setProperty("--cow-on-accent", a.textOnAccent);
     this.toggleAttribute("data-has-openings", this.openings().length > 0);
+    this.toggleAttribute("data-split-climate", this.isSplitClimate());
   }
 
   private openings() {
@@ -350,6 +413,26 @@ export class CowThermostatPanel extends LitElement {
       "set_temperature",
       { temperature: target },
       { entity_id: this.entity },
+    );
+  }
+
+  private async setSystemMode(mode: string): Promise<void> {
+    if (!this.hass || !this.systemClimate) return;
+    await this.hass.callService(
+      "climate",
+      "set_hvac_mode",
+      { hvac_mode: mode },
+      { entity_id: this.systemClimate },
+    );
+  }
+
+  private async setSystemFan(fan: string): Promise<void> {
+    if (!this.hass || !this.systemClimate) return;
+    await this.hass.callService(
+      "climate",
+      "set_fan_mode",
+      { fan_mode: fan },
+      { entity_id: this.systemClimate },
     );
   }
 
@@ -380,10 +463,8 @@ export class CowThermostatPanel extends LitElement {
   }
 
   private openSetpointModal = (): void => {
-    // Match the bump-button rule: setpoint editing is disabled while
-    // the climate is OFF, because the proxy queues set_temperature
-    // without effect until a mode is picked again.
-    if (this.view().variant === "off") return;
+    const split = this.isSplitClimate();
+    if (!split && this.view().variant === "off") return;
     this.setpointModalOpen = true;
     // Imperatively open synchronously inside the click handler — the
     // reactive `open` prop also opens the dialog, but on iOS Safari
@@ -540,47 +621,41 @@ export class CowThermostatPanel extends LitElement {
 
   override render() {
     const v = this.view();
+    const split = this.isSplitClimate();
+    const sys = split ? this.systemView() : v;
     const current = v.current != null ? Math.round(v.current) : null;
     const target = v.target != null ? v.target.toFixed(1).replace(".0", "") : null;
     const hum = this.humidityText(v);
     const out = this.outdoorText();
+    const setpointDisabled = !split && v.variant === "off";
 
-    // Surface every climate mode the underlying entity actually
-    // supports — including `fan_only`, which the casa_<room> MQTT
-    // proxies expose for the new "ventola sola" coordinated mode
-    // (Koolnova fan_only, pavimento off). `dry` we deliberately
-    // skip: Koolnova advertises it on the air side but the proxies
-    // don't, and nobody runs dehumidification from a wall display
-    // anyway.
-    const modes = v.hvacModes
-      .filter(
-        (m) =>
-          m === "off" ||
-          m === "heat" ||
-          m === "cool" ||
-          m === "heat_cool" ||
-          m === "auto" ||
-          m === "fan_only",
-      )
-      .map((m) => ({
-        id: m,
-        label:
-          m === "heat"
-            ? "Heat"
-            : m === "cool"
-              ? "Cool"
-              : m === "off"
-                ? "Off"
-                : m === "heat_cool"
-                  ? "Auto"
-                  : m === "fan_only"
-                    ? "Fan"
-                    : "Auto",
-      }));
-    const fanItems = v.fanModes.map((f) => ({
+    const modes = split
+      ? SYSTEM_MODE_CHIP_ORDER.filter((m) => sys.hvacModes.includes(m)).map(
+          (m) => ({ id: m, label: climateModeChipLabel(m) }),
+        )
+      : v.hvacModes
+          .filter(
+            (m) =>
+              m === "off" ||
+              m === "heat" ||
+              m === "cool" ||
+              m === "dry" ||
+              m === "heat_cool" ||
+              m === "auto" ||
+              m === "fan_only",
+          )
+          .map((m) => ({ id: m, label: climateModeChipLabel(m) }));
+
+    const fanItems = (split ? sys : v).fanModes.map((f) => ({
       id: f,
       label: f === "auto" ? "Auto" : f.charAt(0).toUpperCase() + f.slice(1),
     }));
+
+    const airItems = [
+      { id: "heat", label: "On" },
+      { id: "off", label: "Off" },
+    ];
+    const airActiveId = v.mode === "off" ? "off" : "heat";
 
     return html`
       <div class="left"></div>
@@ -607,34 +682,36 @@ export class CowThermostatPanel extends LitElement {
       <button
         class="target"
         type="button"
-        ?disabled=${v.variant === "off"}
+        ?disabled=${setpointDisabled}
         @click=${this.openSetpointModal}
         aria-label="Modifica setpoint"
       >
-        ${v.variant === "off" ? "—" : target != null ? `${target}°C` : "—"}
+        ${setpointDisabled ? "—" : target != null ? `${target}°C` : "—"}
       </button>
       <cow-action-button
         class="arrow up"
         variant="arrow"
         label="▲"
-        ?disabled=${v.variant === "off"}
+        ?disabled=${setpointDisabled}
         @click=${() => this.bump(1)}
       ></cow-action-button>
       <cow-action-button
         class="arrow down"
         variant="arrow"
         label="▼"
-        ?disabled=${v.variant === "off"}
+        ?disabled=${setpointDisabled}
         @click=${() => this.bump(-1)}
       ></cow-action-button>
-      <div class="mode-label">Mode</div>
+      <div class="mode-label">${split ? "Sistema" : "Mode"}</div>
       <div class="mode-row">
         <cow-chip-row
           .items=${modes}
-          .activeId=${v.mode === "heat_cool" ? "heat_cool" : v.mode}
+          .activeId=${split ? sys.mode : v.mode === "heat_cool" ? "heat_cool" : v.mode}
           .accent=${ACCENT[v.variant].primary}
           @cow-chip-select=${(e: CustomEvent<{ id: string }>) =>
-            this.setMode(e.detail.id)}
+            split
+              ? this.setSystemMode(e.detail.id)
+              : this.setMode(e.detail.id)}
         ></cow-chip-row>
       </div>
       ${fanItems.length > 1
@@ -643,10 +720,26 @@ export class CowThermostatPanel extends LitElement {
             <div class="fan-row">
               <cow-chip-row
                 .items=${fanItems}
-                .activeId=${v.fan}
+                .activeId=${split ? sys.fan : v.fan}
                 .accent=${ACCENT[v.variant].primary}
                 @cow-chip-select=${(e: CustomEvent<{ id: string }>) =>
-                  this.setFan(e.detail.id)}
+                  split
+                    ? this.setSystemFan(e.detail.id)
+                    : this.setFan(e.detail.id)}
+              ></cow-chip-row>
+            </div>
+          `
+        : ""}
+      ${split
+        ? html`
+            <div class="air-label">Aria</div>
+            <div class="air-row">
+              <cow-chip-row
+                .items=${airItems}
+                .activeId=${airActiveId}
+                .accent=${ACCENT[v.variant].primary}
+                @cow-chip-select=${(e: CustomEvent<{ id: string }>) =>
+                  this.setMode(e.detail.id)}
               ></cow-chip-row>
             </div>
           `

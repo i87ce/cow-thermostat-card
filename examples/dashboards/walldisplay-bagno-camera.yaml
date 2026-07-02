@@ -6,6 +6,7 @@ views:
     cards:
       - type: custom:cow-thermostat-card
         room: "Bagno Camera"
+        climate: climate.casa_bagno_padronale
         light:
           - light.luce_bagno_padronale
           - light.luce_specchio_bagno_padronale

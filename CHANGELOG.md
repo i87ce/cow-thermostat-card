@@ -4,6 +4,28 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and
 this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.4.26] — 2026-07-02
+
+### Added
+- **Mitsubishi v3 climate orchestration.** Single heat pump at fixed
+  30 °C (heat) / 16 °C (cool/dry), five ESP32 dampers for zoning,
+  `climate.casa_aria` for global mode + fan, per-room proxies for
+  setpoint and air on/off. REGOLA 1 watchdog included in
+  `examples/ha-cow-climate-orchestration.yaml`.
+- **Split climate UI.** Wall display, XL drawer, and mobile drawer show
+  system chips (Cool → Heat → Dry → Fan → Off) on `system_climate`
+  plus per-room Aria On/Off and setpoint. XL/mobile home rows bind to
+  `climate.casa_aria` instead of legacy `clima_casa_auto`.
+
+### Changed
+- Example dashboards updated with `system_climate: climate.casa_aria`
+  and room `climate:` proxies.
+- `docs/06-house-hvac-architecture.md` documents v3 architecture.
+
+### Removed
+- **Legacy `clima_casa_auto` controls** from mobile summary and XL
+  clima bar (replaced by `casa_aria` mode chips).
+
 ## [1.4.25] — 2026-06-13
 
 ### Changed

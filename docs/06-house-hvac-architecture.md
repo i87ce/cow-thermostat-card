@@ -5,7 +5,65 @@ the house, which entities Home Assistant exposes for each zone, and
 how the mobile dashboard is supposed to surface them. This page is
 the source of truth for any future work on climate UI.
 
-> Captured: 2026-05-21, after the v1.3.7 dashboard work.
+> Captured: 2026-05-21, after the v1.3.7 dashboard work.  
+> **Updated: 2026-07-02 — v3 Mitsubishi + ESP32 serrande orchestrator** (replaces per-zone Koolnova control).
+
+## v3 — Mitsubishi heat pump + ESP32 dampers (current)
+
+The air-conditioning side no longer uses **per-zone Koolnova Modbus
+climates**. A single Mitsubishi unit (`climate.koolnova_clima_clim1`)
+feeds five motorised dampers (`cover.koolnova_serrande_serranda_1..5`)
+that zone the house. Home Assistant exposes:
+
+| Entity | Role |
+|---|---|
+| `climate.casa_aria` | **Global** — mode (`off/heat/cool/dry/fan_only`) + fan; identical on every display |
+| `climate.casa_<room>` | **Per room** — setpoint + air on/off (`heat` = stanza partecipa al loop aria; `off` = esclusa) |
+| `climate.koolnova_clima_clim1` | Physical Mitsubishi — **orchestrator only**; fixed setpoints: heat **30 °C**, cool/dry **16 °C** |
+| `cover.koolnova_serrande_serranda_*` | Dampers — **orchestrator only**; never shown in UI |
+
+Underfloor heating is unchanged: `climate.pavimento_*` (Generic
+Thermostat on each display relay), coordinated by the same package
+with `FLOOR_OFFSET = 1.0 °C` when `casa_aria` is in `heat`.
+
+### REGOLA 1 (safety invariant)
+
+**Mitsubishi ON ⇒ at least one damper open.** The orchestrator opens
+dampers before turning the unit on, blocks closing the last open damper
+while the motor runs, and a 30 s watchdog (`cow_climate_safety_damper_open`)
+recovers if the invariant is violated.
+
+### Zoning logic (summary)
+
+- **Tolerance** `SETPOINT_TOLERANCE = 1.0 °C` around each room setpoint.
+- Room in deficit → open its damper(s), then run Mitsubishi in the global mode.
+- All participating rooms at setpoint → open **all five** dampers, Mitsubishi `fan_only`.
+- One room leaves tolerance → return to global heat/cool/dry @ 30/16.
+- `casa_aria off` → Mitsubishi off first, then close all dampers.
+- **Sala & Cucina**: one setpoint (`sensor.display_sala_temperature`), dampers 4 (cucina) + 5 (sala).
+- **Bathrooms / Ingresso PT**: floor-only proxies (`off/heat`); no `casa_aria` coupling for air.
+
+### UI (`cow-thermostat-card` / XL drawer)
+
+Card YAML:
+
+```yaml
+system_climate: climate.casa_aria   # global mode + fan
+climate: climate.casa_<room>        # per-room setpoint + air on/off
+```
+
+- System chips: Cool → Heat → **Dry** → Fan → Off.
+- Room section: Aria On/Off + setpoint.
+- No damper controls.
+- Legacy `climate.clima_casa_auto` removed from mobile / XL bar.
+
+### Package
+
+Source of truth: `examples/ha-cow-climate-orchestration.yaml` → deploy as
+`cow_climate.yaml` on HA. Legacy per-zone Koolnova orchestration and
+`clima_casa_auto` should stay **disabled**.
+
+---
 
 ## A. Two independent HVAC systems
 
@@ -280,11 +338,17 @@ Climate tab / pill.
 
 | Step | Status |
 |---|---|
-| Build 5 `climate.casa_<room>` proxies | ✅ done (`examples/ha-cow-climate-orchestration.yaml`) |
-| Implement orchestrator automation | ✅ done (single HA automation, Jinja-templated dispatch) |
-| Validate pilot on one room | ✅ done 2026-05-24, see results below |
-| Repoint mobile dashboard `rooms[].climate` to proxies | ⏳ pending — see C6 in open items |
-| Repoint wall-display `cow-thermostat-card` to proxies | ⏳ pending — see C6 in open items |
+| Build `climate.casa_aria` + 7 `climate.casa_<room>` proxies | ✅ done (`examples/ha-cow-climate-orchestration.yaml`) |
+| v3 Mitsubishi + damper orchestrator (`cow_climate_sync_air`) | ✅ done 2026-07-02 |
+| REGOLA 1 watchdog | ✅ done |
+| UI split: `system_climate` + Dry chip + no damper UI | ✅ done 2026-07-02 |
+| Repoint dashboards to proxies + `system_climate` | ✅ example YAMLs updated |
+| Disable legacy Koolnova per-zone + `clima_casa_auto` | ⏳ on HA instance |
+
+> **Historical note:** Sections F-bis and below describe the **v1/v2
+> per-zone Koolnova** design (BOOST_THRESHOLD, dual proxy modes on one
+> entity). Superseded by v3 above for the air side; floor coordination
+> rules still apply.
 
 ### How it ended up implemented
 

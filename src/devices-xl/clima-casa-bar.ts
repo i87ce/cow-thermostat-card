@@ -2,16 +2,21 @@ import { LitElement, html, css, nothing } from "lit";
 import { customElement, property } from "lit/decorators.js";
 import { buttonReset } from "../styles/button-reset.js";
 import type { HomeAssistant } from "../types/hass.js";
+import {
+  climateModeChipLabel,
+  SYSTEM_MODE_CHIP_ORDER,
+} from "../small/state/split-climate.js";
 
-const CLIMA_CASA = "climate.clima_casa_auto";
+const DEFAULT_SYSTEM = "climate.casa_aria";
 
 /**
- * Second row under Luci/tapparelle — same 17.5×4 rem tiles: clima toggle,
- * setpoint (− / value / +), Buongiorno, Buonanotte.
+ * Second row under Luci/tapparelle — global Mitsubishi mode shortcuts,
+ * Buongiorno, Buonanotte. Setpoint is per-room (drawer / wall card).
  */
 @customElement("cow-xl-clima-casa")
 export class CowXLClimaCasa extends LitElement {
   @property({ attribute: false }) hass?: HomeAssistant;
+  @property({ type: String }) systemClimate = DEFAULT_SYSTEM;
 
   static override styles = [
     buttonReset,
@@ -23,6 +28,7 @@ export class CowXLClimaCasa extends LitElement {
         display: flex;
         justify-content: center;
         gap: 1rem;
+        flex-wrap: wrap;
       }
       .tile {
         width: 17.5rem;
@@ -63,123 +69,87 @@ export class CowXLClimaCasa extends LitElement {
         font-size: 1.125rem;
         flex: 0 0 auto;
       }
-      .setpoint {
-        width: 17.5rem;
-        height: 4rem;
+      .modes {
         display: flex;
-        align-items: stretch;
-        border: 0.0625rem solid var(--cow-surface-border);
-        border-radius: 1rem;
-        background: var(--cow-surface-white);
-        overflow: hidden;
-      }
-      .setpoint button {
-        flex: 0 0 3.25rem;
-        font-weight: 700;
-        font-size: 1.25rem;
-        color: var(--cow-text-primary);
-        background: transparent;
-        border: 0;
-      }
-      .setpoint button:disabled {
-        opacity: 0.35;
-        cursor: not-allowed;
-      }
-      .setpoint .val {
+        gap: 0.375rem;
         flex: 1;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        font-weight: 700;
-        font-size: 1.25rem;
-        color: var(--cow-text-primary);
-        border-left: 0.0625rem solid var(--cow-surface-border);
-        border-right: 0.0625rem solid var(--cow-surface-border);
+        justify-content: flex-end;
       }
-      .setpoint[data-off] .val {
+      .mode-chip {
+        min-width: 2.75rem;
+        height: 2rem;
+        padding: 0 0.5rem;
+        border-radius: 0.5rem;
+        border: 0.0625rem solid var(--cow-surface-border);
+        background: var(--cow-surface-background);
+        font-weight: 600;
+        font-size: 0.75rem;
         color: var(--cow-text-secondary);
+      }
+      .mode-chip[data-active] {
+        background: var(--cow-accent-active, #2f9e6e);
+        border-color: transparent;
+        color: #fff;
       }
     `,
   ];
+
+  private entityId(): string {
+    return this.systemClimate || DEFAULT_SYSTEM;
+  }
 
   private runScript(entityId: string): void {
     void this.hass?.callService("script", "turn_on", {}, { entity_id: entityId });
   }
 
-  private toggleClima(): void {
-    const ent = this.hass?.states?.[CLIMA_CASA];
-    if (!ent) return;
+  private setMode(mode: string): void {
+    const id = this.entityId();
     void this.hass?.callService(
       "climate",
       "set_hvac_mode",
-      { hvac_mode: ent.state === "cool" ? "off" : "cool" },
-      { entity_id: CLIMA_CASA },
-    );
-  }
-
-  private bump(delta: number): void {
-    const cur = Number(
-      this.hass?.states?.[CLIMA_CASA]?.attributes?.temperature,
-    );
-    if (!Number.isFinite(cur)) return;
-    void this.hass?.callService(
-      "climate",
-      "set_temperature",
-      { temperature: Math.round((cur + delta) * 2) / 2 },
-      { entity_id: CLIMA_CASA },
+      { hvac_mode: mode },
+      { entity_id: id },
     );
   }
 
   override render() {
-    const ent = this.hass?.states?.[CLIMA_CASA];
+    const id = this.entityId();
+    const ent = this.hass?.states?.[id];
     const bg = this.hass?.states?.["script.buongiorno"];
     const bn = this.hass?.states?.["script.buonanotte"];
     if (!ent && !bg && !bn) return nothing;
 
-    const on = ent?.state === "cool";
-    const tgt = Number(ent?.attributes?.temperature);
+    const mode = ent?.state ?? "off";
+    const on = mode !== "off";
+    const modes = ent
+      ? SYSTEM_MODE_CHIP_ORDER.filter((m) =>
+          (ent.attributes?.hvac_modes as string[] | undefined)?.includes(m),
+        )
+      : [];
 
     return html`
       <div class="row">
         ${ent
-          ? html`<button
-              type="button"
-              class="tile"
-              ?data-on=${on}
-              @click=${this.toggleClima}
-            >
+          ? html`<div class="tile" ?data-on=${on}>
               <span
                 class="dot"
-                style=${`background:${on ? "#fff" : "#66BFFF"}`}
+                style=${`background:${on ? "#fff" : "#80858c"}`}
               ></span>
-              <span class="icon">❄</span>
-              <span>${on ? "Spegni clima" : "Accendi freddo"}</span>
-            </button>`
-          : nothing}
-        ${ent
-          ? html`
-              <div class="setpoint" ?data-off=${!on}>
-                <button
-                  type="button"
-                  ?disabled=${!on}
-                  aria-label="Diminuisci setpoint"
-                  @click=${() => this.bump(-0.5)}
-                >
-                  −
-                </button>
-                <span class="val"
-                  >${on && Number.isFinite(tgt) ? `${tgt.toFixed(1)}°` : "—"}</span
-                >
-                <button
-                  type="button"
-                  ?disabled=${!on}
-                  aria-label="Aumenta setpoint"
-                  @click=${() => this.bump(0.5)}
-                >
-                  +
-                </button>
+              <span class="icon">🌡</span>
+              <span>Sistema aria</span>
+              <div class="modes">
+                ${modes.map(
+                  (m) => html`<button
+                    type="button"
+                    class="mode-chip"
+                    ?data-active=${mode === m}
+                    @click=${() => this.setMode(m)}
+                  >
+                    ${climateModeChipLabel(m)}
+                  </button>`,
+                )}
               </div>
-            `
+            </div>`
           : nothing}
         ${bg
           ? html`<button

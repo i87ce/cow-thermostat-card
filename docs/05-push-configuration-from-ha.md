@@ -8,20 +8,31 @@ Goal: configure the Custom HA URL on each Shelly Wall Display from HA itself
 
 ## A. Inventory
 
-You have 6 Wall Displays already known by HA's Shelly integration:
+You have Wall Displays already known by HA's Shelly integration.
 
-| MAC | IP | Model | Will host |
-|---|---|---|---|
-| `000822097825` | `172.16.2.10` | SAWD1 | Camera |
-| `00082254AD11` | `172.16.2.11` | SAWD1 | Studio Chiara |
-| `000822D2D2C5` | `172.16.2.12` | SAWD1 | Camera 1 |
-| `000822F61B9C` | `172.16.2.13` | SAWD1 | Bagno Ospiti |
-| `000822767310` | `172.16.2.15` | SAWD1 | Bagno Camera |
-| `00A90B9D02FE` | `172.16.2.14` | **XL (10.1")** | Sala e Cucina (future) |
+> ⚠️ **Reconciled 2026-05-30 against live data** (HA device registry +
+> each Shelly's own `Shelly.GetConfig` `sys.device.name`). The displays
+> were physically reassigned since this table was first written — the
+> rows below now reflect reality. `172.16.2.10`–`.13` were probed
+> directly; `.14`/`.15` are from the HA registry only.
+
+| MAC | IP | Model | Room (live name) | Kiosk user |
+|---|---|---|---|---|
+| `000822097825` | `172.16.2.10` | SAWD1 | **Camera 1** | `c1` |
+| `00082254AD11` | `172.16.2.11` | SAWD1 | Camera 2 | `c2` |
+| `000822D2D2C5` | `172.16.2.12` | SAWD1 | Bagno Ospiti | `bo` |
+| `000822F61B9C` | `172.16.2.13` | SAWD1 | Camera Padronale | `cp` |
+| `000822767310` | `172.16.2.15`? | SAWD1 | Ingresso PT / Scala | `sc` |
+| `000822CBE280` | (setup_retry) | SAWD1 | Bagno Padronale | `bp` |
+| `00A90B9D02FE` | `172.16.2.14` | **XL (10.1")** | Sala e Cucina | `sala` |
 
 > The MAC↔room mapping in [`examples/ha-walldisplay-rest-commands.yaml`](../examples/ha-walldisplay-rest-commands.yaml)
 > is a placeholder — swap any two IPs in the YAML to physically reassign a
 > display, then re-run the provision script.
+>
+> Re-derive this table any time with `node scripts/ha-diagnose-camera-1.mjs`
+> (lists every Wall Display device with its MAC) plus a quick
+> `curl http://<ip>/rpc/Shelly.GetDeviceInfo` per IP.
 
 ## B. Install the YAML in HA
 

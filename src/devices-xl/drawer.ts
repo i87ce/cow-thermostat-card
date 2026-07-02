@@ -30,6 +30,7 @@ export type DrawerTab = "lights" | "blinds" | "climate" | "security";
 export class CowXLDrawer extends LitElement {
   @property({ attribute: false }) hass?: HomeAssistant;
   @property({ attribute: false }) room?: CowRoomConfig;
+  @property({ type: String }) systemClimate = "";
   @property({ type: Boolean, reflect: true }) open = false;
   @state() private activeTab: DrawerTab = "lights";
 
@@ -475,6 +476,7 @@ export class CowXLDrawer extends LitElement {
         return html`<cow-xl-climate-tab
           .hass=${this.hass}
           .room=${this.room}
+          .systemClimate=${this.systemClimate}
         ></cow-xl-climate-tab>`;
       case "security":
         return html`<cow-xl-security-tab

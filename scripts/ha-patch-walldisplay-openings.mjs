@@ -95,9 +95,11 @@ const PLAN = {
         areas: ["Studio"],
         opening_default_kind: "window",
       },
+      // Garage: porta con sensore tilt, non contatto — niente badge aperture
+      // finché non installiamo il contatto. Riattivare:
+      //   areas: ["Garage"], opening_default_kind: "window"
       "Garage": {
-        areas: ["Garage"],
-        opening_default_kind: "window",
+        openings_enabled: false,
       },
       "Ingresso PT": {
         areas: ["Ingresso PT"],
@@ -117,6 +119,7 @@ const KEYS = [
   "opening_doors",
   "opening_windows",
   "opening_garages",
+  "openings_enabled",
 ];
 
 const ws = new WebSocket(`wss://${HOST}/api/websocket`);

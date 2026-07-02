@@ -76,7 +76,7 @@ export interface ThermostatView {
   current: number | null;
   target: number | null;
   unit: "°C" | "°F";
-  mode: "heat" | "cool" | "off" | "auto" | "heat_cool" | "fan_only";
+  mode: "heat" | "cool" | "off" | "auto" | "heat_cool" | "fan_only" | "dry";
   fan: string;
   fanModes: string[];
   hvacModes: Array<"off" | "heat" | "cool" | "heat_cool" | "auto" | "dry" | "fan_only">;
@@ -115,12 +115,14 @@ export function deriveThermostatView(
   if (state === "off") variant = "off";
   else if (attrs.hvac_action === "heating") variant = "heating";
   else if (attrs.hvac_action === "cooling") variant = "cooling";
+  else if (attrs.hvac_action === "drying") variant = "cooling";
   else variant = "idle";
 
   const mode = ((): ThermostatView["mode"] => {
     if (state === "off") return "off";
     if (state === "heat") return "heat";
     if (state === "cool") return "cool";
+    if (state === "dry") return "dry";
     if (state === "heat_cool") return "heat_cool";
     if (state === "fan_only") return "fan_only";
     return "auto";

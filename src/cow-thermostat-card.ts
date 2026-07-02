@@ -27,7 +27,7 @@ import "./cow-mobile-dashboard-card.js";
 
 type Kind = "thermostat" | "lights" | "blinds";
 
-const VERSION = "1.4.25";
+const VERSION = "1.4.26";
 
 const ACCENT_DOT: Record<Kind, (cfg: CowConfig, hass?: HomeAssistant) => string> =
   {
@@ -233,6 +233,7 @@ export class CowThermostatCard extends LitElement implements LovelaceCard {
                     slot="slide-${i}"
                     .hass=${this.hass}
                     .entity=${cfg.climate ?? ""}
+                    .systemClimate=${cfg.system_climate ?? ""}
                     .roomName=${cfg.room}
                     .outdoorEntity=${cfg.outdoor_temp ?? ""}
                     .humidityEntity=${cfg.local_humidity ?? ""}

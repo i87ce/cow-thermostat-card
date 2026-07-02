@@ -70,6 +70,11 @@ import {
   THERMOSTAT_SUB_LABEL,
   type ThermostatVariant,
 } from "./small/state/thermostat.js";
+import {
+  climateModeChipLabel,
+  SYSTEM_MODE_CHIP_ORDER,
+  usesSplitClimate,
+} from "./small/state/split-climate.js";
 import "./shared/hero/mobile-hero.js";
 import "./shared/setpoint-modal.js";
 
@@ -140,7 +145,12 @@ export interface CowMobileDashboardConfig extends LovelaceCardConfig {
   pollen_max_items?: number;
   /** Opt-in aurora overlay. Off by default. */
   aurora?: boolean;
-  /* ─── Ajax openings overrides ─────────────────────────────────── */
+  /**
+   * Global air system entity (mode + fan), typically `climate.casa_aria`.
+   * When set, air-zone room drawers show system controls here and per-room
+   * setpoint + air on/off on `rooms[].climate`.
+   */
+  system_climate?: string;
   /**
    * Default opening kind when no per-device rule matches. Most consumer
    * Ajax installs are windows, so the recommended default is "window"
@@ -475,71 +485,66 @@ export class CowMobileDashboardCard
     );
   }
 
-  // TEMPORANEO — controllo clima casa generale tramite il termostato
-  // climate.clima_casa_auto (generic_thermostat che pilota la Camera
-  // padronale con keep-alive: accende/spegne di fatto tutta la casa finché
-  // non si comandano le serrande per stanza). In futuro: per-stanza via cow.
-  private climaMode(on: boolean): void {
+  // Global air system (climate.casa_aria) — mode + fan; setpoint is per-room.
+  private systemClimateEntity(): string {
+    return this.config?.system_climate ?? "climate.casa_aria";
+  }
+
+  private setSystemMode(mode: string): void {
+    const id = this.systemClimateEntity();
     void this.hass?.callService(
       "climate",
       "set_hvac_mode",
-      { hvac_mode: on ? "cool" : "off" },
-      { entity_id: "climate.clima_casa_auto" },
+      { hvac_mode: mode },
+      { entity_id: id },
     );
   }
-  private climaBump(delta: number): void {
-    const cur = Number(
-      this.getEnt("climate.clima_casa_auto")?.attributes?.temperature,
-    );
-    if (!Number.isFinite(cur)) return;
-    void this.hass?.callService(
-      "climate",
-      "set_temperature",
-      { temperature: Math.round((cur + delta) * 2) / 2 },
-      { entity_id: "climate.clima_casa_auto" },
-    );
-  }
+
   private runScript(entityId: string): void {
     void this.hass?.callService("script", "turn_on", {}, { entity_id: entityId });
   }
 
-  // Riga clima casa (on/off freddo + setpoint) sotto luci/tapparelle.
+  // Riga clima casa (modo globale) sotto luci/tapparelle.
   private renderClimaCasa() {
-    const ent = this.getEnt("climate.clima_casa_auto");
+    const id = this.systemClimateEntity();
+    const ent = this.getEnt(id);
     if (!ent) return nothing;
-    const on = ent.state === "cool";
-    const tgt = Number(ent.attributes?.temperature);
+    const mode = ent.state;
+    const on = mode !== "off";
     const cur = Number(ent.attributes?.current_temperature);
     const action = ent.attributes?.hvac_action;
     const sub = !on
       ? "spento"
-      : action === "cooling"
-        ? "raffredda"
-        : "mantenimento";
+      : action === "heating"
+        ? "riscalda"
+        : action === "cooling"
+          ? "raffredda"
+          : action === "drying"
+            ? "deumidifica"
+            : action === "fan"
+              ? "ventola"
+              : "mantenimento";
+    const modes = (
+      (ent.attributes?.hvac_modes as string[] | undefined) ?? []
+    ).filter((m) =>
+      ["cool", "heat", "dry", "fan_only", "off"].includes(m),
+    );
     return html`
       <div class="summary-text" style="margin-top:0.6rem;">
-        Clima casa —
-        ${Number.isFinite(cur) ? `media ${cur.toFixed(1)}° · ` : ""}${sub}${on &&
-        Number.isFinite(tgt)
-          ? ` · obiettivo ${tgt.toFixed(1)}°`
-          : ""}
+        Sistema aria —
+        ${Number.isFinite(cur) ? `media ${cur.toFixed(1)}° · ` : ""}${sub}
       </div>
       <div class="summary-actions">
-        <button data-accent ?disabled=${!on} @click=${() => this.climaMode(false)}>
-          Spegni clima
-        </button>
-        <button data-accent-soft ?disabled=${on} @click=${() => this.climaMode(true)}>
-          Accendi freddo
-        </button>
+        ${modes.map(
+          (m) => html`<button
+            data-accent-soft
+            ?disabled=${mode === m}
+            @click=${() => this.setSystemMode(m)}
+          >
+            ${m === "fan_only" ? "Fan" : m === "off" ? "Off" : m.charAt(0).toUpperCase() + m.slice(1)}
+          </button>`,
+        )}
       </div>
-      ${on
-        ? html`
-            <div class="summary-actions">
-              <button data-cov @click=${() => this.climaBump(-0.5)}>− 0,5°</button>
-              <button data-cov-soft @click=${() => this.climaBump(0.5)}>+ 0,5°</button>
-            </div>
-          `
-        : nothing}
     `;
   }
 
@@ -607,7 +612,8 @@ export class CowMobileDashboardCard
   private openSetpointModal = (entity: string): void => {
     if (!this.hass) return;
     const view = deriveThermostatView(this.hass.states[entity]);
-    if (view.variant === "off") return;
+    const split = usesSplitClimate(this.systemClimateEntity(), view);
+    if (!split && view.variant === "off") return;
     this.setpointModalEntity = entity;
     // Imperatively wire the modal RIGHT NOW so the iOS Safari
     // user-gesture chain stays intact through input.focus(). We
@@ -1792,12 +1798,17 @@ export class CowMobileDashboardCard
     const ent = this.getEnt(entity);
     if (!ent) return nothing;
     const view = deriveThermostatView(ent);
+    const split = usesSplitClimate(this.systemClimateEntity(), view);
+    const sysId = this.systemClimateEntity();
+    const sysView = split
+      ? deriveThermostatView(this.getEnt(sysId))
+      : view;
     const accent = THERMOSTAT_ACCENT[view.variant];
     const fmt = (n: number, unit: string) =>
       `${n.toFixed(1).replace(/\.0$/, "")}${unit}`;
     const cur = view.current != null ? fmt(view.current, "°") : "—";
     const tgt = view.target != null ? fmt(view.target, "°") : "—";
-    const arrowsDisabled = view.variant === "off";
+    const arrowsDisabled = !split && view.variant === "off";
     const upT = bumpTarget(view, 1);
     const downT = bumpTarget(view, -1);
     // Sit the variant accent on the host of THIS element. The style
@@ -1849,10 +1860,70 @@ export class CowMobileDashboardCard
             </button>
           </div>
         </div>
-        ${this.renderClimateModeChips(entity, view)}
-        ${view.fanModes.length > 1
-          ? this.renderClimateFanChips(entity, view)
-          : nothing}
+        ${split
+          ? html`
+              <div class="qc-section-title">Sistema</div>
+              ${this.renderSystemModeChips(sysId, sysView)}
+              ${sysView.fanModes.length > 1
+                ? this.renderClimateFanChips(sysId, sysView)
+                : nothing}
+              <div class="qc-section-title">Aria stanza</div>
+              ${this.renderAirParticipationChips(entity, view)}
+            `
+          : html`
+              ${this.renderClimateModeChips(entity, view)}
+              ${view.fanModes.length > 1
+                ? this.renderClimateFanChips(entity, view)
+                : nothing}
+            `}
+      </div>
+    `;
+  }
+
+  private renderSystemModeChips(
+    entity: string,
+    view: ReturnType<typeof deriveThermostatView>,
+  ) {
+    const chips = SYSTEM_MODE_CHIP_ORDER.filter((m) =>
+      view.hvacModes.includes(m),
+    );
+    return html`
+      <div class="qc-climate-chiprow">
+        ${chips.map(
+          (m) => html`
+            <button
+              class="qc-climate-chip"
+              ?data-active=${view.mode === m}
+              @click=${() => this.setClimateMode(entity, m)}
+            >
+              ${climateModeChipLabel(m)}
+            </button>
+          `,
+        )}
+      </div>
+    `;
+  }
+
+  private renderAirParticipationChips(
+    entity: string,
+    view: ReturnType<typeof deriveThermostatView>,
+  ) {
+    return html`
+      <div class="qc-climate-chiprow">
+        <button
+          class="qc-climate-chip"
+          ?data-active=${view.mode !== "off"}
+          @click=${() => this.setClimateMode(entity, "heat")}
+        >
+          On
+        </button>
+        <button
+          class="qc-climate-chip"
+          ?data-active=${view.mode === "off"}
+          @click=${() => this.setClimateMode(entity, "off")}
+        >
+          Off
+        </button>
       </div>
     `;
   }
@@ -1866,20 +1937,11 @@ export class CowMobileDashboardCard
     // bathrooms wrapped as floor-only) just heat/off. Order them
     // for consistent visual rhythm: off last so it sits to the right
     // like a "stop" button.
-    const order: ThermostatVariant extends never ? never : string[] = [
-      "heat",
-      "cool",
-      "fan_only",
-      "off",
-    ];
-    const labels: Record<string, string> = {
-      heat: "Heat",
-      cool: "Cool",
-      fan_only: "Fan",
-      off: "Off",
-    };
+    const order = ["heat", "cool", "dry", "fan_only", "off"];
     const chips = order.filter((m) => view.hvacModes.includes(m as never));
-    if (!chips.includes("off")) chips.push("off");
+    if (!chips.includes("off") && view.hvacModes.includes("off")) {
+      chips.push("off");
+    }
     return html`
       <div class="qc-climate-chiprow">
         ${chips.map(
@@ -1889,7 +1951,7 @@ export class CowMobileDashboardCard
               ?data-active=${view.mode === m}
               @click=${() => this.setClimateMode(entity, m)}
             >
-              ${labels[m] ?? m}
+              ${climateModeChipLabel(m)}
             </button>
           `,
         )}

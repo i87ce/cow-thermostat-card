@@ -439,7 +439,10 @@ export class CowRoomDashboardCard
             .scenes=${scenes}
             @cow-scene-tap=${this.onSceneTap}
           ></cow-xl-scenes>
-          <cow-xl-clima-casa .hass=${this.hass}></cow-xl-clima-casa>
+          <cow-xl-clima-casa
+            .hass=${this.hass}
+            .systemClimate=${cfg.system_climate ?? "climate.casa_aria"}
+          ></cow-xl-clima-casa>
         </div>
 
         <div class="drawer-peek">
@@ -450,6 +453,7 @@ export class CowRoomDashboardCard
         <cow-xl-drawer
           .hass=${this.hass}
           .room=${activeRoom}
+          .systemClimate=${cfg.system_climate ?? "climate.casa_aria"}
           ?open=${this.drawerOpen}
           @cow-drawer-close=${this.onDrawerClose}
         ></cow-xl-drawer>

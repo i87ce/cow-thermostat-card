@@ -50,6 +50,12 @@ export interface CowRoomConfig {
   opening_windows?: string[];
   /** Device names that are garage doors. */
   opening_garages?: string[];
+  /**
+   * When false, hide Ajax opening sensors for this room (badge, security
+   * tab, chip counter). Use while a sensor is misconfigured — e.g. tilt
+   * instead of contact — until hardware is fixed.
+   */
+  openings_enabled?: boolean;
 }
 
 export interface CowSceneConfig {
@@ -157,6 +163,10 @@ export interface CowRoomDashboardConfig {
   /** BCP-47 locale for time/date formatting. Defaults to browser language. */
   locale?: string;
   /**
+   * Global air system (Mitsubishi mode + fan), typically climate.casa_aria.
+   */
+  system_climate?: string;
+  /**
    * Opt-in aurora overlay for the hero (forwarded to the shared
    * hero engine). There is no HA weather state for aurora — the user
    * decides when to switch it on (special occasions, a Kp-index
@@ -228,6 +238,8 @@ export function validateXLConfig(input: unknown): CowRoomDashboardConfig {
       opening_doors: stringList(room.opening_doors),
       opening_windows: stringList(room.opening_windows),
       opening_garages: stringList(room.opening_garages),
+      openings_enabled:
+        room.openings_enabled === false ? false : undefined,
     };
   });
 
@@ -300,6 +312,8 @@ export function validateXLConfig(input: unknown): CowRoomDashboardConfig {
     scenes,
     locale: typeof cfg.locale === "string" ? cfg.locale : undefined,
     aurora: cfg.aurora === true,
+    system_climate:
+      typeof cfg.system_climate === "string" ? cfg.system_climate : undefined,
   };
 }
 
@@ -380,6 +394,7 @@ export function findRoomOpeningsXL(
   hass: HomeAssistant | undefined,
   room: CowRoomConfig,
 ): AjaxOpening[] {
+  if (room.openings_enabled === false) return [];
   const areas =
     room.areas && room.areas.length > 0 ? room.areas : [room.name];
   if (areas.length === 0) return [];

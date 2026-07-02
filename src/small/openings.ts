@@ -83,6 +83,8 @@ export interface OpeningsOpts {
   doors?: string[];
   windows?: string[];
   garages?: string[];
+  /** When false, return no openings (tilt-only garage, etc.). */
+  enabled?: boolean;
 }
 
 /**
@@ -95,6 +97,7 @@ export function findRoomOpenings(
   hass: HomeAssistant | undefined,
   opts: OpeningsOpts,
 ): AjaxOpening[] {
+  if (opts.enabled === false) return [];
   const areas = opts.areas.length > 0
     ? opts.areas
     : opts.fallbackArea

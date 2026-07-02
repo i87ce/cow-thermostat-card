@@ -30,6 +30,8 @@ export interface DeviceEntry {
 export interface CowConfig {
   type: "custom:cow-thermostat-card";
   room: string;
+  /** Global air entity (mode + fan), e.g. climate.casa_aria */
+  system_climate?: string;
   climate?: string;
   lights: DeviceEntry[];
   covers: DeviceEntry[];
@@ -325,5 +327,6 @@ export function validateConfig(input: unknown): CowConfig {
     hidden_studio_door: hiddenStudioDoor,
     studio_door_entity: studioDoorEntity,
     studio_door_lights: studioDoorLights,
+    system_climate: optionalEntity(cfg, "system_climate", DOMAIN_CLIMATE),
   };
 }

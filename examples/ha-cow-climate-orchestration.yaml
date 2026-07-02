@@ -1,67 +1,47 @@
 # ---------------------------------------------------------------------------
-# Cow Climate orchestration — coordinates Koolnova + Pavimento per room
+# Cow Climate orchestration — Mitsubishi + serrande ESP32 + pavimento
 # ---------------------------------------------------------------------------
-# Drop this file into /config/packages/cow_climate.yaml and make sure your
-# /config/configuration.yaml has packages enabled:
+# Drop into /config/packages/cow_climate.yaml (packages: !include_dir_named packages).
+# Design: docs/06-house-hvac-architecture.md §F-bis (Mitsubishi v3).
 #
-#     homeassistant:
-#       packages: !include_dir_named packages
+# REGOLA 1: Mitsubishi acceso ⇒ almeno 1 serranda aperta. Mai violare.
 #
-# Then *Developer Tools → YAML → Reload all YAML* (or restart HA).
-#
-# Design notes live in docs/06-house-hvac-architecture.md (Section F-bis).
-#
-# Implementation: we'd have preferred a Template Climate entity as the proxy,
-# but HA 2026.5.x dropped `climate` from the template integration. The next
-# best supported option is MQTT Climate — and we already have a Mosquitto
-# add-on serving Zigbee2MQTT, so the broker is free of charge. The
-# climate.casa_<room> proxies are declared as MQTT climates with
-# `optimistic: true` (HA updates state locally on each command — no echo
-# automation needed) and `retain: true` (last setpoint / mode / fan survive
-# an HA restart, persisted by the broker).
-#
-# Single source of truth: every UI surface (mobile dashboard, wall-display
-# cards, XL room dashboard) reads temperature and humidity from the proxy
-# via current_temperature_topic + current_humidity_topic. The display's
-# raw sensors are *only* used as the upstream feed published to those
-# topics. If we ever move the canonical reading (e.g. swap to a better
-# room sensor) we change a single mqtt.publish action in this file and
-# every surface picks up the new feed automatically.
-#
-# Persistence across HA / broker restart (Bug B, 2026-05-27):
-# `optimistic: true` is a UX win — the proxy's local state flips the
-# instant a command lands, no broker round-trip. The catch is that HA
-# never publishes the new state back to `*/state` when optimistic is on;
-# only `*/set` gets published. So `retain: true` keeps the retained
-# COMMAND on the broker but the STATE topic stays empty, and on every
-# HA / broker restart the proxies reset to YAML defaults (off / 21° /
-# auto), losing whatever the user had set. The `cow_climate_publish_
-# state_echo` automation below closes the loop: every `cow/casa/+/{mode,
-# setpoint,fan}/set` is mirrored to the matching `/state` topic with
-# retain=true. Combined with the core-mosquitto add-on's built-in
-# `persistence true` + `/data/mosquitto.db` (default since the add-on
-# ships an opinionated /etc/mosquitto/mosquitto.conf), the last-known
-# setpoints / modes / fans survive HAOS reboots too.
-# See docs/06-house-hvac-architecture.md §F-bis "Persistence requirement".
-#
-# Seven proxies — one per heated/cooled room:
-#   * 5 dual-system: Koolnova HVAC + hydronic floor
-#       casa_sala_cucina, casa_camera, casa_studio_chiara,
-#       casa_camera_padronale, casa_ingresso_pt
-#   * 2 floor-only:  no Koolnova zone, just a Generic Thermostat
-#                    driving the Shelly Wall Display relay (the valve)
-#       casa_bagno_padronale, casa_bagno_ospiti
+# Entities:
+#   climate.casa_aria          — global mode + fan (all displays)
+#   climate.casa_<room>        — per-room setpoint + air on/off (heat = aria on)
+#   climate.koolnova_clima_clim1 — Mitsubishi physical
+#   cover.koolnova_serrande_serranda_1..5 — dampers (auto only)
 # ---------------------------------------------------------------------------
 
 mqtt:
   climate:
-    # ── Dual-system proxies (Koolnova + floor) ──────────────────────────
+    # ── Global system (mode + fan — same on every display) ─────────────
+    - name: "Casa Aria"
+      unique_id: casa_aria
+      modes: ["off", "heat", "cool", "dry", "fan_only"]
+      fan_modes: ["auto", "low", "medium", "high"]
+      min_temp: 16
+      max_temp: 30
+      temp_step: 1
+      retain: true
+      optimistic: true
+      mode_command_topic: "cow/casa/aria/mode/set"
+      mode_state_topic: "cow/casa/aria/mode/state"
+      temperature_command_topic: "cow/casa/aria/setpoint/set"
+      temperature_state_topic: "cow/casa/aria/setpoint/state"
+      fan_mode_command_topic: "cow/casa/aria/fan/set"
+      fan_mode_state_topic: "cow/casa/aria/fan/state"
+      current_temperature_topic: "cow/casa/aria/current/state"
+      action_topic: "cow/casa/aria/action/state"
+
+    # ── Per-room proxies (setpoint + air participation) ───────────────
+    # Air zones: modes off/heat only — heat = stanza partecipa al loop aria.
+    # Floor-only: off/heat controls pavimento directly.
     - name: "Casa Sala & Cucina"
       unique_id: casa_sala_cucina
-      modes: ["off", "heat", "cool", "fan_only"]
-      fan_modes: ["auto", "low", "medium", "high"]
+      modes: ["off", "heat"]
       min_temp: 15
-      max_temp: 50  # TEMP: was 28 — bumped for floor-heating test (room ~35°C, need setpoint > current to trigger pavimento). Revert to 30 once test is done.
+      max_temp: 30
       temp_step: 0.5
       retain: true
       optimistic: true
@@ -69,18 +49,15 @@ mqtt:
       mode_state_topic: "cow/casa/sala_cucina/mode/state"
       temperature_command_topic: "cow/casa/sala_cucina/setpoint/set"
       temperature_state_topic: "cow/casa/sala_cucina/setpoint/state"
-      fan_mode_command_topic: "cow/casa/sala_cucina/fan/set"
-      fan_mode_state_topic: "cow/casa/sala_cucina/fan/state"
       current_temperature_topic: "cow/casa/sala_cucina/current/state"
       current_humidity_topic: "cow/casa/sala_cucina/humidity/state"
       action_topic: "cow/casa/sala_cucina/action/state"
 
     - name: "Casa Camera"
       unique_id: casa_camera
-      modes: ["off", "heat", "cool", "fan_only"]
-      fan_modes: ["auto", "low", "medium", "high"]
+      modes: ["off", "heat"]
       min_temp: 15
-      max_temp: 50  # TEMP: was 28 — bumped for floor-heating test (room ~35°C, need setpoint > current to trigger pavimento). Revert to 30 once test is done.
+      max_temp: 30
       temp_step: 0.5
       retain: true
       optimistic: true
@@ -88,18 +65,15 @@ mqtt:
       mode_state_topic: "cow/casa/camera/mode/state"
       temperature_command_topic: "cow/casa/camera/setpoint/set"
       temperature_state_topic: "cow/casa/camera/setpoint/state"
-      fan_mode_command_topic: "cow/casa/camera/fan/set"
-      fan_mode_state_topic: "cow/casa/camera/fan/state"
       current_temperature_topic: "cow/casa/camera/current/state"
       current_humidity_topic: "cow/casa/camera/humidity/state"
       action_topic: "cow/casa/camera/action/state"
 
     - name: "Casa Studio Chiara"
       unique_id: casa_studio_chiara
-      modes: ["off", "heat", "cool", "fan_only"]
-      fan_modes: ["auto", "low", "medium", "high"]
+      modes: ["off", "heat"]
       min_temp: 15
-      max_temp: 50  # TEMP: was 28 — bumped for floor-heating test (room ~35°C, need setpoint > current to trigger pavimento). Revert to 30 once test is done.
+      max_temp: 30
       temp_step: 0.5
       retain: true
       optimistic: true
@@ -107,18 +81,15 @@ mqtt:
       mode_state_topic: "cow/casa/studio_chiara/mode/state"
       temperature_command_topic: "cow/casa/studio_chiara/setpoint/set"
       temperature_state_topic: "cow/casa/studio_chiara/setpoint/state"
-      fan_mode_command_topic: "cow/casa/studio_chiara/fan/set"
-      fan_mode_state_topic: "cow/casa/studio_chiara/fan/state"
       current_temperature_topic: "cow/casa/studio_chiara/current/state"
       current_humidity_topic: "cow/casa/studio_chiara/humidity/state"
       action_topic: "cow/casa/studio_chiara/action/state"
 
     - name: "Casa Camera Padronale"
       unique_id: casa_camera_padronale
-      modes: ["off", "heat", "cool", "fan_only"]
-      fan_modes: ["auto", "low", "medium", "high"]
+      modes: ["off", "heat"]
       min_temp: 15
-      max_temp: 50  # TEMP: was 28 — bumped for floor-heating test (room ~35°C, need setpoint > current to trigger pavimento). Revert to 30 once test is done.
+      max_temp: 30
       temp_step: 0.5
       retain: true
       optimistic: true
@@ -126,18 +97,15 @@ mqtt:
       mode_state_topic: "cow/casa/camera_padronale/mode/state"
       temperature_command_topic: "cow/casa/camera_padronale/setpoint/set"
       temperature_state_topic: "cow/casa/camera_padronale/setpoint/state"
-      fan_mode_command_topic: "cow/casa/camera_padronale/fan/set"
-      fan_mode_state_topic: "cow/casa/camera_padronale/fan/state"
       current_temperature_topic: "cow/casa/camera_padronale/current/state"
       current_humidity_topic: "cow/casa/camera_padronale/humidity/state"
       action_topic: "cow/casa/camera_padronale/action/state"
 
     - name: "Casa Ingresso PT"
       unique_id: casa_ingresso_pt
-      modes: ["off", "heat", "cool", "fan_only"]
-      fan_modes: ["auto", "low", "medium", "high"]
+      modes: ["off", "heat"]
       min_temp: 15
-      max_temp: 50  # TEMP: was 28 — bumped for floor-heating test (room ~35°C, need setpoint > current to trigger pavimento). Revert to 30 once test is done.
+      max_temp: 30
       temp_step: 0.5
       retain: true
       optimistic: true
@@ -145,24 +113,15 @@ mqtt:
       mode_state_topic: "cow/casa/ingresso_pt/mode/state"
       temperature_command_topic: "cow/casa/ingresso_pt/setpoint/set"
       temperature_state_topic: "cow/casa/ingresso_pt/setpoint/state"
-      fan_mode_command_topic: "cow/casa/ingresso_pt/fan/set"
-      fan_mode_state_topic: "cow/casa/ingresso_pt/fan/state"
       current_temperature_topic: "cow/casa/ingresso_pt/current/state"
       current_humidity_topic: "cow/casa/ingresso_pt/humidity/state"
       action_topic: "cow/casa/ingresso_pt/action/state"
 
-    # ── Floor-only proxies (no Koolnova zone) ───────────────────────────
-    # The two bathrooms have no air-side HVAC zone, just a floor loop.
-    # We still wrap them in a casa_* proxy so the UI is uniform: every
-    # heated room is accessed through climate.casa_<room>, and the proxy
-    # is the single source of truth for current_temperature /
-    # current_humidity. The orchestrator maps these proxies to their
-    # respective climate.pavimento_<room> Generic Thermostat below.
     - name: "Casa Bagno Padronale"
       unique_id: casa_bagno_padronale
       modes: ["off", "heat"]
       min_temp: 15
-      max_temp: 50  # TEMP: was 28 — bumped for floor-heating test (room ~35°C, need setpoint > current to trigger pavimento). Revert to 30 once test is done.
+      max_temp: 30
       temp_step: 0.5
       retain: true
       optimistic: true
@@ -178,7 +137,7 @@ mqtt:
       unique_id: casa_bagno_ospiti
       modes: ["off", "heat"]
       min_temp: 15
-      max_temp: 50  # TEMP: was 28 — bumped for floor-heating test (room ~35°C, need setpoint > current to trigger pavimento). Revert to 30 once test is done.
+      max_temp: 30
       temp_step: 0.5
       retain: true
       optimistic: true
@@ -190,21 +149,324 @@ mqtt:
       current_humidity_topic: "cow/casa/bagno_ospiti/humidity/state"
       action_topic: "cow/casa/bagno_ospiti/action/state"
 
-# --- Republish current temperature + humidity into each proxy ----------------
-# Single feed: every proxy reads its current_temperature and current_humidity
-# from MQTT topics that mirror the wall display's sensors. We publish those
-# values on every change of the source sensor, with retain=true so the proxy
-# picks them up immediately on HA startup (no "unknown" current values).
-#
-# This is the boundary where the upstream signal (display sensor) enters the
-# proxy abstraction. If we ever move the canonical reading to a different
-# sensor for a room, we update this single automation and every UI surface
-# follows.
+script:
+  cow_climate_open_serranda:
+    alias: "Cow Climate — Open one serranda"
+    mode: parallel
+    fields:
+      entity:
+        selector:
+          entity:
+            domain: cover
+    sequence:
+      - service: cover.open_cover
+        target:
+          entity_id: "{{ entity }}"
+
+  cow_climate_close_serranda:
+    alias: "Cow Climate — Close one serranda (REGOLA 1 guard)"
+    mode: parallel
+    fields:
+      entity:
+        selector:
+          entity:
+            domain: cover
+    sequence:
+      - variables:
+          all_serrande:
+            - cover.koolnova_serrande_serranda_1
+            - cover.koolnova_serrande_serranda_2
+            - cover.koolnova_serrande_serranda_3
+            - cover.koolnova_serrande_serranda_4
+            - cover.koolnova_serrande_serranda_5
+          mitsu: climate.koolnova_clima_clim1
+          open_count: >-
+            {% set ns = namespace(n=0) %}
+            {% for s in all_serrande %}
+              {% if is_state(s, 'open') or (state_attr(s, 'current_position') | int(0)) > 0 %}
+                {% set ns.n = ns.n + 1 %}
+              {% endif %}
+            {% endfor %}
+            {{ ns.n }}
+          would_close: >-
+            {{ is_state(entity, 'open') or (state_attr(entity, 'current_position') | int(0)) > 0 }}
+      - choose:
+          - conditions:
+              - condition: template
+                value_template: "{{ not would_close }}"
+            sequence: []
+          - conditions:
+              - condition: template
+                value_template: "{{ is_state(mitsu, 'off') }}"
+            sequence:
+              - service: cover.close_cover
+                target:
+                  entity_id: "{{ entity }}"
+          - conditions:
+              - condition: template
+                value_template: "{{ open_count | int > 1 }}"
+            sequence:
+              - service: cover.close_cover
+                target:
+                  entity_id: "{{ entity }}"
+
+  cow_climate_sync_air:
+    alias: "Cow Climate — Sync Mitsubishi + serrande"
+    mode: restart
+    sequence:
+      - variables:
+          aria_mode: "{{ states('climate.casa_aria') }}"
+          aria_fan: "{{ state_attr('climate.casa_aria', 'fan_mode') or 'auto' }}"
+          mitsu: climate.koolnova_clima_clim1
+          TOL: 1.0
+          HEAT_T: 30
+          COOL_T: 16
+          all_serrande:
+            - cover.koolnova_serrande_serranda_1
+            - cover.koolnova_serrande_serranda_2
+            - cover.koolnova_serrande_serranda_3
+            - cover.koolnova_serrande_serranda_4
+            - cover.koolnova_serrande_serranda_5
+          fan_map:
+            auto: auto
+            low: low
+            medium: medium
+            high: high
+            middle: medium
+            quiet: low
+          mitsu_fan: "{{ fan_map.get(aria_fan, 'auto') }}"
+          air_zones:
+            - slug: camera_padronale
+              proxy: climate.casa_camera_padronale
+              temp: sensor.display_camera_padronale_temperature
+              serrande:
+                - cover.koolnova_serrande_serranda_1
+            - slug: studio_chiara
+              proxy: climate.casa_studio_chiara
+              temp: sensor.display_camera_2_temperature
+              serrande:
+                - cover.koolnova_serrande_serranda_2
+            - slug: camera
+              proxy: climate.casa_camera
+              temp: sensor.display_camera_1_temperature
+              serrande:
+                - cover.koolnova_serrande_serranda_3
+            - slug: sala_cucina
+              proxy: climate.casa_sala_cucina
+              temp: sensor.display_sala_temperature
+              serrande:
+                - cover.koolnova_serrande_serranda_4
+                - cover.koolnova_serrande_serranda_5
+          deficit_serrande: >-
+            {% set TOL = 1.0 %}
+            {% set aria = states('climate.casa_aria') %}
+            {% set zones = [
+              {'proxy':'climate.casa_camera_padronale','temp':'sensor.display_camera_padronale_temperature','serrande':['cover.koolnova_serrande_serranda_1']},
+              {'proxy':'climate.casa_studio_chiara','temp':'sensor.display_camera_2_temperature','serrande':['cover.koolnova_serrande_serranda_2']},
+              {'proxy':'climate.casa_camera','temp':'sensor.display_camera_1_temperature','serrande':['cover.koolnova_serrande_serranda_3']},
+              {'proxy':'climate.casa_sala_cucina','temp':'sensor.display_sala_temperature','serrande':['cover.koolnova_serrande_serranda_4','cover.koolnova_serrande_serranda_5']}
+            ] %}
+            {% set out = [] %}
+            {% if aria in ['off','unknown','unavailable','none', None] %}{{ out | join(',') }}
+            {% else %}
+            {% for z in zones %}
+              {% if states(z.proxy) == 'heat' %}
+                {% set sp = state_attr(z.proxy, 'temperature') | float(20) %}
+                {% set cur = states(z.temp) | float(20) %}
+                {% set deficit = false %}
+                {% if aria == 'heat' %}{% set deficit = cur < sp - TOL %}
+                {% elif aria in ['cool','dry'] %}{% set deficit = cur > sp + TOL %}
+                {% elif aria == 'fan_only' %}{% set deficit = true %}
+                {% endif %}
+                {% if deficit %}{% for s in z.serrande %}{% set out = out + [s] %}{% endfor %}{% endif %}
+              {% endif %}
+            {% endfor %}
+            {{ out | unique | join(',') }}
+            {% endif %}
+          at_setpoint_serrande: >-
+            {% set TOL = 1.0 %}
+            {% set aria = states('climate.casa_aria') %}
+            {% set zones = [
+              {'proxy':'climate.casa_camera_padronale','temp':'sensor.display_camera_padronale_temperature','serrande':['cover.koolnova_serrande_serranda_1']},
+              {'proxy':'climate.casa_studio_chiara','temp':'sensor.display_camera_2_temperature','serrande':['cover.koolnova_serrande_serranda_2']},
+              {'proxy':'climate.casa_camera','temp':'sensor.display_camera_1_temperature','serrande':['cover.koolnova_serrande_serranda_3']},
+              {'proxy':'climate.casa_sala_cucina','temp':'sensor.display_sala_temperature','serrande':['cover.koolnova_serrande_serranda_4','cover.koolnova_serrande_serranda_5']}
+            ] %}
+            {% set out = [] %}
+            {% if aria in ['off','unknown','unavailable','none', None] %}{{ out | join(',') }}
+            {% else %}
+            {% for z in zones %}
+              {% if states(z.proxy) == 'heat' %}
+                {% set sp = state_attr(z.proxy, 'temperature') | float(20) %}
+                {% set cur = states(z.temp) | float(20) %}
+                {% set at = cur >= sp - TOL and cur <= sp + TOL %}
+                {% if at %}{% for s in z.serrande %}{% set out = out + [s] %}{% endfor %}{% endif %}
+              {% endif %}
+            {% endfor %}
+            {{ out | unique | join(',') }}
+            {% endif %}
+          active_air_count: >-
+            {% set zones = ['climate.casa_camera_padronale','climate.casa_studio_chiara','climate.casa_camera','climate.casa_sala_cucina'] %}
+            {% set n = 0 %}
+            {% for p in zones %}{% if states(p) == 'heat' %}{% set n = n + 1 %}{% endif %}{% endfor %}
+            {{ n }}
+          all_at_setpoint: >-
+            {% set ac = active_air_count | int %}
+            {% set at = at_setpoint_serrande | trim %}
+            {% if ac == 0 %}false
+            {% elif aria_mode == 'fan_only' %}true
+            {% else %}
+              {% set at_list = at.split(',') if at else [] %}
+              {% set need = ac * 1 %}
+              {{ at_list | length >= ac and deficit_serrande | trim == '' }}
+            {% endif %}
+
+      # ── OFF: Mitsubishi first, then close all serrande (REGOLA 1) ───
+      - choose:
+          - conditions:
+              - condition: template
+                value_template: "{{ aria_mode in ['off', 'unknown', 'unavailable', 'none'] or aria_mode is none }}"
+            sequence:
+              - service: climate.set_hvac_mode
+                target:
+                  entity_id: "{{ mitsu }}"
+                data:
+                  hvac_mode: "off"
+              - service: cover.close_cover
+                target:
+                  entity_id: "{{ all_serrande }}"
+            default:
+              - choose:
+                  # ── fan_only global OR all zones at setpoint ──────
+                  - conditions:
+                      - condition: template
+                        value_template: >-
+                          {{ aria_mode == 'fan_only' or all_at_setpoint | trim == 'true' }}
+                    sequence:
+                      - service: cover.open_cover
+                        target:
+                          entity_id: "{{ all_serrande }}"
+                      - delay:
+                          seconds: 2
+                      - service: climate.set_hvac_mode
+                        target:
+                          entity_id: "{{ mitsu }}"
+                        data:
+                          hvac_mode: "fan_only"
+                      - service: climate.set_fan_mode
+                        target:
+                          entity_id: "{{ mitsu }}"
+                        data:
+                          fan_mode: "{{ mitsu_fan }}"
+                  # ── No active air zones ───────────────────────────
+                  - conditions:
+                      - condition: template
+                        value_template: "{{ active_air_count | int == 0 }}"
+                    sequence:
+                      - service: climate.set_hvac_mode
+                        target:
+                          entity_id: "{{ mitsu }}"
+                        data:
+                          hvac_mode: "off"
+                      - service: cover.close_cover
+                        target:
+                          entity_id: "{{ all_serrande }}"
+                  # ── Conditioning: deficit zones ─────────────────────
+                  - conditions:
+                      - condition: template
+                        value_template: "{{ deficit_serrande | trim != '' }}"
+                    sequence:
+                      - repeat:
+                          for_each: "{{ deficit_serrande.split(',') if deficit_serrande | trim else [] }}"
+                          sequence:
+                            - service: script.cow_climate_open_serranda
+                              data:
+                                entity: "{{ repeat.item | trim }}"
+                      - delay:
+                          seconds: 2
+                      - choose:
+                          - conditions:
+                              - condition: template
+                                value_template: "{{ aria_mode == 'heat' }}"
+                            sequence:
+                              - service: climate.set_hvac_mode
+                                target:
+                                  entity_id: "{{ mitsu }}"
+                                data:
+                                  hvac_mode: "heat"
+                              - service: climate.set_temperature
+                                target:
+                                  entity_id: "{{ mitsu }}"
+                                data:
+                                  temperature: "{{ HEAT_T }}"
+                          - conditions:
+                              - condition: template
+                                value_template: "{{ aria_mode == 'cool' }}"
+                            sequence:
+                              - service: climate.set_hvac_mode
+                                target:
+                                  entity_id: "{{ mitsu }}"
+                                data:
+                                  hvac_mode: "cool"
+                              - service: climate.set_temperature
+                                target:
+                                  entity_id: "{{ mitsu }}"
+                                data:
+                                  temperature: "{{ COOL_T }}"
+                          - conditions:
+                              - condition: template
+                                value_template: "{{ aria_mode == 'dry' }}"
+                            sequence:
+                              - service: climate.set_hvac_mode
+                                target:
+                                  entity_id: "{{ mitsu }}"
+                                data:
+                                  hvac_mode: "dry"
+                              - service: climate.set_temperature
+                                target:
+                                  entity_id: "{{ mitsu }}"
+                                data:
+                                  temperature: "{{ COOL_T }}"
+                      - service: climate.set_fan_mode
+                        target:
+                          entity_id: "{{ mitsu }}"
+                        data:
+                          fan_mode: "{{ mitsu_fan }}"
+                      - repeat:
+                          for_each: "{{ at_setpoint_serrande.split(',') if at_setpoint_serrande | trim else [] }}"
+                          sequence:
+                            - service: script.cow_climate_close_serranda
+                              data:
+                                entity: "{{ repeat.item | trim }}"
+                  # ── Fallback: fan circulate ───────────────────────
+                default:
+                  - service: cover.open_cover
+                    target:
+                      entity_id: "{{ all_serrande }}"
+                  - delay:
+                      seconds: 2
+                  - service: climate.set_hvac_mode
+                    target:
+                      entity_id: "{{ mitsu }}"
+                    data:
+                      hvac_mode: "fan_only"
+                  - service: climate.set_fan_mode
+                    target:
+                      entity_id: "{{ mitsu }}"
+                    data:
+                      fan_mode: "{{ mitsu_fan }}"
+
+      # Mirror fixed temps on casa_aria proxy for UI readback
+      - service: mqtt.publish
+        data:
+          topic: cow/casa/aria/setpoint/state
+          payload: >-
+            {% if aria_mode == 'heat' %}30{% elif aria_mode in ['cool','dry'] %}16{% else %}0{% endif %}
+          retain: true
 
 automation:
   - id: cow_climate_publish_current_temp
     alias: "Cow Climate — Publish current temperatures to MQTT"
-    description: "Mirror sensor.display_<room>_temperature to cow/casa/<room>/current/state."
     mode: queued
     max: 10
     trigger:
@@ -217,6 +479,7 @@ automation:
           - sensor.display_ingresso_pt_temperature
           - sensor.display_bagno_padronale_temperature
           - sensor.display_bagno_ospiti_temperature
+          - climate.koolnova_clima_clim1
     variables:
       topic_by_sensor:
         sensor.display_sala_temperature: "cow/casa/sala_cucina/current/state"
@@ -227,17 +490,29 @@ automation:
         sensor.display_bagno_padronale_temperature: "cow/casa/bagno_padronale/current/state"
         sensor.display_bagno_ospiti_temperature: "cow/casa/bagno_ospiti/current/state"
     action:
-      - condition: template
-        value_template: "{{ trigger.to_state.state not in ['unknown','unavailable','none', None] }}"
-      - service: mqtt.publish
-        data:
-          topic: "{{ topic_by_sensor[trigger.entity_id] }}"
-          payload: "{{ trigger.to_state.state }}"
-          retain: true
+      - choose:
+          - conditions:
+              - condition: template
+                value_template: "{{ trigger.entity_id == 'climate.koolnova_clima_clim1' }}"
+            sequence:
+              - condition: template
+                value_template: "{{ state_attr('climate.koolnova_clima_clim1', 'current_temperature') is number }}"
+              - service: mqtt.publish
+                data:
+                  topic: cow/casa/aria/current/state
+                  payload: "{{ state_attr('climate.koolnova_clima_clim1', 'current_temperature') }}"
+                  retain: true
+        default:
+          - condition: template
+            value_template: "{{ trigger.to_state.state not in ['unknown','unavailable','none', None] }}"
+          - service: mqtt.publish
+            data:
+              topic: "{{ topic_by_sensor[trigger.entity_id] }}"
+              payload: "{{ trigger.to_state.state }}"
+              retain: true
 
   - id: cow_climate_publish_current_humidity
     alias: "Cow Climate — Publish current humidity to MQTT"
-    description: "Mirror sensor.display_<room>_humidity to cow/casa/<room>/humidity/state."
     mode: queued
     max: 10
     trigger:
@@ -268,32 +543,8 @@ automation:
           payload: "{{ trigger.to_state.state }}"
           retain: true
 
-  # ------------------------------------------------------------------------
-  # Echo proxy commands to retained state topics — Bug B fix (2026-05-27).
-  #
-  # See the file header for the full story. Short version: `mqtt: climate:`
-  # with `optimistic: true` updates HA's local proxy state on every command
-  # but never publishes back to the `*/state` topic, so `retain: true` has
-  # nothing to persist. This automation listens on every `*/set` topic and
-  # republishes the same payload to the matching `*/state` topic with
-  # retain=true, giving the broker a retained STATE message it can hand back
-  # to HA on next subscribe. End-to-end: UI command -> `/set` (retained) ->
-  # this echo -> `/state` (retained) -> mosquitto.db on disk -> survives
-  # HAOS reboot -> HA resubscribes -> proxy repopulates to the last value.
-  #
-  # We keep `optimistic: true` rather than dropping it because the echo
-  # runs in single-digit milliseconds; dropping optimistic would only
-  # add latency without buying anything (without the echo, the round
-  # trip never completes because nothing else publishes to `*/state`).
-  # ------------------------------------------------------------------------
   - id: cow_climate_publish_state_echo
     alias: "Cow Climate — Echo proxy commands to retained state topics"
-    description: >-
-      Mirror every cow/casa/<room>/{mode,setpoint,fan}/set publish to the
-      matching /state topic with retain=true, so the broker has retained
-      STATE values to hand back to HA after a restart. Without this the
-      mqtt: climate: proxies reset to defaults on every restart because
-      optimistic: true short-circuits HA's own publish-back to /state.
     mode: queued
     max: 30
     trigger:
@@ -310,26 +561,35 @@ automation:
           payload: "{{ trigger.payload }}"
           retain: true
 
-  # ------------------------------------------------------------------------
-  # The orchestrator: heart of the team-brain. Triggers on every state
-  # change of any climate.casa_* proxy (mode / setpoint / fan) or on the
-  # room's current temperature, and dispatches the right calls to the
-  # underlying Koolnova + Pavimento entities.
-  #
-  # Behaviour rules live in docs/06-house-hvac-architecture.md Section
-  # F-bis; the dispatch table below has one entry per proxy, with empty
-  # `koolnova: []` for the two floor-only bathroom proxies (heat/off
-  # only, the cool/fan_only branches short-circuit harmlessly because
-  # the modes aren't exposed by those proxies).
-  # ------------------------------------------------------------------------
-  - id: cow_climate_orchestrator
-    alias: "Cow Climate — Orchestrator"
-    description: "Coordinate Koolnova + Pavimento for each casa_<room> proxy"
+  - id: cow_climate_trigger_sync_air
+    alias: "Cow Climate — Trigger Mitsubishi sync"
+    mode: restart
+    trigger:
+      - platform: state
+        entity_id:
+          - climate.casa_aria
+          - climate.casa_sala_cucina
+          - climate.casa_camera
+          - climate.casa_studio_chiara
+          - climate.casa_camera_padronale
+      - platform: state
+        entity_id:
+          - sensor.display_sala_temperature
+          - sensor.display_camera_1_temperature
+          - sensor.display_camera_2_temperature
+          - sensor.display_camera_padronale_temperature
+    action:
+      - service: script.cow_climate_sync_air
+
+  - id: cow_climate_orchestrator_floor
+    alias: "Cow Climate — Pavimento sync"
+    description: "Floor heating per room; air rooms follow casa_aria heat."
     mode: queued
     max: 20
     trigger:
       - platform: state
         entity_id:
+          - climate.casa_aria
           - climate.casa_sala_cucina
           - climate.casa_camera
           - climate.casa_studio_chiara
@@ -366,172 +626,177 @@ automation:
       rooms:
         sala_cucina:
           proxy: climate.casa_sala_cucina
-          temp_sensor: sensor.display_sala_temperature
-          koolnova: ["climate.koolnova_sala", "climate.koolnova_cucina"]
-          pavimento: climate.pavimento_sala
+          pavimento: climate.display_sala_pavimento_sala_cucina
+          floor_only: false
         camera:
           proxy: climate.casa_camera
-          temp_sensor: sensor.display_camera_1_temperature
-          koolnova: ["climate.koolnova_camera_1"]
-          pavimento: climate.pavimento_camera_1
+          pavimento: climate.display_camera_1_pavimento_camera_1
+          floor_only: false
         studio_chiara:
           proxy: climate.casa_studio_chiara
-          temp_sensor: sensor.display_camera_2_temperature
-          koolnova: ["climate.koolnova_camera_2"]
           pavimento: climate.pavimento_camera_2
+          floor_only: false
         camera_padronale:
           proxy: climate.casa_camera_padronale
-          temp_sensor: sensor.display_camera_padronale_temperature
-          koolnova: ["climate.koolnova_camera_3"]
-          pavimento: climate.pavimento_camera_padronale
+          pavimento: climate.display_camera_padronale_pavimento_camera_padronale
+          floor_only: false
         ingresso_pt:
           proxy: climate.casa_ingresso_pt
-          temp_sensor: sensor.display_ingresso_pt_temperature
-          koolnova: ["climate.koolnova_ingresso_pt"]
           pavimento: climate.pavimento_ingresso_pt
+          floor_only: true
         bagno_padronale:
           proxy: climate.casa_bagno_padronale
-          temp_sensor: sensor.display_bagno_padronale_temperature
-          koolnova: []
           pavimento: climate.pavimento_bagno_padronale
+          floor_only: true
         bagno_ospiti:
           proxy: climate.casa_bagno_ospiti
-          temp_sensor: sensor.display_bagno_ospiti_temperature
-          koolnova: []
-          pavimento: climate.pavimento_bagno_ospiti
+          pavimento: climate.display_bagno_ospiti_pavimento_bagno_ospiti
+          floor_only: true
       slug: >-
         {% if trigger.entity_id in proxy_to_slug %}
           {{ proxy_to_slug[trigger.entity_id] }}
         {% elif trigger.entity_id in temp_to_slug %}
           {{ temp_to_slug[trigger.entity_id] }}
+        {% elif trigger.entity_id == 'climate.casa_aria' %}
+          all
         {% else %}
           {{ '' }}
         {% endif %}
-      r: "{{ rooms[slug | trim] }}"
-      mode: "{{ states(r.proxy) }}"
-      setpoint: "{{ state_attr(r.proxy, 'temperature') | float(20) }}"
-      fan: "{{ state_attr(r.proxy, 'fan_mode') or 'auto' }}"
-      current: "{{ states(r.temp_sensor) | float(20) }}"
-      delta: "{{ setpoint - current }}"
       FLOOR_OFFSET: 1.0
-      BOOST_THRESHOLD: 1.5
+      aria_mode: "{{ states('climate.casa_aria') }}"
     action:
-      - condition: template
-        value_template: "{{ (slug | trim) != '' }}"
       - choose:
-          # -------------- OFF -----------------------------------------
-          - conditions: "{{ mode == 'off' }}"
-            sequence:
-              - choose:
-                  - conditions: "{{ r.koolnova | length > 0 }}"
-                    sequence:
-                      - service: climate.set_hvac_mode
-                        target: { entity_id: "{{ r.koolnova }}" }
-                        data: { hvac_mode: "off" }
-              - service: climate.set_hvac_mode
-                target: { entity_id: "{{ r.pavimento }}" }
-                data: { hvac_mode: "off" }
-          # -------------- COOL ----------------------------------------
-          # Only the dual-system proxies advertise cool — the floor-only
-          # bagno_* proxies will never enter this branch from the UI,
-          # but if MQTT retain ever delivers an out-of-list mode we
-          # still guard the empty-koolnova case to avoid a wasted
-          # service call with a null entity_id.
-          - conditions: "{{ mode == 'cool' }}"
-            sequence:
+          - conditions:
               - condition: template
-                value_template: "{{ r.koolnova | length > 0 }}"
-              - service: climate.set_hvac_mode
-                target: { entity_id: "{{ r.koolnova }}" }
-                data: { hvac_mode: "cool" }
-              - service: climate.set_temperature
-                target: { entity_id: "{{ r.koolnova }}" }
-                data: { temperature: "{{ setpoint }}" }
-              - service: climate.set_fan_mode
-                target: { entity_id: "{{ r.koolnova }}" }
-                data: { fan_mode: "{{ fan }}" }
-              - service: climate.set_hvac_mode
-                target: { entity_id: "{{ r.pavimento }}" }
-                data: { hvac_mode: "off" }
-          # -------------- FAN_ONLY ------------------------------------
-          - conditions: "{{ mode == 'fan_only' }}"
+                value_template: "{{ slug | trim == 'all' }}"
             sequence:
-              - condition: template
-                value_template: "{{ r.koolnova | length > 0 }}"
-              - service: climate.set_hvac_mode
-                target: { entity_id: "{{ r.koolnova }}" }
-                data: { hvac_mode: "fan_only" }
-              - service: climate.set_fan_mode
-                target: { entity_id: "{{ r.koolnova }}" }
-                data: { fan_mode: "{{ fan }}" }
-              - service: climate.set_hvac_mode
-                target: { entity_id: "{{ r.pavimento }}" }
-                data: { hvac_mode: "off" }
-          # -------------- HEAT (the team mode) ------------------------
-          - conditions: "{{ mode == 'heat' }}"
-            sequence:
-              # Floor is the silent baseline: always on, aiming below setpoint.
-              - service: climate.set_hvac_mode
-                target: { entity_id: "{{ r.pavimento }}" }
-                data: { hvac_mode: "heat" }
-              - service: climate.set_temperature
-                target: { entity_id: "{{ r.pavimento }}" }
-                data: { temperature: "{{ setpoint - FLOOR_OFFSET }}" }
-              # Koolnova kicks in only when the gap is large enough AND
-              # the room actually has a Koolnova zone (the two bathroom
-              # proxies have koolnova: [] — they skip the boost branch).
-              - choose:
-                  - conditions:
-                      - "{{ r.koolnova | length > 0 }}"
-                      - "{{ delta > BOOST_THRESHOLD }}"
-                    sequence:
-                      - service: climate.set_hvac_mode
-                        target: { entity_id: "{{ r.koolnova }}" }
-                        data: { hvac_mode: "heat" }
-                      - service: climate.set_temperature
-                        target: { entity_id: "{{ r.koolnova }}" }
-                        data: { temperature: "{{ setpoint }}" }
-                      - service: climate.set_fan_mode
-                        target: { entity_id: "{{ r.koolnova }}" }
-                        data: { fan_mode: "{{ fan }}" }
-                  - conditions: "{{ r.koolnova | length > 0 }}"
-                    sequence:
-                      - service: climate.set_hvac_mode
-                        target: { entity_id: "{{ r.koolnova }}" }
-                        data: { hvac_mode: "off" }
+              - repeat:
+                  for_each:
+                    - sala_cucina
+                    - camera
+                    - studio_chiara
+                    - camera_padronale
+                    - ingresso_pt
+                    - bagno_padronale
+                    - bagno_ospiti
+                  sequence:
+                    - variables:
+                        rs: "{{ rooms[repeat.item] }}"
+                        room_mode: "{{ states(rs.proxy) }}"
+                        setpoint: "{{ state_attr(rs.proxy, 'temperature') | float(20) }}"
+                        want_heat: >-
+                          {% if rs.floor_only %}
+                            {{ room_mode == 'heat' }}
+                          {% else %}
+                            {{ aria_mode == 'heat' and room_mode == 'heat' }}
+                          {% endif %}
+                    - choose:
+                        - conditions:
+                            - condition: template
+                              value_template: "{{ want_heat | trim == 'true' }}"
+                          sequence:
+                            - service: climate.set_hvac_mode
+                              target:
+                                entity_id: "{{ rs.pavimento }}"
+                              data:
+                                hvac_mode: "heat"
+                            - service: climate.set_temperature
+                              target:
+                                entity_id: "{{ rs.pavimento }}"
+                              data:
+                                temperature: "{{ setpoint - FLOOR_OFFSET }}"
+                        default:
+                          - service: climate.set_hvac_mode
+                            target:
+                              entity_id: "{{ rs.pavimento }}"
+                            data:
+                              hvac_mode: "off"
+        default:
+          - condition: template
+            value_template: "{{ (slug | trim) != '' and slug | trim != 'all' }}"
+          - variables:
+              r: "{{ rooms[slug | trim] }}"
+              room_mode: "{{ states(r.proxy) }}"
+              setpoint: "{{ state_attr(r.proxy, 'temperature') | float(20) }}"
+              want_heat: >-
+                {% if r.floor_only %}
+                  {{ room_mode == 'heat' }}
+                {% else %}
+                  {{ aria_mode == 'heat' and room_mode == 'heat' }}
+                {% endif %}
+          - choose:
+              - conditions:
+                  - condition: template
+                    value_template: "{{ want_heat | trim == 'true' }}"
+                sequence:
+                  - service: climate.set_hvac_mode
+                    target:
+                      entity_id: "{{ r.pavimento }}"
+                    data:
+                      hvac_mode: "heat"
+                  - service: climate.set_temperature
+                    target:
+                      entity_id: "{{ r.pavimento }}"
+                    data:
+                      temperature: "{{ setpoint - FLOOR_OFFSET }}"
+              default:
+                - service: climate.set_hvac_mode
+                  target:
+                    entity_id: "{{ r.pavimento }}"
+                  data:
+                    hvac_mode: "off"
 
-  # ------------------------------------------------------------------------
-  # Derive + publish hvac_action for every casa_<room> proxy.
-  #
-  # Without this automation the MQTT climate proxies expose
-  # `hvac_action: null` because nothing ever publishes to action_topic, so
-  # every card surface (small wall panel, XL drawer Climate tab, mobile
-  # dashboard room drawer) falls through deriveThermostatView's idle branch
-  # and shows green "Target raggiunto" while the floor relay is actively
-  # heating. We fix it at the proxy level — single source of truth — by
-  # watching the underlying floor switches + Koolnova climates, computing
-  # the action, and publishing to cow/casa/<room>/action/state with
-  # retain: true so the proxy state survives an HA restart.
-  #
-  # Action vocabulary (HA MQTT climate docs):
-  #   off, heating, cooling, drying, fan, idle
-  # We emit: off | heating | cooling | fan | idle (no drying — Koolnova's
-  # dry mode is unused in the current install).
-  #
-  # Trigger fan-out is wide because any of these can change the action:
-  #   - 7 floor-display switches (the SAWD1 valve relays)
-  #   - 6 Koolnova climate entities
-  #   - 7 casa_<room> proxies (mode_user changes cycle the action too)
-  #   - homeassistant.start so retained action is republished if it ever
-  #     drifted from the underlying truth during an HA outage.
-  #
-  # Heating fires when EITHER the floor switch is on OR the Koolnova is
-  # heating — they're a team per docs/06-house-hvac-architecture.md §F-bis
-  # and the user needs to see "sta scaldando" if any of them is working.
-  # ------------------------------------------------------------------------
+  - id: cow_climate_safety_damper_open
+    alias: "Cow Climate — REGOLA 1 watchdog"
+    description: "Mitsubishi on with zero open serrande → open all + fan_only + alert."
+    mode: single
+    trigger:
+      - platform: time_pattern
+        seconds: "/30"
+      - platform: state
+        entity_id:
+          - climate.koolnova_clima_clim1
+          - cover.koolnova_serrande_serranda_1
+          - cover.koolnova_serrande_serranda_2
+          - cover.koolnova_serrande_serranda_3
+          - cover.koolnova_serrande_serranda_4
+          - cover.koolnova_serrande_serranda_5
+    variables:
+      all_serrande:
+        - cover.koolnova_serrande_serranda_1
+        - cover.koolnova_serrande_serranda_2
+        - cover.koolnova_serrande_serranda_3
+        - cover.koolnova_serrande_serranda_4
+        - cover.koolnova_serrande_serranda_5
+      open_count: >-
+        {% set ns = namespace(n=0) %}
+        {% for s in all_serrande %}
+          {% if is_state(s, 'open') or (state_attr(s, 'current_position') | int(0)) > 0 %}
+            {% set ns.n = ns.n + 1 %}
+          {% endif %}
+        {% endfor %}
+        {{ ns.n }}
+    condition:
+      - condition: template
+        value_template: "{{ not is_state('climate.koolnova_clima_clim1', 'off') }}"
+      - condition: template
+        value_template: "{{ open_count | int == 0 }}"
+    action:
+      - service: cover.open_cover
+        target:
+          entity_id: "{{ all_serrande }}"
+      - service: climate.set_hvac_mode
+        target:
+          entity_id: climate.koolnova_clima_clim1
+        data:
+          hvac_mode: "fan_only"
+      - service: persistent_notification.create
+        data:
+          title: "Cow Climate — REGOLA 1"
+          message: "Mitsubishi acceso senza serrande aperte: recovery automatica (tutte aperte + fan_only)."
+
   - id: cow_climate_publish_action
     alias: "Cow Climate — Publish hvac_action to MQTT proxies"
-    description: "Derive heating/cooling/fan/idle/off from floor relays + Koolnova zones; publish to cow/casa/<room>/action/state (retain)."
     mode: queued
     max: 50
     trigger:
@@ -544,12 +809,13 @@ automation:
           - switch.display_ingresso_pt
           - switch.display_bagno_padronale
           - switch.display_bagno_ospiti
-          - climate.koolnova_sala
-          - climate.koolnova_cucina
-          - climate.koolnova_camera_1
-          - climate.koolnova_camera_2
-          - climate.koolnova_camera_3
-          - climate.koolnova_ingresso_pt
+          - climate.koolnova_clima_clim1
+          - climate.casa_aria
+          - cover.koolnova_serrande_serranda_1
+          - cover.koolnova_serrande_serranda_2
+          - cover.koolnova_serrande_serranda_3
+          - cover.koolnova_serrande_serranda_4
+          - cover.koolnova_serrande_serranda_5
           - climate.casa_sala_cucina
           - climate.casa_camera
           - climate.casa_studio_chiara
@@ -560,38 +826,57 @@ automation:
       - platform: homeassistant
         event: start
     variables:
-      # List-of-dicts form (not a mapping) because HA's Jinja env doesn't
-      # ship the `dict2items` filter from Ansible. `repeat.for_each` happily
-      # iterates a list of dicts and `repeat.item.<field>` works as expected.
+      aria_mode: "{{ states('climate.casa_aria') }}"
+      mitsu_mode: "{{ states('climate.koolnova_clima_clim1') }}"
+      TOL: 1.0
       rooms:
         - slug: sala_cucina
           proxy: climate.casa_sala_cucina
-          koolnova: ["climate.koolnova_sala", "climate.koolnova_cucina"]
+          temp: sensor.display_sala_temperature
+          serrande:
+            - cover.koolnova_serrande_serranda_4
+            - cover.koolnova_serrande_serranda_5
           pavimento_switch: switch.display_sala
+          floor_only: false
         - slug: camera
           proxy: climate.casa_camera
-          koolnova: ["climate.koolnova_camera_1"]
+          temp: sensor.display_camera_1_temperature
+          serrande:
+            - cover.koolnova_serrande_serranda_3
           pavimento_switch: switch.display_camera_1
+          floor_only: false
         - slug: studio_chiara
           proxy: climate.casa_studio_chiara
-          koolnova: ["climate.koolnova_camera_2"]
+          temp: sensor.display_camera_2_temperature
+          serrande:
+            - cover.koolnova_serrande_serranda_2
           pavimento_switch: switch.display_camera_2
+          floor_only: false
         - slug: camera_padronale
           proxy: climate.casa_camera_padronale
-          koolnova: ["climate.koolnova_camera_3"]
+          temp: sensor.display_camera_padronale_temperature
+          serrande:
+            - cover.koolnova_serrande_serranda_1
           pavimento_switch: switch.display_camera_padronale
+          floor_only: false
         - slug: ingresso_pt
           proxy: climate.casa_ingresso_pt
-          koolnova: ["climate.koolnova_ingresso_pt"]
+          temp: sensor.display_ingresso_pt_temperature
+          serrande: []
           pavimento_switch: switch.display_ingresso_pt
+          floor_only: true
         - slug: bagno_padronale
           proxy: climate.casa_bagno_padronale
-          koolnova: []
+          temp: sensor.display_bagno_padronale_temperature
+          serrande: []
           pavimento_switch: switch.display_bagno_padronale
+          floor_only: true
         - slug: bagno_ospiti
           proxy: climate.casa_bagno_ospiti
-          koolnova: []
+          temp: sensor.display_bagno_ospiti_temperature
+          serrande: []
           pavimento_switch: switch.display_bagno_ospiti
+          floor_only: true
     action:
       - repeat:
           for_each: "{{ rooms }}"
@@ -600,20 +885,54 @@ automation:
                 r: "{{ repeat.item }}"
                 proxy_mode: "{{ states(r.proxy) }}"
                 floor_on: "{{ is_state(r.pavimento_switch, 'on') }}"
-                air_heating: "{{ r.koolnova | map('states') | select('equalto', 'heat') | list | count > 0 }}"
-                air_cooling: "{{ r.koolnova | map('states') | select('equalto', 'cool') | list | count > 0 }}"
-                air_active: "{{ r.koolnova | map('states') | select('in', ['heat','cool','dry','fan_only']) | list | count > 0 }}"
+                air_on: "{{ not r.floor_only and proxy_mode == 'heat' }}"
+                sp: "{{ state_attr(r.proxy, 'temperature') | float(20) }}"
+                cur: "{{ states(r.temp) | float(20) }}"
+                serranda_open: >-
+                  {% if r.serrande | length == 0 %}false
+                  {% else %}
+                  {% set ns = namespace(any=false) %}
+                  {% for s in r.serrande %}
+                    {% if is_state(s, 'open') or (state_attr(s, 'current_position') | int(0)) > 0 %}
+                      {% set ns.any = true %}
+                    {% endif %}
+                  {% endfor %}
+                  {{ ns.any }}
+                  {% endif %}
+                in_deficit: >-
+                  {% if not air_on or aria_mode in ['off','unknown','unavailable'] %}false
+                  {% elif aria_mode == 'heat' %}{{ cur < sp - TOL }}
+                  {% elif aria_mode in ['cool','dry'] %}{{ cur > sp + TOL }}
+                  {% elif aria_mode == 'fan_only' %}false
+                  {% elif mitsu_mode in ['heat','cool','dry'] %}{{ serranda_open | trim == 'true' }}
+                  {% else %}false{% endif %}
                 action: >-
-                  {%- if proxy_mode == 'off' -%}off
-                  {%- elif proxy_mode == 'heat' -%}
-                    {%- if floor_on or air_heating -%}heating{%- else -%}idle{%- endif -%}
-                  {%- elif proxy_mode == 'cool' -%}
-                    {%- if air_cooling -%}cooling{%- else -%}idle{%- endif -%}
-                  {%- elif proxy_mode == 'fan_only' -%}
-                    {%- if air_active -%}fan{%- else -%}idle{%- endif -%}
+                  {%- if r.floor_only -%}
+                    {%- if proxy_mode == 'off' -%}off
+                    {%- elif floor_on -%}heating
+                    {%- else -%}idle{%- endif -%}
+                  {%- elif proxy_mode == 'off' or aria_mode in ['off','unknown','unavailable'] -%}off
+                  {%- elif floor_on and aria_mode == 'heat' -%}heating
+                  {%- elif in_deficit | trim == 'true' and aria_mode == 'heat' -%}heating
+                  {%- elif in_deficit | trim == 'true' and aria_mode == 'cool' -%}cooling
+                  {%- elif in_deficit | trim == 'true' and aria_mode == 'dry' -%}drying
+                  {%- elif mitsu_mode == 'fan_only' and serranda_open | trim == 'true' -%}idle
+                  {%- elif mitsu_mode == 'fan_only' -%}fan
                   {%- else -%}idle{%- endif -%}
             - service: mqtt.publish
               data:
                 topic: "cow/casa/{{ r.slug }}/action/state"
-                payload: "{{ action }}"
+                payload: "{{ action | trim }}"
                 retain: true
+      - service: mqtt.publish
+        data:
+          topic: cow/casa/aria/action/state
+          payload: >-
+            {%- set m = mitsu_mode -%}
+            {%- if m == 'off' -%}off
+            {%- elif m == 'heat' -%}heating
+            {%- elif m == 'cool' -%}cooling
+            {%- elif m == 'dry' -%}drying
+            {%- elif m == 'fan_only' -%}fan
+            {%- else -%}idle{%- endif -%}
+          retain: true

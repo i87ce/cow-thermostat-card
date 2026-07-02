@@ -11,6 +11,8 @@ views:
     cards:
       - type: custom:cow-thermostat-card
         room: "Camera"
+        system_climate: climate.casa_aria
+        climate: climate.casa_camera_padronale
         light:
           - light.luce_comodino_1
           - light.led_cabina_armadio

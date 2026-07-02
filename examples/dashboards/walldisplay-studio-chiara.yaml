@@ -6,6 +6,8 @@ views:
     cards:
       - type: custom:cow-thermostat-card
         room: "Studio Chiara"
+        system_climate: climate.casa_aria
+        climate: climate.casa_studio_chiara
         light: light.led_camera_2_2
         cover: cover.tapparella_camera_2
         initial_view: lights

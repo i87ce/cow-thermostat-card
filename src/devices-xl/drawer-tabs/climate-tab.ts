@@ -10,6 +10,11 @@ import {
   THERMOSTAT_STATUS_LABEL,
   THERMOSTAT_SUB_LABEL,
 } from "../../small/state/thermostat.js";
+import {
+  climateModeChipLabel,
+  SYSTEM_MODE_CHIP_ORDER,
+  usesSplitClimate,
+} from "../../small/state/split-climate.js";
 import "../../shared/setpoint-modal.js";
 
 /**
@@ -26,6 +31,8 @@ import "../../shared/setpoint-modal.js";
 export class CowXLClimateTab extends LitElement {
   @property({ attribute: false }) hass?: HomeAssistant;
   @property({ attribute: false }) room?: CowRoomConfig;
+  /** Global air entity (mode + fan), e.g. climate.casa_aria */
+  @property({ type: String }) systemClimate = "";
   @state() private setpointModalOpen = false;
 
   static override styles = [
@@ -238,6 +245,11 @@ export class CowXLClimateTab extends LitElement {
         font-size: 0.9375rem;
         opacity: 0.9;
       }
+      .air-modes {
+        margin-top: 0.25rem;
+        display: flex;
+        gap: 0.5rem;
+      }
 
       /* === Sensors-only mode (no climate entity) === */
       .full.sensors-only {
@@ -304,6 +316,22 @@ export class CowXLClimateTab extends LitElement {
     `,
   ];
 
+  private async setSystemMode(mode: string) {
+    if (!this.systemClimate || !this.hass) return;
+    await this.hass.callService("climate", "set_hvac_mode", {
+      entity_id: this.systemClimate,
+      hvac_mode: mode,
+    });
+  }
+
+  private async setSystemFan(fan: string) {
+    if (!this.systemClimate || !this.hass) return;
+    await this.hass.callService("climate", "set_fan_mode", {
+      entity_id: this.systemClimate,
+      fan_mode: fan,
+    });
+  }
+
   private async setMode(mode: string) {
     if (!this.room?.climate || !this.hass) return;
     await this.hass.callService("climate", "set_hvac_mode", {
@@ -331,7 +359,8 @@ export class CowXLClimateTab extends LitElement {
   private openSetpointModal = (): void => {
     if (!this.room?.climate) return;
     const view = deriveThermostatView(this.hass?.states?.[this.room.climate]);
-    if (view.variant === "off") return;
+    const split = usesSplitClimate(this.systemClimate, view);
+    if (!split && view.variant === "off") return;
     this.setpointModalOpen = true;
     // Imperatively open inside the click handler so iOS Safari keeps
     // the user-gesture chain alive through the input.focus() call —
@@ -391,6 +420,10 @@ export class CowXLClimateTab extends LitElement {
     }
     const climate = this.hass?.states?.[this.room.climate];
     const view = deriveThermostatView(climate);
+    const split = usesSplitClimate(this.systemClimate, view);
+    const sysView = split
+      ? deriveThermostatView(this.hass?.states?.[this.systemClimate])
+      : view;
     // The variant label that goes in the caption "CLIMA — …". The
     // small wall card uses a short STATUS_LABEL (HEATING/COOLING/OFF/IDLE)
     // for its big status pill; the XL caption can afford the longer
@@ -418,7 +451,9 @@ export class CowXLClimateTab extends LitElement {
     const upTarget = bumpTarget(view, 1);
     const downTarget = bumpTarget(view, -1);
 
-    const fans = view.fanModes.length > 0 ? view.fanModes : ["auto"];
+    const fans = (split ? sysView : view).fanModes.length > 0
+      ? (split ? sysView : view).fanModes
+      : ["auto"];
 
     // Push the variant's accent palette onto the host as CSS variables
     // so the body gradient + selected mode chip + everything else that
@@ -430,7 +465,17 @@ export class CowXLClimateTab extends LitElement {
     this.style.setProperty("--cow-accent-active", accent.active);
     this.style.setProperty("--cow-accent-surface", accent.surface);
 
-    return this.renderClimate(view, variantLabel, cur, tgt, upTarget, downTarget, fans);
+    return this.renderClimate(
+      view,
+      sysView,
+      split,
+      variantLabel,
+      cur,
+      tgt,
+      upTarget,
+      downTarget,
+      fans,
+    );
   }
 
   private renderSensorsOnly() {
@@ -510,6 +555,8 @@ export class CowXLClimateTab extends LitElement {
 
   private renderClimate(
     view: ReturnType<typeof deriveThermostatView>,
+    sysView: ReturnType<typeof deriveThermostatView>,
+    split: boolean,
     variantLabel: string,
     cur: string,
     tgt: string,
@@ -518,12 +565,10 @@ export class CowXLClimateTab extends LitElement {
     fans: string[],
   ) {
     if (!this.room) return nothing;
-    // Arrows are disabled while the climate is OFF — same behaviour as
-    // the small wall card's thermostat panel. Tapping a setpoint while
-    // the system is off does nothing useful (no loop is running to chase
-    // the target), and the casa_<room> proxy's set_temperature call would
-    // get queued without taking effect until the user flipped a mode.
-    const arrowsDisabled = view.variant === "off";
+    const arrowsDisabled = !split && view.variant === "off";
+    const systemModes = split
+      ? SYSTEM_MODE_CHIP_ORDER.filter((m) => sysView.hvacModes.includes(m))
+      : [];
     return html`
       <div class="caption">CLIMA — ${variantLabel}</div>
       <div class="full">
@@ -578,63 +623,94 @@ export class CowXLClimateTab extends LitElement {
           </div>
         </div>
         <div class="col right">
-          <div class="col-label">MODALITÀ</div>
+          <div class="col-label">${split ? "SISTEMA" : "MODALITÀ"}</div>
           <div class="modes">
-            ${
-              // Mode chips are now driven by `view.hvacModes` instead of
-              // being hardcoded Cool/Heat/Off. This lets the same drawer
-              // render correctly for both kinds of climate entities the
-              // house has wired up:
-              //   * climate.casa_*       → off/heat/cool/fan_only (proxy)
-              //   * climate.pavimento_*  → off/heat (Generic Thermostat)
-              // Each chip is rendered only if the climate advertises it,
-              // so the bathroom proxy doesn't get a stray "Cool" button
-              // and the air-conditioning proxy can offer "Fan" without
-              // pulling double-duty in pavimento rooms.
-              view.hvacModes.includes("cool")
-                ? html`<button
+            ${split
+              ? systemModes.map(
+                  (m) => html`<button
                     class="mode-btn"
-                    ?data-active=${view.mode === "cool"}
-                    @click=${() => this.setMode("cool")}
+                    ?data-active=${sysView.mode === m}
+                    @click=${() => this.setSystemMode(m)}
                   >
-                    Cool
-                  </button>`
-                : ""
-            }
-            ${view.hvacModes.includes("heat")
-              ? html`<button
-                  class="mode-btn"
-                  ?data-active=${view.mode === "heat"}
-                  @click=${() => this.setMode("heat")}
-                >
-                  Heat
-                </button>`
-              : ""}
-            ${view.hvacModes.includes("fan_only")
-              ? html`<button
-                  class="mode-btn"
-                  ?data-active=${view.mode === "fan_only"}
-                  @click=${() => this.setMode("fan_only")}
-                >
-                  Fan
-                </button>`
-              : ""}
-            <button
-              class="mode-btn"
-              ?data-active=${view.mode === "off"}
-              @click=${() => this.setMode("off")}
-            >
-              Off
-            </button>
+                    ${climateModeChipLabel(m)}
+                  </button>`,
+                )
+              : html`
+                  ${view.hvacModes.includes("cool")
+                    ? html`<button
+                        class="mode-btn"
+                        ?data-active=${view.mode === "cool"}
+                        @click=${() => this.setMode("cool")}
+                      >
+                        Cool
+                      </button>`
+                    : ""}
+                  ${view.hvacModes.includes("heat")
+                    ? html`<button
+                        class="mode-btn"
+                        ?data-active=${view.mode === "heat"}
+                        @click=${() => this.setMode("heat")}
+                      >
+                        Heat
+                      </button>`
+                    : ""}
+                  ${view.hvacModes.includes("dry")
+                    ? html`<button
+                        class="mode-btn"
+                        ?data-active=${view.mode === "dry"}
+                        @click=${() => this.setMode("dry")}
+                      >
+                        Dry
+                      </button>`
+                    : ""}
+                  ${view.hvacModes.includes("fan_only")
+                    ? html`<button
+                        class="mode-btn"
+                        ?data-active=${view.mode === "fan_only"}
+                        @click=${() => this.setMode("fan_only")}
+                      >
+                        Fan
+                      </button>`
+                    : ""}
+                  <button
+                    class="mode-btn"
+                    ?data-active=${view.mode === "off"}
+                    @click=${() => this.setMode("off")}
+                  >
+                    Off
+                  </button>
+                `}
           </div>
+          ${split
+            ? html`
+                <div class="schedule-label">ARIA STANZA</div>
+                <div class="air-modes">
+                  <button
+                    class="mode-btn"
+                    ?data-active=${view.mode !== "off"}
+                    @click=${() => this.setMode("heat")}
+                  >
+                    On
+                  </button>
+                  <button
+                    class="mode-btn"
+                    ?data-active=${view.mode === "off"}
+                    @click=${() => this.setMode("off")}
+                  >
+                    Off
+                  </button>
+                </div>
+              `
+            : ""}
           <div class="schedule-label">VENTOLA</div>
           <div class="fans">
             ${fans.slice(0, 4).map(
               (f) => html`
                 <button
                   class="fan-btn"
-                  ?data-active=${view.fan === f}
-                  @click=${() => this.setFan(f)}
+                  ?data-active=${(split ? sysView : view).fan === f}
+                  @click=${() =>
+                    split ? this.setSystemFan(f) : this.setFan(f)}
                 >
                   ${f}
                 </button>

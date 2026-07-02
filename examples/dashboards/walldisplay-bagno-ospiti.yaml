@@ -6,6 +6,7 @@ views:
     cards:
       - type: custom:cow-thermostat-card
         room: "Bagno Ospiti"
+        climate: climate.casa_bagno_ospiti
         light:
           - light.led_bagno_piccolo
           - light.luce_specchio_bagno_piccolo
