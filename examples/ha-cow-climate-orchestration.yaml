@@ -266,23 +266,24 @@ script:
               {'proxy':'climate.casa_camera','temp':'sensor.display_camera_1_temperature','serrande':['cover.koolnova_serrande_serranda_3']},
               {'proxy':'climate.casa_sala_cucina','temp':'sensor.display_sala_temperature','serrande':['cover.koolnova_serrande_serranda_4','cover.koolnova_serrande_serranda_5']}
             ] %}
-            {% set out = [] %}
-            {% if aria in ['off','unknown','unavailable','none', None] %}{{ out | join(',') }}
-            {% else %}
+            {% set ns = namespace(out=[]) %}
+            {% if aria not in ['off','unknown','unavailable','none', None] %}
             {% for z in zones %}
               {% if states(z.proxy) == 'heat' %}
                 {% set sp = state_attr(z.proxy, 'temperature') | float(20) %}
                 {% set cur = states(z.temp) | float(20) %}
-                {% set deficit = false %}
-                {% if aria == 'heat' %}{% set deficit = cur < sp - TOL %}
-                {% elif aria in ['cool','dry'] %}{% set deficit = cur > sp + TOL %}
-                {% elif aria == 'fan_only' %}{% set deficit = true %}
+                {% set deficit = (aria == 'heat' and cur < sp - TOL)
+                   or (aria in ['cool','dry'] and cur > sp + TOL)
+                   or aria == 'fan_only' %}
+                {% if deficit %}
+                  {% for s in z.serrande %}
+                    {% set ns.out = ns.out + [s] %}
+                  {% endfor %}
                 {% endif %}
-                {% if deficit %}{% for s in z.serrande %}{% set out = out + [s] %}{% endfor %}{% endif %}
               {% endif %}
             {% endfor %}
-            {{ out | unique | join(',') }}
             {% endif %}
+            {{ ns.out | unique | join(',') }}
           at_setpoint_serrande: >-
             {% set TOL = 1.0 %}
             {% set aria = states('climate.casa_aria') %}
@@ -292,24 +293,31 @@ script:
               {'proxy':'climate.casa_camera','temp':'sensor.display_camera_1_temperature','serrande':['cover.koolnova_serrande_serranda_3']},
               {'proxy':'climate.casa_sala_cucina','temp':'sensor.display_sala_temperature','serrande':['cover.koolnova_serrande_serranda_4','cover.koolnova_serrande_serranda_5']}
             ] %}
-            {% set out = [] %}
-            {% if aria in ['off','unknown','unavailable','none', None] %}{{ out | join(',') }}
-            {% else %}
+            {% set ns = namespace(out=[]) %}
+            {% if aria not in ['off','unknown','unavailable','none', None] %}
             {% for z in zones %}
               {% if states(z.proxy) == 'heat' %}
                 {% set sp = state_attr(z.proxy, 'temperature') | float(20) %}
                 {% set cur = states(z.temp) | float(20) %}
                 {% set at = cur >= sp - TOL and cur <= sp + TOL %}
-                {% if at %}{% for s in z.serrande %}{% set out = out + [s] %}{% endfor %}{% endif %}
+                {% if at %}
+                  {% for s in z.serrande %}
+                    {% set ns.out = ns.out + [s] %}
+                  {% endfor %}
+                {% endif %}
               {% endif %}
             {% endfor %}
-            {{ out | unique | join(',') }}
             {% endif %}
+            {{ ns.out | unique | join(',') }}
           active_air_count: >-
+            {% set ns = namespace(n=0) %}
             {% set zones = ['climate.casa_camera_padronale','climate.casa_studio_chiara','climate.casa_camera','climate.casa_sala_cucina'] %}
-            {% set n = 0 %}
-            {% for p in zones %}{% if states(p) == 'heat' %}{% set n = n + 1 %}{% endif %}{% endfor %}
-            {{ n }}
+            {% for p in zones %}
+              {% if states(p) == 'heat' %}
+                {% set ns.n = ns.n + 1 %}
+              {% endif %}
+            {% endfor %}
+            {{ ns.n }}
           all_at_setpoint: >-
             {% set ac = active_air_count | int %}
             {% set at = at_setpoint_serrande | trim %}

@@ -4,6 +4,16 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and
 this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.4.28] — 2026-07-02
+
+### Fixed
+- **Orchestrator never opened dampers / Mitsubishi (Jinja loop bug).**
+  `active_air_count` and `deficit_serrande` used `{% set n = n + 1 %}`
+  and list append inside `for` loops — in Home Assistant Jinja those
+  assignments are block-scoped, so the count stayed **0** and
+  `cow_climate_sync_air` always took the "no active air zones" branch
+  (Mitsubishi off, all serrande closed). Rewritten with `namespace()`.
+
 ## [1.4.27] — 2026-07-02
 
 ### Fixed
