@@ -20,6 +20,49 @@ export function usesSplitClimate(
   return !!systemClimate && isAirParticipationProxy(roomView);
 }
 
+export const SETPOINT_TOLERANCE = 1.0;
+
+export function roomAirDeficit(
+  current: number | null,
+  target: number | null,
+  systemMode: string,
+): boolean {
+  if (current == null || target == null) return false;
+  const tol = SETPOINT_TOLERANCE;
+  if (systemMode === "heat") return current < target - tol;
+  if (systemMode === "cool" || systemMode === "dry") return current > target + tol;
+  if (systemMode === "fan_only") return true;
+  return false;
+}
+
+/** Prefer MQTT hvac_action; infer heating/cooling/drying from deficit when stale. */
+export function effectiveRoomHvacAction(
+  roomAction: string | undefined,
+  airOn: boolean,
+  systemMode: string,
+  current: number | null,
+  target: number | null,
+): string | undefined {
+  if (
+    roomAction === "heating" ||
+    roomAction === "cooling" ||
+    roomAction === "drying"
+  ) {
+    return roomAction;
+  }
+  if (!airOn) return roomAction;
+  if (systemMode === "heat" && roomAirDeficit(current, target, systemMode)) {
+    return "heating";
+  }
+  if (systemMode === "cool" && roomAirDeficit(current, target, systemMode)) {
+    return "cooling";
+  }
+  if (systemMode === "dry" && roomAirDeficit(current, target, systemMode)) {
+    return "drying";
+  }
+  return roomAction;
+}
+
 export const SYSTEM_MODE_CHIP_ORDER = [
   "cool",
   "heat",
@@ -79,8 +122,15 @@ export function deriveSplitRoomDisplayView(
   const systemView = deriveThermostatView(system);
   const airOn = room?.state === "heat";
   const roomAttrs = room?.attributes as HassClimateAttributes | undefined;
-  const roomAction =
+  const rawAction =
     typeof roomAttrs?.hvac_action === "string" ? roomAttrs.hvac_action : undefined;
+  const roomAction = effectiveRoomHvacAction(
+    rawAction,
+    airOn,
+    systemView.mode,
+    roomView.current,
+    roomView.target,
+  );
 
   if (airOn) {
     return {

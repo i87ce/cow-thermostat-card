@@ -4,6 +4,14 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and
 this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.4.29] — 2026-07-02
+
+### Fixed
+- **Room hero stuck on IDLE while cooling/heating.** HA Jinja booleans render
+  as `True`/`False` but `cow_climate_publish_action` compared against lowercase
+  `'true'`, so MQTT `hvac_action` never became `cooling`/`heating`. Switched
+  to `| bool`. Card also infers deficit locally when the proxy action is stale.
+
 ## [1.4.28] — 2026-07-02
 
 ### Fixed

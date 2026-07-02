@@ -22,6 +22,7 @@ import { openingIconSvg } from "../../util/ajax-openings.js";
 import {
   climateModeChipLabel,
   deriveSplitRoomDisplayView,
+  effectiveRoomHvacAction,
   splitRoomStatusLabel,
   splitRoomSubLabel,
   SYSTEM_MODE_CHIP_ORDER,
@@ -634,10 +635,19 @@ export class CowThermostatPanel extends LitElement {
     const hum = this.humidityText(roomV);
     const out = this.outdoorText();
     const setpointDisabled = !split && v.variant === "off";
-    const roomAction =
+    const rawAction =
       typeof this.climate?.attributes?.hvac_action === "string"
         ? this.climate.attributes.hvac_action
         : undefined;
+    const roomAction = split
+      ? effectiveRoomHvacAction(
+          rawAction,
+          roomV.mode !== "off",
+          sys.mode,
+          roomV.current,
+          roomV.target,
+        )
+      : rawAction;
     const statusLabel = split
       ? splitRoomStatusLabel(v, roomAction)
       : STATUS_LABEL[v.variant];

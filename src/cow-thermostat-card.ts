@@ -31,7 +31,7 @@ import "./cow-mobile-dashboard-card.js";
 
 type Kind = "thermostat" | "lights" | "blinds";
 
-const VERSION = "1.4.28";
+const VERSION = "1.4.29";
 
 const ACCENT_DOT: Record<Kind, (cfg: CowConfig, hass?: HomeAssistant) => string> =
   {

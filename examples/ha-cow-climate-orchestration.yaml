@@ -349,7 +349,7 @@ script:
               - conditions:
                   - condition: template
                     value_template: >-
-                      {{ aria_mode == 'fan_only' or all_at_setpoint | trim == 'true' }}
+                      {{ aria_mode == 'fan_only' or all_at_setpoint | bool }}
                 sequence:
                   - service: cover.open_cover
                     target:
@@ -701,7 +701,7 @@ automation:
                     - choose:
                         - conditions:
                             - condition: template
-                              value_template: "{{ want_heat | trim == 'true' }}"
+                              value_template: "{{ want_heat | bool }}"
                           sequence:
                             - service: climate.set_hvac_mode
                               target:
@@ -736,7 +736,7 @@ automation:
               - choose:
                   - conditions:
                       - condition: template
-                        value_template: "{{ want_heat | trim == 'true' }}"
+                        value_template: "{{ want_heat | bool }}"
                     sequence:
                       - service: climate.set_hvac_mode
                         target:
@@ -909,11 +909,11 @@ automation:
                   {{ ns.any }}
                   {% endif %}
                 in_deficit: >-
-                  {% if not air_on or aria_mode in ['off','unknown','unavailable'] %}false
+                  {% if not (air_on | bool) or aria_mode in ['off','unknown','unavailable'] %}false
                   {% elif aria_mode == 'heat' %}{{ cur < sp - TOL }}
                   {% elif aria_mode in ['cool','dry'] %}{{ cur > sp + TOL }}
                   {% elif aria_mode == 'fan_only' %}false
-                  {% elif mitsu_mode in ['heat','cool','dry'] %}{{ serranda_open | trim == 'true' }}
+                  {% elif mitsu_mode in ['heat','cool','dry'] %}{{ serranda_open | bool }}
                   {% else %}false{% endif %}
                 action: >-
                   {%- if r.floor_only -%}
@@ -923,10 +923,10 @@ automation:
                   {%- elif aria_mode in ['off','unknown','unavailable'] -%}off
                   {%- elif floor_on and aria_mode == 'heat' -%}heating
                   {%- elif proxy_mode == 'off' -%}idle
-                  {%- elif in_deficit | trim == 'true' and aria_mode == 'heat' -%}heating
-                  {%- elif in_deficit | trim == 'true' and aria_mode == 'cool' -%}cooling
-                  {%- elif in_deficit | trim == 'true' and aria_mode == 'dry' -%}drying
-                  {%- elif mitsu_mode == 'fan_only' and serranda_open | trim == 'true' -%}idle
+                  {%- elif in_deficit | bool and aria_mode == 'heat' -%}heating
+                  {%- elif in_deficit | bool and aria_mode == 'cool' -%}cooling
+                  {%- elif in_deficit | bool and aria_mode == 'dry' -%}drying
+                  {%- elif mitsu_mode == 'fan_only' and serranda_open | bool -%}idle
                   {%- elif mitsu_mode == 'fan_only' -%}fan
                   {%- else -%}idle{%- endif -%}
             - service: mqtt.publish

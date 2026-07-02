@@ -73,6 +73,7 @@ import {
 import {
   climateModeChipLabel,
   deriveSplitRoomDisplayView,
+  effectiveRoomHvacAction,
   splitRoomStatusLabel,
   splitRoomSubLabel,
   SYSTEM_MODE_CHIP_ORDER,
@@ -1812,10 +1813,19 @@ export class CowMobileDashboardCard
     const view = split
       ? deriveSplitRoomDisplayView(ent, sysEnt)
       : roomView;
-    const roomAction =
+    const rawAction =
       typeof ent.attributes?.hvac_action === "string"
         ? ent.attributes.hvac_action
         : undefined;
+    const roomAction = split
+      ? effectiveRoomHvacAction(
+          rawAction,
+          roomView.mode !== "off",
+          sysView.mode,
+          roomView.current,
+          roomView.target,
+        )
+      : rawAction;
     const accent = THERMOSTAT_ACCENT[view.variant];
     const fmt = (n: number, unit: string) =>
       `${n.toFixed(1).replace(/\.0$/, "")}${unit}`;

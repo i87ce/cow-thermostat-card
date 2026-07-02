@@ -13,6 +13,7 @@ import {
 import {
   climateModeChipLabel,
   deriveSplitRoomDisplayView,
+  effectiveRoomHvacAction,
   splitRoomStatusLabel,
   splitRoomSubLabel,
   SYSTEM_MODE_CHIP_ORDER,
@@ -429,10 +430,19 @@ export class CowXLClimateTab extends LitElement {
     const view = split
       ? deriveSplitRoomDisplayView(climate, sysClimate)
       : roomView;
-    const roomAction =
+    const rawAction =
       typeof climate?.attributes?.hvac_action === "string"
         ? climate.attributes.hvac_action
         : undefined;
+    const roomAction = split
+      ? effectiveRoomHvacAction(
+          rawAction,
+          roomView.mode !== "off",
+          sysView.mode,
+          roomView.current,
+          roomView.target,
+        )
+      : rawAction;
     // The variant label that goes in the caption "CLIMA — …". The
     // small wall card uses a short STATUS_LABEL (HEATING/COOLING/OFF/IDLE)
     // for its big status pill; the XL caption can afford the longer
@@ -442,10 +452,10 @@ export class CowXLClimateTab extends LitElement {
     const variantLabel =
       roomAction === "drying"
         ? "DEUMIDIFICAZIONE ATTIVA"
-        : view.variant === "heating"
-          ? "RISCALDAMENTO ATTIVO"
-          : view.variant === "cooling"
-            ? "RAFFREDDAMENTO ATTIVO"
+        : roomAction === "cooling" || view.variant === "cooling"
+          ? "RAFFREDDAMENTO ATTIVO"
+          : roomAction === "heating" || view.variant === "heating"
+            ? "RISCALDAMENTO ATTIVO"
             : view.variant === "off"
               ? "SPENTO"
               : "IN MANTENIMENTO";
