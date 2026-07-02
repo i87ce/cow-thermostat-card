@@ -72,6 +72,9 @@ import {
 } from "./small/state/thermostat.js";
 import {
   climateModeChipLabel,
+  deriveSplitRoomDisplayView,
+  splitRoomStatusLabel,
+  splitRoomSubLabel,
   SYSTEM_MODE_CHIP_ORDER,
   usesSplitClimate,
 } from "./small/state/split-climate.js";
@@ -416,10 +419,14 @@ export class CowMobileDashboardCard
     if (!room.climate || !this.hass) return null;
     const ent = this.hass.states[room.climate];
     if (!ent) return null;
-    const view = deriveThermostatView(ent);
+    const roomView = deriveThermostatView(ent);
+    const split = usesSplitClimate(this.systemClimateEntity(), roomView);
+    const view = split
+      ? deriveSplitRoomDisplayView(ent, this.getEnt(this.systemClimateEntity()))
+      : roomView;
     return {
       variant: view.variant,
-      target: view.target ?? null,
+      target: roomView.target ?? null,
     };
   }
   private allLightEntities(): string[] {
@@ -1797,20 +1804,32 @@ export class CowMobileDashboardCard
     const entity = room.climate;
     const ent = this.getEnt(entity);
     if (!ent) return nothing;
-    const view = deriveThermostatView(ent);
-    const split = usesSplitClimate(this.systemClimateEntity(), view);
+    const roomView = deriveThermostatView(ent);
+    const split = usesSplitClimate(this.systemClimateEntity(), roomView);
     const sysId = this.systemClimateEntity();
-    const sysView = split
-      ? deriveThermostatView(this.getEnt(sysId))
-      : view;
+    const sysEnt = split ? this.getEnt(sysId) : undefined;
+    const sysView = split ? deriveThermostatView(sysEnt) : roomView;
+    const view = split
+      ? deriveSplitRoomDisplayView(ent, sysEnt)
+      : roomView;
+    const roomAction =
+      typeof ent.attributes?.hvac_action === "string"
+        ? ent.attributes.hvac_action
+        : undefined;
     const accent = THERMOSTAT_ACCENT[view.variant];
     const fmt = (n: number, unit: string) =>
       `${n.toFixed(1).replace(/\.0$/, "")}${unit}`;
-    const cur = view.current != null ? fmt(view.current, "°") : "—";
-    const tgt = view.target != null ? fmt(view.target, "°") : "—";
+    const cur = roomView.current != null ? fmt(roomView.current, "°") : "—";
+    const tgt = roomView.target != null ? fmt(roomView.target, "°") : "—";
     const arrowsDisabled = !split && view.variant === "off";
-    const upT = bumpTarget(view, 1);
-    const downT = bumpTarget(view, -1);
+    const upT = bumpTarget(roomView, 1);
+    const downT = bumpTarget(roomView, -1);
+    const statusLabel = split
+      ? splitRoomStatusLabel(view, roomAction)
+      : THERMOSTAT_STATUS_LABEL[view.variant];
+    const subLabel = split
+      ? splitRoomSubLabel(view, roomView.mode !== "off", sysView.mode, roomAction)
+      : THERMOSTAT_SUB_LABEL[view.variant];
     // Sit the variant accent on the host of THIS element. The style
     // bind in template strings can't push to the host directly, so
     // we wrap the block in a <div> that owns the CSS vars.
@@ -1820,14 +1839,14 @@ export class CowMobileDashboardCard
         <div class="qc-climate-head">
           <span aria-hidden="true">🌡</span>
           <span class="status">
-            ${THERMOSTAT_STATUS_LABEL[view.variant]} · ${THERMOSTAT_SUB_LABEL[view.variant]}
+            ${statusLabel} · ${subLabel}
           </span>
         </div>
         <div class="qc-climate-body">
           <div class="qc-climate-cur">
             ${cur}
-            ${view.humidity != null
-              ? html`<span class="hum">💧 ${Math.round(view.humidity)}%</span>`
+            ${roomView.humidity != null
+              ? html`<span class="hum">💧 ${Math.round(roomView.humidity)}%</span>`
               : nothing}
           </div>
           <div class="qc-climate-set">
@@ -1868,7 +1887,7 @@ export class CowMobileDashboardCard
                 ? this.renderClimateFanChips(sysId, sysView)
                 : nothing}
               <div class="qc-section-title">Aria stanza</div>
-              ${this.renderAirParticipationChips(entity, view)}
+              ${this.renderAirParticipationChips(entity, roomView)}
             `
           : html`
               ${this.renderClimateModeChips(entity, view)}

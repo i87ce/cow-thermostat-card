@@ -4,6 +4,19 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and
 this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.4.27] — 2026-07-02
+
+### Fixed
+- **Room hero showed OFF while system was in dry/heat.** Split-climate
+  displays now derive hero status from `hvac_action` when air is on, or
+  from `climate.casa_aria` when air is off — so Dry on the system row
+  no longer leaves the room pane stuck on grey OFF.
+- **Floor heating gated on air participation (v3 regression).**
+  `cow_climate_orchestrator_floor` again drives `climate.pavimento_*`
+  whenever `casa_aria` is in `heat`, using each room setpoint
+  regardless of Aria On/Off. `cow_climate_publish_action` now reports
+  `heating` when the floor relay is on even if air is excluded.
+
 ## [1.4.26] — 2026-07-02
 
 ### Added

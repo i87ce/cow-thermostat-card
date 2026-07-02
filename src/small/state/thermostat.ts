@@ -110,12 +110,16 @@ export function deriveThermostatView(
 
   const attrs = climate.attributes as HassClimateAttributes;
   const state = climate.state;
+  const action =
+    typeof attrs.hvac_action === "string" ? attrs.hvac_action : undefined;
 
   let variant: ThermostatVariant;
-  if (state === "off") variant = "off";
-  else if (attrs.hvac_action === "heating") variant = "heating";
-  else if (attrs.hvac_action === "cooling") variant = "cooling";
-  else if (attrs.hvac_action === "drying") variant = "cooling";
+  if (state === "off" && (!action || action === "off")) variant = "off";
+  else if (action === "heating") variant = "heating";
+  else if (action === "cooling") variant = "cooling";
+  else if (action === "drying") variant = "cooling";
+  else if (action === "idle" || action === "fan") variant = "idle";
+  else if (state === "off") variant = "off";
   else variant = "idle";
 
   const mode = ((): ThermostatView["mode"] => {

@@ -24,7 +24,10 @@ that zone the house. Home Assistant exposes:
 
 Underfloor heating is unchanged: `climate.pavimento_*` (Generic
 Thermostat on each display relay), coordinated by the same package
-with `FLOOR_OFFSET = 1.0 °C` when `casa_aria` is in `heat`.
+with `FLOOR_OFFSET = 1.0 °C` when `casa_aria` is in `heat` — using
+each room proxy's **setpoint**, regardless of whether that room's
+**air** participation is on or off (`heat` on the room proxy gates
+dampers / Mitsubishi only).
 
 ### REGOLA 1 (safety invariant)
 

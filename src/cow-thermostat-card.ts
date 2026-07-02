@@ -18,6 +18,10 @@ import "./small/panels/lights-panel.js";
 import "./small/panels/blinds-panel.js";
 
 import { deriveThermostatView } from "./small/state/thermostat.js";
+import {
+  deriveSplitRoomDisplayView,
+  usesSplitClimate,
+} from "./small/state/split-climate.js";
 import { aggregateLightsView } from "./small/state/lights.js";
 import { aggregateBlindsView } from "./small/state/blinds.js";
 
@@ -27,18 +31,23 @@ import "./cow-mobile-dashboard-card.js";
 
 type Kind = "thermostat" | "lights" | "blinds";
 
-const VERSION = "1.4.26";
+const VERSION = "1.4.27";
 
 const ACCENT_DOT: Record<Kind, (cfg: CowConfig, hass?: HomeAssistant) => string> =
   {
     thermostat: (cfg, hass) => {
       if (!cfg.climate || !hass) return "#fa6b2e";
-      const v = deriveThermostatView(hass.states[cfg.climate]).variant;
-      return v === "heating"
+      const room = hass.states[cfg.climate];
+      const roomView = deriveThermostatView(room);
+      const v =
+        cfg.system_climate && usesSplitClimate(cfg.system_climate, roomView)
+          ? deriveSplitRoomDisplayView(room, hass.states[cfg.system_climate])
+          : roomView;
+      return v.variant === "heating"
         ? "#fa6b2e"
-        : v === "cooling"
+        : v.variant === "cooling"
           ? "#2673eb"
-          : v === "idle"
+          : v.variant === "idle"
             ? "#26a673"
             : "#808088";
     },

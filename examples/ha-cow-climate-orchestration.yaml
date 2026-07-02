@@ -688,7 +688,7 @@ automation:
                           {% if rs.floor_only %}
                             {{ room_mode == 'heat' }}
                           {% else %}
-                            {{ aria_mode == 'heat' and room_mode == 'heat' }}
+                            {{ aria_mode == 'heat' }}
                           {% endif %}
                     - choose:
                         - conditions:
@@ -723,7 +723,7 @@ automation:
                     {% if r.floor_only %}
                       {{ room_mode == 'heat' }}
                     {% else %}
-                      {{ aria_mode == 'heat' and room_mode == 'heat' }}
+                      {{ aria_mode == 'heat' }}
                     {% endif %}
               - choose:
                   - conditions:
@@ -912,8 +912,9 @@ automation:
                     {%- if proxy_mode == 'off' -%}off
                     {%- elif floor_on -%}heating
                     {%- else -%}idle{%- endif -%}
-                  {%- elif proxy_mode == 'off' or aria_mode in ['off','unknown','unavailable'] -%}off
+                  {%- elif aria_mode in ['off','unknown','unavailable'] -%}off
                   {%- elif floor_on and aria_mode == 'heat' -%}heating
+                  {%- elif proxy_mode == 'off' -%}idle
                   {%- elif in_deficit | trim == 'true' and aria_mode == 'heat' -%}heating
                   {%- elif in_deficit | trim == 'true' and aria_mode == 'cool' -%}cooling
                   {%- elif in_deficit | trim == 'true' and aria_mode == 'dry' -%}drying

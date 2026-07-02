@@ -21,6 +21,9 @@ import type { OpeningKind } from "../config.js";
 import { openingIconSvg } from "../../util/ajax-openings.js";
 import {
   climateModeChipLabel,
+  deriveSplitRoomDisplayView,
+  splitRoomStatusLabel,
+  splitRoomSubLabel,
   SYSTEM_MODE_CHIP_ORDER,
   usesSplitClimate,
 } from "../state/split-climate.js";
@@ -369,6 +372,11 @@ export class CowThermostatPanel extends LitElement {
     return deriveThermostatView(this.climate);
   }
 
+  private displayView(): ThermostatView {
+    if (!this.isSplitClimate()) return this.roomView();
+    return deriveSplitRoomDisplayView(this.climate, this.systemClimateEntity);
+  }
+
   private systemView(): ThermostatView {
     return deriveThermostatView(this.systemClimateEntity);
   }
@@ -377,12 +385,8 @@ export class CowThermostatPanel extends LitElement {
     return usesSplitClimate(this.systemClimate, this.roomView());
   }
 
-  private view(): ThermostatView {
-    return this.roomView();
-  }
-
   override willUpdate(): void {
-    const v = this.view();
+    const v = this.displayView();
     const a = ACCENT[v.variant];
     this.style.setProperty("--cow-accent", a.primary);
     this.style.setProperty("--cow-accent-primary", a.primary);
@@ -457,14 +461,14 @@ export class CowThermostatPanel extends LitElement {
   }
 
   private bump(direction: 1 | -1) {
-    const v = this.view();
+    const v = this.roomView();
     const next = bumpTarget(v, direction);
     if (next != null) void this.setTarget(next);
   }
 
   private openSetpointModal = (): void => {
     const split = this.isSplitClimate();
-    if (!split && this.view().variant === "off") return;
+    if (!split && this.displayView().variant === "off") return;
     this.setpointModalOpen = true;
     // Imperatively open synchronously inside the click handler — the
     // reactive `open` prop also opens the dialog, but on iOS Safari
@@ -620,20 +624,32 @@ export class CowThermostatPanel extends LitElement {
   }
 
   override render() {
-    const v = this.view();
+    const roomV = this.roomView();
+    const v = this.displayView();
     const split = this.isSplitClimate();
-    const sys = split ? this.systemView() : v;
-    const current = v.current != null ? Math.round(v.current) : null;
-    const target = v.target != null ? v.target.toFixed(1).replace(".0", "") : null;
-    const hum = this.humidityText(v);
+    const sys = split ? this.systemView() : roomV;
+    const current = roomV.current != null ? Math.round(roomV.current) : null;
+    const target =
+      roomV.target != null ? roomV.target.toFixed(1).replace(".0", "") : null;
+    const hum = this.humidityText(roomV);
     const out = this.outdoorText();
     const setpointDisabled = !split && v.variant === "off";
+    const roomAction =
+      typeof this.climate?.attributes?.hvac_action === "string"
+        ? this.climate.attributes.hvac_action
+        : undefined;
+    const statusLabel = split
+      ? splitRoomStatusLabel(v, roomAction)
+      : STATUS_LABEL[v.variant];
+    const subLabel = split
+      ? splitRoomSubLabel(v, roomV.mode !== "off", sys.mode, roomAction)
+      : SUB_LABEL[v.variant];
 
     const modes = split
       ? SYSTEM_MODE_CHIP_ORDER.filter((m) => sys.hvacModes.includes(m)).map(
           (m) => ({ id: m, label: climateModeChipLabel(m) }),
         )
-      : v.hvacModes
+      : roomV.hvacModes
           .filter(
             (m) =>
               m === "off" ||
@@ -646,7 +662,7 @@ export class CowThermostatPanel extends LitElement {
           )
           .map((m) => ({ id: m, label: climateModeChipLabel(m) }));
 
-    const fanItems = (split ? sys : v).fanModes.map((f) => ({
+    const fanItems = (split ? sys : roomV).fanModes.map((f) => ({
       id: f,
       label: f === "auto" ? "Auto" : f.charAt(0).toUpperCase() + f.slice(1),
     }));
@@ -655,7 +671,7 @@ export class CowThermostatPanel extends LitElement {
       { id: "heat", label: "On" },
       { id: "off", label: "Off" },
     ];
-    const airActiveId = v.mode === "off" ? "off" : "heat";
+    const airActiveId = roomV.mode === "off" ? "off" : "heat";
 
     return html`
       <div class="left"></div>
@@ -664,7 +680,7 @@ export class CowThermostatPanel extends LitElement {
         class="icon"
         .variant=${v.variant}
       ></cow-thermostat-icon>
-      <div class="status">${STATUS_LABEL[v.variant]}</div>
+      <div class="status">${statusLabel}</div>
       <div
         class="display"
         @click=${this.hiddenStudioDoor ? this.onStudioDoorTap : undefined}
@@ -677,7 +693,7 @@ export class CowThermostatPanel extends LitElement {
 
       <div class="room">${this.roomName}</div>
       <div class="time">${formatTime(this.now, this.hass?.locale?.language)}</div>
-      <div class="sub">${SUB_LABEL[v.variant]}</div>
+      <div class="sub">${subLabel}</div>
       <div class="set-label">Set to</div>
       <button
         class="target"
@@ -706,7 +722,7 @@ export class CowThermostatPanel extends LitElement {
       <div class="mode-row">
         <cow-chip-row
           .items=${modes}
-          .activeId=${split ? sys.mode : v.mode === "heat_cool" ? "heat_cool" : v.mode}
+          .activeId=${split ? sys.mode : roomV.mode === "heat_cool" ? "heat_cool" : roomV.mode}
           .accent=${ACCENT[v.variant].primary}
           @cow-chip-select=${(e: CustomEvent<{ id: string }>) =>
             split
@@ -720,7 +736,7 @@ export class CowThermostatPanel extends LitElement {
             <div class="fan-row">
               <cow-chip-row
                 .items=${fanItems}
-                .activeId=${split ? sys.fan : v.fan}
+                .activeId=${split ? sys.fan : roomV.fan}
                 .accent=${ACCENT[v.variant].primary}
                 @cow-chip-select=${(e: CustomEvent<{ id: string }>) =>
                   split
@@ -747,13 +763,13 @@ export class CowThermostatPanel extends LitElement {
       ${this.renderAjaxOpenings()}
       <cow-setpoint-modal
         .open=${this.setpointModalOpen}
-        .value=${v.target}
-        .min=${v.minTemp}
-        .max=${v.maxTemp}
-        .step=${v.step}
+        .value=${roomV.target}
+        .min=${roomV.minTemp}
+        .max=${roomV.maxTemp}
+        .step=${roomV.step}
         .accent=${ACCENT[v.variant].primary}
         .heading=${`Imposta ${this.roomName || "stanza"}`}
-        .subtitle=${`Tra ${v.minTemp}° e ${v.maxTemp}° · step ${v.step}°`}
+        .subtitle=${`Tra ${roomV.minTemp}° e ${roomV.maxTemp}° · step ${roomV.step}°`}
         @cow-setpoint-confirm=${this.onSetpointConfirm}
         @cow-setpoint-cancel=${this.closeSetpointModal}
       ></cow-setpoint-modal>

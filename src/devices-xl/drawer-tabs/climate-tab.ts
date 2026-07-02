@@ -12,6 +12,9 @@ import {
 } from "../../small/state/thermostat.js";
 import {
   climateModeChipLabel,
+  deriveSplitRoomDisplayView,
+  splitRoomStatusLabel,
+  splitRoomSubLabel,
   SYSTEM_MODE_CHIP_ORDER,
   usesSplitClimate,
 } from "../../small/state/split-climate.js";
@@ -419,11 +422,17 @@ export class CowXLClimateTab extends LitElement {
       return this.renderSensorsOnly();
     }
     const climate = this.hass?.states?.[this.room.climate];
-    const view = deriveThermostatView(climate);
-    const split = usesSplitClimate(this.systemClimate, view);
-    const sysView = split
-      ? deriveThermostatView(this.hass?.states?.[this.systemClimate])
-      : view;
+    const roomView = deriveThermostatView(climate);
+    const split = usesSplitClimate(this.systemClimate, roomView);
+    const sysClimate = this.hass?.states?.[this.systemClimate];
+    const sysView = split ? deriveThermostatView(sysClimate) : roomView;
+    const view = split
+      ? deriveSplitRoomDisplayView(climate, sysClimate)
+      : roomView;
+    const roomAction =
+      typeof climate?.attributes?.hvac_action === "string"
+        ? climate.attributes.hvac_action
+        : undefined;
     // The variant label that goes in the caption "CLIMA — …". The
     // small wall card uses a short STATUS_LABEL (HEATING/COOLING/OFF/IDLE)
     // for its big status pill; the XL caption can afford the longer
@@ -431,13 +440,15 @@ export class CowXLClimateTab extends LitElement {
     // the .col-sub below it pull from the shared STATUS_LABEL /
     // SUB_LABEL tables so the two surfaces always agree on wording.
     const variantLabel =
-      view.variant === "heating"
-        ? "RISCALDAMENTO ATTIVO"
-        : view.variant === "cooling"
-          ? "RAFFREDDAMENTO ATTIVO"
-          : view.variant === "off"
-            ? "SPENTO"
-            : "IN MANTENIMENTO";
+      roomAction === "drying"
+        ? "DEUMIDIFICAZIONE ATTIVA"
+        : view.variant === "heating"
+          ? "RISCALDAMENTO ATTIVO"
+          : view.variant === "cooling"
+            ? "RAFFREDDAMENTO ATTIVO"
+            : view.variant === "off"
+              ? "SPENTO"
+              : "IN MANTENIMENTO";
     // Keep one decimal so a "24.5°" room doesn't render as "25°" here
     // while the header pill still shows "24.5°C" — the two surfaces
     // would otherwise look like they're reading different sensors.
@@ -445,11 +456,11 @@ export class CowXLClimateTab extends LitElement {
     // instead of the slightly ugly "21.0°".
     const fmt = (n: number, unit: string) =>
       `${n.toFixed(1).replace(/\.0$/, "")}${unit}`;
-    const cur = view.current != null ? fmt(view.current, "°") : "—";
-    const tgt = view.target != null ? fmt(view.target, "°C") : "—";
+    const cur = roomView.current != null ? fmt(roomView.current, "°") : "—";
+    const tgt = roomView.target != null ? fmt(roomView.target, "°C") : "—";
 
-    const upTarget = bumpTarget(view, 1);
-    const downTarget = bumpTarget(view, -1);
+    const upTarget = bumpTarget(roomView, 1);
+    const downTarget = bumpTarget(roomView, -1);
 
     const fans = (split ? sysView : view).fanModes.length > 0
       ? (split ? sysView : view).fanModes
@@ -467,6 +478,7 @@ export class CowXLClimateTab extends LitElement {
 
     return this.renderClimate(
       view,
+      roomView,
       sysView,
       split,
       variantLabel,
@@ -475,6 +487,7 @@ export class CowXLClimateTab extends LitElement {
       upTarget,
       downTarget,
       fans,
+      roomAction,
     );
   }
 
@@ -555,6 +568,7 @@ export class CowXLClimateTab extends LitElement {
 
   private renderClimate(
     view: ReturnType<typeof deriveThermostatView>,
+    roomView: ReturnType<typeof deriveThermostatView>,
     sysView: ReturnType<typeof deriveThermostatView>,
     split: boolean,
     variantLabel: string,
@@ -563,19 +577,33 @@ export class CowXLClimateTab extends LitElement {
     upTarget: number | null,
     downTarget: number | null,
     fans: string[],
+    roomAction?: string,
   ) {
     if (!this.room) return nothing;
     const arrowsDisabled = !split && view.variant === "off";
     const systemModes = split
       ? SYSTEM_MODE_CHIP_ORDER.filter((m) => sysView.hvacModes.includes(m))
       : [];
+    const statusLabel = split
+      ? splitRoomStatusLabel(view, roomAction)
+      : THERMOSTAT_STATUS_LABEL[view.variant];
+    const subLabel = split
+      ? splitRoomSubLabel(
+          view,
+          roomView.mode !== "off",
+          sysView.mode,
+          roomAction,
+        )
+      : THERMOSTAT_SUB_LABEL[view.variant];
     return html`
       <div class="caption">CLIMA — ${variantLabel}</div>
       <div class="full">
         <div class="col">
-          <div class="col-label">${THERMOSTAT_STATUS_LABEL[view.variant]}</div>
+          <div class="col-label">${statusLabel}</div>
           <div class="col-icon">
-            ${view.variant === "heating"
+            ${roomAction === "drying"
+              ? "💧"
+              : view.variant === "heating"
               ? "🔥"
               : view.variant === "cooling"
                 ? "❄"
@@ -584,7 +612,7 @@ export class CowXLClimateTab extends LitElement {
                   : "⚖"}
           </div>
           <div class="col-big">${cur}</div>
-          <div class="col-sub">${THERMOSTAT_SUB_LABEL[view.variant]} · ${this.room.name}</div>
+          <div class="col-sub">${subLabel} · ${this.room.name}</div>
         </div>
         <div class="col" style="align-items:flex-start;">
           <div class="col-label">IMPOSTATO A</div>
@@ -687,14 +715,14 @@ export class CowXLClimateTab extends LitElement {
                 <div class="air-modes">
                   <button
                     class="mode-btn"
-                    ?data-active=${view.mode !== "off"}
+                    ?data-active=${roomView.mode !== "off"}
                     @click=${() => this.setMode("heat")}
                   >
                     On
                   </button>
                   <button
                     class="mode-btn"
-                    ?data-active=${view.mode === "off"}
+                    ?data-active=${roomView.mode === "off"}
                     @click=${() => this.setMode("off")}
                   >
                     Off
@@ -719,19 +747,19 @@ export class CowXLClimateTab extends LitElement {
           </div>
           <div class="schedule-label">UMIDITÀ</div>
           <div class="schedule-text">
-            ${this.roomHumidityText(view)}
+            ${this.roomHumidityText(roomView)}
           </div>
         </div>
       </div>
       <cow-setpoint-modal
         .open=${this.setpointModalOpen}
-        .value=${view.target}
-        .min=${view.minTemp}
-        .max=${view.maxTemp}
-        .step=${view.step}
+        .value=${roomView.target}
+        .min=${roomView.minTemp}
+        .max=${roomView.maxTemp}
+        .step=${roomView.step}
         .accent=${THERMOSTAT_ACCENT[view.variant].primary}
         .heading=${`Imposta ${this.room?.name || "stanza"}`}
-        .subtitle=${`Tra ${view.minTemp}° e ${view.maxTemp}° · step ${view.step}°`}
+        .subtitle=${`Tra ${roomView.minTemp}° e ${roomView.maxTemp}° · step ${roomView.step}°`}
         @cow-setpoint-confirm=${this.onSetpointConfirm}
         @cow-setpoint-cancel=${this.closeSetpointModal}
       ></cow-setpoint-modal>
