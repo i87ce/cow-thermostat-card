@@ -1,7 +1,7 @@
 # Analisi — ridisegno sistema clima (UI + orchestratore)
 
-> **Stato:** bozza in revisione — §2 confermato dall’utente (2026-07-03), restano
-> aperte le domande §12.  
+> **Stato:** spec quasi vincolante — §2 e le decisioni §12 confermate
+> dall’utente (2026-07-03). Resta aperto solo il naming entity (D8).  
 > **Data:** 2026-07-03  
 > **Motivazione:** v3 accumula patch su naming ambiguo (`heat` = partecipazione),
 > stati MQTT non allineati alla realtà fisica, e UI che mescola “sistema” e “stanza”.
@@ -264,33 +264,33 @@ Ordine **obbligatorio** (REGOLA 1):
 In Heat ci sono **due sorgenti**: pavimento (base) e Mitsubishi (spinta oltre
 ±5 °C). Due soglie: `IDLE = 1 °C`, `BOOST = 5 °C`.
 
-### 7.1 Pavimento (base, sempre in Heat)
+### 7.1 Pavimento (base, in Heat, solo stanze incluse)
 
-- Pavimento **On** @ `setpoint − 1 °C` per ogni stanza con valvola.
-- Vale **finché il sistema è Heat**; l’inclusione aria **non** spegne il pavimento.
-- (Da decidere §12: se una stanza è **Esclusa**, il pavimento resta comunque
-  on? Proposta: sì, esclusione = solo aria.)
+- Pavimento **On** @ `setpoint − 1 °C` per ogni stanza **inclusa** con valvola.
+- Stanza **Esclusa** → pavimento **Off** (D1: esclusione spegne tutto il clima
+  della stanza, aria **e** pavimento).
+- Vale solo con sistema **Heat**; negli altri modi il pavimento è Off ovunque.
 
 ### 7.2 Aria / Mitsubishi (spinta solo per gap grandi)
 
 Per ogni stanza **inclusa**, con `gap = SP − T` (positivo = fa freddo):
 
-| Condizione | Serranda | Mitsubishi (motore) | Stato stanza |
-|---|---|---|---|
-| `gap > 5 °C` (molto sotto SP) | **Apri** | Heat @ 30 °C (spinta) | **Riscaldando** |
-| `1 °C < gap ≤ 5 °C` | Chiusa | (solo pavimento) | **Riscaldando (pavimento)** |
-| `|gap| ≤ 1 °C` (a comfort) | Chiusa | — | **A comfort** |
-| `gap < −1 °C` (sopra SP) | Chiusa | — | A comfort |
+| Condizione | Serranda | Mitsubishi (motore) | Pavimento | Stato stanza |
+|---|---|---|---|---|
+| `gap > 5 °C` (molto sotto SP) | **Apri** | Heat @ 30 °C (spinta) | On | **Riscaldando** |
+| `1 °C < gap ≤ 5 °C` | Chiusa | — | On | **Riscaldando (pavimento)** |
+| `|gap| ≤ 1 °C` (a comfort) | Chiusa | — | On (mantiene) | **A comfort** |
+| `gap < −1 °C` (sopra SP) | Chiusa | — | On (mantiene) | A comfort |
 
-Per ogni stanza **esclusa**: serranda chiusa, stato **Esclusa** (pavimento vedi §7.1).
+Per ogni stanza **esclusa**: serranda chiusa, **pavimento off**, stato **Esclusa**.
 
 ### 7.3 Motore Mitsubishi in Heat
 
-- Acceso **Heat @ 30 °C** solo se **almeno una** stanza inclusa ha `gap > 5 °C`.
+- Acceso **Heat @ 30 °C** solo se **almeno una** stanza inclusa ha `T < SP − 5`.
 - Quando nessuna stanza supera più i 5 °C di gap → **spegni motore** (prima di
   chiudere l’ultima serranda) e lascia lavorare il pavimento.
-- Idle globale aria = tutte sotto soglia boost → motore off, serrande chiuse,
-  pavimento continua a mantenere.
+- Idle globale aria = nessuna stanza oltre soglia boost → motore off, serrande
+  chiuse, il pavimento delle stanze incluse continua a mantenere.
 
 ### 7.4 Cool / Dry / Fan / Off (pavimento off)
 
@@ -307,8 +307,8 @@ Per ogni stanza **esclusa**: serranda chiusa, stato **Esclusa** (pavimento vedi 
 | Sistema → **Spento** | Qualsiasi display | **Globale** | `mode = off` | Motore off (tutta la casa), serrande chiuse, pavimento off |
 | Ventola → Media | Qualsiasi display | **Globale** | `fan = medium` | Prossimo ciclo usa quella velocità |
 | Setpoint 22 °C | Display stanza | Stanza | `setpoint = 22` | Ricalcolo deficit; può aprire serranda / accendere motore |
-| Stanza → **Esclusa** | Display stanza | Stanza | `include = false` | Chiudi **subito** serranda; hero **Esclusa**; altre zone invariate |
-| Stanza → **Inclusa** | Display stanza | Stanza | `include = true` | Entra nel calcolo; serranda solo se fuori tolleranza |
+| Stanza → **Esclusa** | Display stanza | Stanza | `include = false` | Chiudi **subito** serranda **+ pavimento off**; hero **Esclusa**; altre zone invariate |
+| Stanza → **Inclusa** | Display stanza | Stanza | `include = true` | Entra nel calcolo; serranda se fuori tolleranza; pavimento on se Heat |
 | Clima On (bagno) | Bagno | Stanza | `pavimento = on` | Solo pavimento on @ SP−1 |
 
 ---
@@ -325,11 +325,10 @@ la cambia **per tutta la casa**.
    Raffreddamento per **tutta la casa**?”* → [Annulla] / [Cambia per tutti].  
 3. Alla conferma: `mode = cool` globale, l’orchestratore riconfigura tutto.
 
-**Quando chiedere conferma (da decidere §12):**
+**Quando chiedere conferma (D3, deciso):**
 
-- Sempre al cambio modo? oppure
-- Solo se il modo attivo è **diverso e attivo** (motore acceso)? oppure
-- Mai, cambio immediato (più semplice, ma può sorprendere).
+- Conferma **solo se il motore è già attivo in un modo diverso** da quello richiesto.
+- Se il sistema è **Spento** o già nel modo richiesto → cambio **immediato**.
 
 **Setpoint e Inclusa/Esclusa** non richiedono conferma: sono locali alla stanza.
 
@@ -387,7 +386,7 @@ Sistema `cow/casa/aria/`:
 - [ ] Sistema Heat, stanza Inclusa, gap > 5 °C → pavimento on + serranda aperta + motore heat, **Riscaldando**  
 - [ ] Sistema Heat, stanza Inclusa, 1 < gap ≤ 5 °C → **solo pavimento**, serranda chiusa, **Riscaldando (pavimento)**  
 - [ ] Sistema Heat, stanza a comfort (±1) → pavimento mantiene, serranda chiusa, **A comfort**  
-- [ ] Sistema Heat, stanza **Esclusa** → serranda chiusa; pavimento (vedi §12 D1)  
+- [ ] Sistema Heat, stanza **Esclusa** → serranda chiusa **+ pavimento off** (D1), hero **Esclusa**  
 - [ ] Sistema Cool → pavimento off ovunque  
 
 ### Conflitto modo / UI
@@ -401,50 +400,70 @@ Sistema `cow/casa/aria/`:
 
 ---
 
-## 12. Domande aperte (da decidere prima di implementare)
+## 12. Decisioni (2026-07-03)
 
-**D1. Stanza Esclusa in Heat + pavimento**  
-Se escludo una stanza dall’aria mentre il sistema è in Heat, il **pavimento**
-di quella stanza resta **acceso** (esclusione = solo aria) o si spegne?  
-→ *Proposta: pavimento resta on (esclusione = solo aria). Hero “Esclusa” ma
-con piccola nota “pavimento attivo”.*
+**D1. Stanza Esclusa = spegne TUTTO il clima della stanza** ✅ *deciso*  
+Escludere una stanza spegne **sia l’aria sia il pavimento** di quella stanza.
+Esclusione = “questa stanza non fa clima”. Hero **Esclusa** (grigio), nessun
+pavimento attivo. *(Impatta §7.1: il pavimento segue l’inclusione.)*
 
-**D2. Soglie**  
-Confermi `IDLE = ±1 °C` (serranda) e `BOOST = 5 °C` (spinta Mitsubishi in
-heat)? Il boost è **gap assoluto > 5** o `T < SP − 5`?
+**D2. Soglie** ✅ *deciso*  
+`IDLE = ±1 °C` (serranda). `BOOST` in Heat: la spinta Mitsubishi entra quando
+`T < SP − 5` (più di 5 °C sotto il setpoint). Sotto quel gap → solo pavimento.
 
-**D3. Conferma cambio modo**  
-Sempre / solo se motore attivo in modo diverso / mai? (vedi §8-bis)
+**D3. Conferma cambio modo** ✅ *deciso*  
+Conferma **solo se il motore è già attivo in un modo diverso**. Se il sistema
+è Spento (o già nel modo richiesto) → cambio immediato senza popup.
 
-**D4. Comfort globale in Cool**  
-Confermi: a comfort totale **motore off + serrande chiuse** (niente ricircolo
-fan automatico)? La ventola parte solo con modo **Fan** esplicito.
+**D4. Comfort globale in Cool** ✅ *confermato*  
+A comfort totale → **motore off + serrande chiuse** (l’ultima dopo lo
+spegnimento). Nessun ricircolo automatico; la ventola parte solo con modo
+**Fan** esplicito.
 
-**D5. Dry**  
-Stessa logica di Cool (deficit se T > SP + 1) per ora, soglia umidità in futuro?
+**D5. Dry** ✅ *confermato*  
+Stessa logica di Cool (deficit se `T > SP + 1`) per ora; soglia umidità in
+futuro.
 
-**D6. Implementazione orchestratore**  
-YAML puro o **Pyscript**? Consiglio Pyscript: elimina i bug Jinja (`set` in
-loop, `True` vs `'true'`) che ci hanno fatto perdere tempo, logica testabile.
+**D6. Implementazione = Pyscript** ✅ *deciso*  
+Orchestratore in **Pyscript/Python**: elimina i bug Jinja (`set` in loop,
+`True` vs `'true'`), logica unica e testabile. Un solo writer di stato.
 
-**D7. Migrazione**  
-Big-bang (un pomeriggio, spegniamo v3 e accendiamo v4) o convivenza graduale?
+**D7. Migrazione = Big-bang** ✅ *deciso*  
+Spegniamo v3 e accendiamo v4 in un’unica sessione. Backup del package v3 prima.
 
-**D8. Naming entity**  
-Rinominiamo `climate.casa_aria` → qualcosa di più chiaro (es.
-`climate.casa_sistema`)? E i proxy stanza da `mode heat` a `include on/off`?
+**D8. Naming entity** ⏳ *aperto*  
+Rinominare `climate.casa_aria` → `climate.casa_sistema`? Proxy stanza da
+`mode heat` a `include on/off`? *(Non bloccante: decidiamo in fase implementazione.)*
 
 ---
 
-## 13. Prossimi passi suggeriti
+## 13. Piano di implementazione (v4)
 
-1. **Tu confermi / correggi** §5 (stati), §6–7 (heat/cool), §12 (domande).  
-2. Aggiorniamo questo doc come **spec vincolante**.  
-3. Implementazione in ordine:  
-   - orchestratore v4 (un solo writer di stato)  
-   - proxy MQTT con `include` + `air_state`  
-   - card v2 (layout + label italiane: Inclusa/Esclusa, stati §5)  
-   - dismissione `heat` come partecipazione e `publish_action` separato  
+Decisioni chiave: **Pyscript** (D6), **big-bang** (D7).
+
+**Fase 0 — preparazione**
+1. Backup package v3 (`cow_climate.yaml.bak.v3`).  
+2. Installare/abilitare **Pyscript** (HACS integration) su HA.
+
+**Fase 1 — orchestratore Pyscript (un solo writer)**
+3. Modulo `cow_climate.py`: stato macchina completo (§6–7), REGOLA 1,
+   idle/boost, esclusione = aria+pavimento off.  
+4. Pubblica atomico su MQTT: `air_state`, setpoint echo, mode/fan echo.  
+5. Trigger: cambio `mode/fan/setpoint/include` + sensori temperatura.
+
+**Fase 2 — proxy MQTT v4**
+6. Sistema `climate.casa_sistema` (mode+fan) — o mantenere `casa_aria`.  
+7. Per stanza: `setpoint` + `include` (bool) + `air_state` (retain).
+
+**Fase 3 — card v2**
+8. Riga **Tutta la casa** (mode+fan) con conferma cambio modo (D3).  
+9. Riga **Questa stanza** (Inclusa/Esclusa + setpoint).  
+10. Hero colorato **solo** da `air_state` (no euristiche).  
+11. Sala XL e mobile allineati su mode/fan.
+
+**Fase 4 — dismissione v3**
+12. Disabilitare automazioni v3 + `publish_action` + trigger Jinja.  
+13. Test checklist §11.  
 
 ---
 
