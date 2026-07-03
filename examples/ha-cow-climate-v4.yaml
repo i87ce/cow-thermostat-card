@@ -1,0 +1,161 @@
+# ---------------------------------------------------------------------------
+# Cow Climate v4 — ENTITY MQTT (solo dichiarazioni, logica in Pyscript)
+# ---------------------------------------------------------------------------
+# Deploy come /config/packages/cow_climate.yaml (sostituisce v3).
+# Spec: docs/08-climate-system-redesign-analysis.md
+#
+# Modello:
+#   climate.casa_sistema        — modo (off/heat/cool/dry/fan_only) + ventola, GLOBALE
+#   climate.casa_<room>         — setpoint + include (off=Esclusa / auto=Inclusa)
+#                                 + attributo air_state (stato ricco per la UI)
+#
+# La LOGICA (serrande, Mitsubishi, pavimento, REGOLA 1, air_state) vive in
+#   /config/pyscript/cow_climate.py  → è l'unico writer di stato.
+#
+# Hardware (mai in UI, guidato solo da Pyscript):
+#   climate.koolnova_clima_clim1                     — Mitsubishi
+#   cover.koolnova_serrande_serranda_1..5            — serrande
+#   climate.*pavimento*  /  switch.display_*         — pavimento per stanza
+# ---------------------------------------------------------------------------
+
+mqtt:
+  climate:
+    # ══ SISTEMA (globale: modo + ventola) ═════════════════════════════
+    - name: "Casa Sistema"
+      unique_id: casa_sistema
+      modes: ["off", "heat", "cool", "dry", "fan_only"]
+      fan_modes: ["auto", "low", "medium", "high"]
+      min_temp: 16
+      max_temp: 30
+      temp_step: 1
+      optimistic: true
+      retain: true
+      mode_command_topic: "cow/casa/sistema/mode/set"
+      mode_state_topic: "cow/casa/sistema/mode/state"
+      fan_mode_command_topic: "cow/casa/sistema/fan/set"
+      fan_mode_state_topic: "cow/casa/sistema/fan/state"
+      action_topic: "cow/casa/sistema/action/state"
+
+    # ══ STANZE CON ARIA (serranda) ════════════════════════════════════
+    # modes: off = Esclusa · auto = Inclusa (partecipa al loop)
+    # attributo air_state → stato ricco per la card (§5 spec)
+    - name: "Casa Camera Padronale"
+      unique_id: casa_camera_padronale
+      modes: ["off", "auto"]
+      min_temp: 15
+      max_temp: 30
+      temp_step: 0.5
+      optimistic: true
+      retain: true
+      mode_command_topic: "cow/casa/camera_padronale/mode/set"
+      mode_state_topic: "cow/casa/camera_padronale/mode/state"
+      temperature_command_topic: "cow/casa/camera_padronale/setpoint/set"
+      temperature_state_topic: "cow/casa/camera_padronale/setpoint/state"
+      current_temperature_topic: "cow/casa/camera_padronale/current/state"
+      current_humidity_topic: "cow/casa/camera_padronale/humidity/state"
+      action_topic: "cow/casa/camera_padronale/action/state"
+      json_attributes_topic: "cow/casa/camera_padronale/attrs/state"
+
+    - name: "Casa Studio Chiara"
+      unique_id: casa_studio_chiara
+      modes: ["off", "auto"]
+      min_temp: 15
+      max_temp: 30
+      temp_step: 0.5
+      optimistic: true
+      retain: true
+      mode_command_topic: "cow/casa/studio_chiara/mode/set"
+      mode_state_topic: "cow/casa/studio_chiara/mode/state"
+      temperature_command_topic: "cow/casa/studio_chiara/setpoint/set"
+      temperature_state_topic: "cow/casa/studio_chiara/setpoint/state"
+      current_temperature_topic: "cow/casa/studio_chiara/current/state"
+      current_humidity_topic: "cow/casa/studio_chiara/humidity/state"
+      action_topic: "cow/casa/studio_chiara/action/state"
+      json_attributes_topic: "cow/casa/studio_chiara/attrs/state"
+
+    - name: "Casa Camera"
+      unique_id: casa_camera
+      modes: ["off", "auto"]
+      min_temp: 15
+      max_temp: 30
+      temp_step: 0.5
+      optimistic: true
+      retain: true
+      mode_command_topic: "cow/casa/camera/mode/set"
+      mode_state_topic: "cow/casa/camera/mode/state"
+      temperature_command_topic: "cow/casa/camera/setpoint/set"
+      temperature_state_topic: "cow/casa/camera/setpoint/state"
+      current_temperature_topic: "cow/casa/camera/current/state"
+      current_humidity_topic: "cow/casa/camera/humidity/state"
+      action_topic: "cow/casa/camera/action/state"
+      json_attributes_topic: "cow/casa/camera/attrs/state"
+
+    - name: "Casa Sala & Cucina"
+      unique_id: casa_sala_cucina
+      modes: ["off", "auto"]
+      min_temp: 15
+      max_temp: 30
+      temp_step: 0.5
+      optimistic: true
+      retain: true
+      mode_command_topic: "cow/casa/sala_cucina/mode/set"
+      mode_state_topic: "cow/casa/sala_cucina/mode/state"
+      temperature_command_topic: "cow/casa/sala_cucina/setpoint/set"
+      temperature_state_topic: "cow/casa/sala_cucina/setpoint/state"
+      current_temperature_topic: "cow/casa/sala_cucina/current/state"
+      current_humidity_topic: "cow/casa/sala_cucina/humidity/state"
+      action_topic: "cow/casa/sala_cucina/action/state"
+      json_attributes_topic: "cow/casa/sala_cucina/attrs/state"
+
+    # ══ STANZE SOLO PAVIMENTO (no serranda) ═══════════════════════════
+    # modes: off = spento · auto = pavimento attivo (quando Sistema=Heat)
+    - name: "Casa Ingresso PT"
+      unique_id: casa_ingresso_pt
+      modes: ["off", "auto"]
+      min_temp: 15
+      max_temp: 30
+      temp_step: 0.5
+      optimistic: true
+      retain: true
+      mode_command_topic: "cow/casa/ingresso_pt/mode/set"
+      mode_state_topic: "cow/casa/ingresso_pt/mode/state"
+      temperature_command_topic: "cow/casa/ingresso_pt/setpoint/set"
+      temperature_state_topic: "cow/casa/ingresso_pt/setpoint/state"
+      current_temperature_topic: "cow/casa/ingresso_pt/current/state"
+      current_humidity_topic: "cow/casa/ingresso_pt/humidity/state"
+      action_topic: "cow/casa/ingresso_pt/action/state"
+      json_attributes_topic: "cow/casa/ingresso_pt/attrs/state"
+
+    - name: "Casa Bagno Padronale"
+      unique_id: casa_bagno_padronale
+      modes: ["off", "auto"]
+      min_temp: 15
+      max_temp: 30
+      temp_step: 0.5
+      optimistic: true
+      retain: true
+      mode_command_topic: "cow/casa/bagno_padronale/mode/set"
+      mode_state_topic: "cow/casa/bagno_padronale/mode/state"
+      temperature_command_topic: "cow/casa/bagno_padronale/setpoint/set"
+      temperature_state_topic: "cow/casa/bagno_padronale/setpoint/state"
+      current_temperature_topic: "cow/casa/bagno_padronale/current/state"
+      current_humidity_topic: "cow/casa/bagno_padronale/humidity/state"
+      action_topic: "cow/casa/bagno_padronale/action/state"
+      json_attributes_topic: "cow/casa/bagno_padronale/attrs/state"
+
+    - name: "Casa Bagno Ospiti"
+      unique_id: casa_bagno_ospiti
+      modes: ["off", "auto"]
+      min_temp: 15
+      max_temp: 30
+      temp_step: 0.5
+      optimistic: true
+      retain: true
+      mode_command_topic: "cow/casa/bagno_ospiti/mode/set"
+      mode_state_topic: "cow/casa/bagno_ospiti/mode/state"
+      temperature_command_topic: "cow/casa/bagno_ospiti/setpoint/set"
+      temperature_state_topic: "cow/casa/bagno_ospiti/setpoint/state"
+      current_temperature_topic: "cow/casa/bagno_ospiti/current/state"
+      current_humidity_topic: "cow/casa/bagno_ospiti/humidity/state"
+      action_topic: "cow/casa/bagno_ospiti/action/state"
+      json_attributes_topic: "cow/casa/bagno_ospiti/attrs/state"
