@@ -74,7 +74,15 @@ In **Heat** lavorano **due sorgenti**:
 I due pulsanti oggi si somigliano troppo → vanno etichettati e separati
 chiaramente (vedi §4 e §9).
 
-### 2.6 UI allineata ovunque
+### 2.6 Ventola = globale, solo Mitsubishi, senza conferma
+
+- La **velocità ventola** (Auto/Bassa/Media/Alta) è **centrale** come il modo:
+  vale per tutta la casa.
+- Riguarda **solo il Mitsubishi** (il pavimento non ha ventola).
+- A differenza del modo, il cambio ventola è **immediato, senza conferma**
+  (non ferma né inverte il motore, cambia solo la portata d’aria).
+
+### 2.7 UI allineata ovunque
 
 - Tutti i display mostrano **la stessa modalità e ventola** (sono globali).
 - Il display **Sala (XL)**, che mostra tutte le altre stanze come il mobile,
@@ -305,7 +313,7 @@ Per ogni stanza **esclusa**: serranda chiusa, **pavimento off**, stato **Esclusa
 |---|---|---|---|---|
 | Sistema → Cool | Qualsiasi display | **Globale** | `mode = cool` | Deficit per stanze **incluse**; apri/chiudi serrande; motore cool @ 16 |
 | Sistema → **Spento** | Qualsiasi display | **Globale** | `mode = off` | Motore off (tutta la casa), serrande chiuse, pavimento off |
-| Ventola → Media | Qualsiasi display | **Globale** | `fan = medium` | Prossimo ciclo usa quella velocità |
+| Ventola → Media | Qualsiasi display | **Globale, senza conferma** | `fan = medium` | Mitsubishi cambia portata subito; pavimento non coinvolto |
 | Setpoint 22 °C | Display stanza | Stanza | `setpoint = 22` | Ricalcolo deficit; può aprire serranda / accendere motore |
 | Stanza → **Esclusa** | Display stanza | Stanza | `include = false` | Chiudi **subito** serranda **+ pavimento off**; hero **Esclusa**; altre zone invariate |
 | Stanza → **Inclusa** | Display stanza | Stanza | `include = true` | Entra nel calcolo; serranda se fuori tolleranza; pavimento on se Heat |
@@ -330,7 +338,8 @@ la cambia **per tutta la casa**.
 - Conferma **solo se il motore è già attivo in un modo diverso** da quello richiesto.
 - Se il sistema è **Spento** o già nel modo richiesto → cambio **immediato**.
 
-**Setpoint e Inclusa/Esclusa** non richiedono conferma: sono locali alla stanza.
+**Nessuna conferma** per: **Ventola** (globale ma non ferma/inverte il motore),
+**Setpoint** e **Inclusa/Esclusa** (locali alla stanza).
 
 ---
 
