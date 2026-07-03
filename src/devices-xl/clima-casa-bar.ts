@@ -7,7 +7,7 @@ import {
   SYSTEM_MODE_CHIP_ORDER,
 } from "../small/state/split-climate.js";
 
-const DEFAULT_SYSTEM = "climate.casa_aria";
+const DEFAULT_SYSTEM = "climate.casa_sistema";
 
 /**
  * Second row under Luci/tapparelle — global Mitsubishi mode shortcuts,

@@ -1,6 +1,6 @@
 import { LitElement, html, css, nothing } from "lit";
 import { customElement, property, state } from "lit/decorators.js";
-import type { HomeAssistant } from "../../types/hass.js";
+import type { HomeAssistant, HassEntity } from "../../types/hass.js";
 import type { CowRoomConfig } from "../../config-xl.js";
 import { buttonReset } from "../../styles/button-reset.js";
 import {
@@ -13,13 +13,17 @@ import {
 import {
   climateModeChipLabel,
   deriveSplitRoomDisplayView,
-  effectiveRoomHvacAction,
+  needsModeChangeConfirm,
+  readAirState,
+  roomIncluded,
   splitRoomStatusLabel,
   splitRoomSubLabel,
+  systemModeName,
   SYSTEM_MODE_CHIP_ORDER,
   usesSplitClimate,
 } from "../../small/state/split-climate.js";
 import "../../shared/setpoint-modal.js";
+import "../../shared/confirm-modal.js";
 
 /**
  * Climate tab — replicates Figma "11. Mix — Drawer Climate" body.
@@ -38,6 +42,7 @@ export class CowXLClimateTab extends LitElement {
   /** Global air entity (mode + fan), e.g. climate.casa_aria */
   @property({ type: String }) systemClimate = "";
   @state() private setpointModalOpen = false;
+  @state() private pendingSystemMode?: string;
 
   static override styles = [
     buttonReset,
@@ -328,6 +333,25 @@ export class CowXLClimateTab extends LitElement {
     });
   }
 
+  private onSystemModeChip(mode: string): void {
+    const current = this.hass?.states?.[this.systemClimate]?.state;
+    if (needsModeChangeConfirm(current, mode)) {
+      this.pendingSystemMode = mode;
+    } else {
+      void this.setSystemMode(mode);
+    }
+  }
+
+  private confirmSystemMode = (): void => {
+    const mode = this.pendingSystemMode;
+    this.pendingSystemMode = undefined;
+    if (mode) void this.setSystemMode(mode);
+  };
+
+  private cancelSystemMode = (): void => {
+    this.pendingSystemMode = undefined;
+  };
+
   private async setSystemFan(fan: string) {
     if (!this.systemClimate || !this.hass) return;
     await this.hass.callService("climate", "set_fan_mode", {
@@ -430,35 +454,18 @@ export class CowXLClimateTab extends LitElement {
     const view = split
       ? deriveSplitRoomDisplayView(climate, sysClimate)
       : roomView;
-    const rawAction =
-      typeof climate?.attributes?.hvac_action === "string"
-        ? climate.attributes.hvac_action
-        : undefined;
-    const roomAction = split
-      ? effectiveRoomHvacAction(
-          rawAction,
-          roomView.mode !== "off",
-          sysView.mode,
-          roomView.current,
-          roomView.target,
-        )
-      : rawAction;
-    // The variant label that goes in the caption "CLIMA — …". The
-    // small wall card uses a short STATUS_LABEL (HEATING/COOLING/OFF/IDLE)
-    // for its big status pill; the XL caption can afford the longer
-    // Italian phrasing here, but the .col-label inside the card and
-    // the .col-sub below it pull from the shared STATUS_LABEL /
-    // SUB_LABEL tables so the two surfaces always agree on wording.
-    const variantLabel =
-      roomAction === "drying"
-        ? "DEUMIDIFICAZIONE ATTIVA"
-        : roomAction === "cooling" || view.variant === "cooling"
-          ? "RAFFREDDAMENTO ATTIVO"
-          : roomAction === "heating" || view.variant === "heating"
-            ? "RISCALDAMENTO ATTIVO"
-            : view.variant === "off"
-              ? "SPENTO"
-              : "IN MANTENIMENTO";
+    // Caption "CLIMA — …". In split mode the rich air_state drives the
+    // wording; otherwise fall back to the variant.
+    const air = split ? readAirState(climate) : undefined;
+    const variantLabel = split
+      ? splitRoomStatusLabel(climate)
+      : view.variant === "cooling"
+        ? "RAFFREDDAMENTO ATTIVO"
+        : view.variant === "heating"
+          ? "RISCALDAMENTO ATTIVO"
+          : view.variant === "off"
+            ? "SPENTO"
+            : "IN MANTENIMENTO";
     // Keep one decimal so a "24.5°" room doesn't render as "25°" here
     // while the header pill still shows "24.5°C" — the two surfaces
     // would otherwise look like they're reading different sensors.
@@ -497,7 +504,8 @@ export class CowXLClimateTab extends LitElement {
       upTarget,
       downTarget,
       fans,
-      roomAction,
+      climate,
+      air,
     );
   }
 
@@ -587,23 +595,19 @@ export class CowXLClimateTab extends LitElement {
     upTarget: number | null,
     downTarget: number | null,
     fans: string[],
-    roomAction?: string,
+    room?: HassEntity,
+    air?: string,
   ) {
     if (!this.room) return nothing;
-    const arrowsDisabled = !split && view.variant === "off";
+    const arrowsDisabled = false;
     const systemModes = split
       ? SYSTEM_MODE_CHIP_ORDER.filter((m) => sysView.hvacModes.includes(m))
       : [];
     const statusLabel = split
-      ? splitRoomStatusLabel(view, roomAction)
+      ? splitRoomStatusLabel(room)
       : THERMOSTAT_STATUS_LABEL[view.variant];
     const subLabel = split
-      ? splitRoomSubLabel(
-          view,
-          roomView.mode !== "off",
-          sysView.mode,
-          roomAction,
-        )
+      ? splitRoomSubLabel(room)
       : THERMOSTAT_SUB_LABEL[view.variant];
     return html`
       <div class="caption">CLIMA — ${variantLabel}</div>
@@ -611,7 +615,7 @@ export class CowXLClimateTab extends LitElement {
         <div class="col">
           <div class="col-label">${statusLabel}</div>
           <div class="col-icon">
-            ${roomAction === "drying"
+            ${air === "drying"
               ? "💧"
               : view.variant === "heating"
               ? "🔥"
@@ -661,14 +665,14 @@ export class CowXLClimateTab extends LitElement {
           </div>
         </div>
         <div class="col right">
-          <div class="col-label">${split ? "SISTEMA" : "MODALITÀ"}</div>
+          <div class="col-label">${split ? "TUTTA LA CASA" : "MODALITÀ"}</div>
           <div class="modes">
             ${split
               ? systemModes.map(
                   (m) => html`<button
                     class="mode-btn"
                     ?data-active=${sysView.mode === m}
-                    @click=${() => this.setSystemMode(m)}
+                    @click=${() => this.onSystemModeChip(m)}
                   >
                     ${climateModeChipLabel(m)}
                   </button>`,
@@ -721,21 +725,21 @@ export class CowXLClimateTab extends LitElement {
           </div>
           ${split
             ? html`
-                <div class="schedule-label">ARIA STANZA</div>
+                <div class="schedule-label">QUESTA STANZA</div>
                 <div class="air-modes">
                   <button
                     class="mode-btn"
-                    ?data-active=${roomView.mode !== "off"}
-                    @click=${() => this.setMode("heat")}
+                    ?data-active=${roomIncluded(room)}
+                    @click=${() => this.setMode("auto")}
                   >
-                    On
+                    Inclusa
                   </button>
                   <button
                     class="mode-btn"
-                    ?data-active=${roomView.mode === "off"}
+                    ?data-active=${!roomIncluded(room)}
                     @click=${() => this.setMode("off")}
                   >
-                    Off
+                    Esclusa
                   </button>
                 </div>
               `
@@ -773,6 +777,19 @@ export class CowXLClimateTab extends LitElement {
         @cow-setpoint-confirm=${this.onSetpointConfirm}
         @cow-setpoint-cancel=${this.closeSetpointModal}
       ></cow-setpoint-modal>
+      <cow-confirm-modal
+        .open=${this.pendingSystemMode != null}
+        .heading=${"Cambiare modalità?"}
+        .message=${this.pendingSystemMode
+          ? `Il sistema è in ${systemModeName(sysView.mode)}. Passare a ${systemModeName(
+              this.pendingSystemMode,
+            )} per tutta la casa?`
+          : ""}
+        .confirmLabel=${"Cambia per tutti"}
+        .accent=${THERMOSTAT_ACCENT[view.variant].primary}
+        @cow-confirm=${this.confirmSystemMode}
+        @cow-cancel=${this.cancelSystemMode}
+      ></cow-confirm-modal>
     `;
   }
 }

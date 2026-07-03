@@ -73,13 +73,16 @@ import {
 import {
   climateModeChipLabel,
   deriveSplitRoomDisplayView,
-  effectiveRoomHvacAction,
+  needsModeChangeConfirm,
+  roomIncluded,
   splitRoomStatusLabel,
   splitRoomSubLabel,
+  systemModeName,
   SYSTEM_MODE_CHIP_ORDER,
   usesSplitClimate,
 } from "./small/state/split-climate.js";
 import "./shared/hero/mobile-hero.js";
+import "./shared/confirm-modal.js";
 import "./shared/setpoint-modal.js";
 
 // ─────────────────────────────────────────────────────────────────────
@@ -270,6 +273,8 @@ export class CowMobileDashboardCard
    * a time, so we don't need a stack).
    */
   @state() private setpointModalEntity: string | null = null;
+  @state() private pendingSystemMode?: string;
+  private pendingSystemEntity?: string;
   /**
    * Live reference to the `<dialog>` element used as the modal drawer.
    * We control it imperatively via `showModal()` / `close()` because
@@ -495,7 +500,7 @@ export class CowMobileDashboardCard
 
   // Global air system (climate.casa_aria) — mode + fan; setpoint is per-room.
   private systemClimateEntity(): string {
-    return this.config?.system_climate ?? "climate.casa_aria";
+    return this.config?.system_climate ?? "climate.casa_sistema";
   }
 
   private setSystemMode(mode: string): void {
@@ -593,6 +598,30 @@ export class CowMobileDashboardCard
       { entity_id: entity },
     );
   }
+
+  /** System mode chip → confirm if motor active in another mode (spec D3). */
+  private onSystemModeChip(entity: string, mode: string): void {
+    const current = this.hass?.states?.[entity]?.state;
+    if (needsModeChangeConfirm(current, mode)) {
+      this.pendingSystemMode = mode;
+      this.pendingSystemEntity = entity;
+    } else {
+      this.setClimateMode(entity, mode);
+    }
+  }
+
+  private confirmSystemMode = (): void => {
+    const mode = this.pendingSystemMode;
+    const entity = this.pendingSystemEntity;
+    this.pendingSystemMode = undefined;
+    this.pendingSystemEntity = undefined;
+    if (mode && entity) this.setClimateMode(entity, mode);
+  };
+
+  private cancelSystemMode = (): void => {
+    this.pendingSystemMode = undefined;
+    this.pendingSystemEntity = undefined;
+  };
   private setClimateTarget(entity: string, temperature: number): void {
     void this.hass?.callService(
       "climate",
@@ -1423,6 +1452,27 @@ export class CowMobileDashboardCard
       </div>
       ${this.renderDrawer()}
       ${this.renderSetpointModal()}
+      ${this.renderModeConfirm()}
+    `;
+  }
+
+  private renderModeConfirm() {
+    const mode = this.pendingSystemMode;
+    const entity = this.pendingSystemEntity;
+    const current = entity ? this.hass?.states?.[entity]?.state : undefined;
+    return html`
+      <cow-confirm-modal
+        .open=${mode != null}
+        .heading=${"Cambiare modalità?"}
+        .message=${mode
+          ? `Il sistema è in ${systemModeName(current ?? "off")}. Passare a ${systemModeName(
+              mode,
+            )} per tutta la casa?`
+          : ""}
+        .confirmLabel=${"Cambia per tutti"}
+        @cow-confirm=${this.confirmSystemMode}
+        @cow-cancel=${this.cancelSystemMode}
+      ></cow-confirm-modal>
     `;
   }
 
@@ -1813,32 +1863,19 @@ export class CowMobileDashboardCard
     const view = split
       ? deriveSplitRoomDisplayView(ent, sysEnt)
       : roomView;
-    const rawAction =
-      typeof ent.attributes?.hvac_action === "string"
-        ? ent.attributes.hvac_action
-        : undefined;
-    const roomAction = split
-      ? effectiveRoomHvacAction(
-          rawAction,
-          roomView.mode !== "off",
-          sysView.mode,
-          roomView.current,
-          roomView.target,
-        )
-      : rawAction;
     const accent = THERMOSTAT_ACCENT[view.variant];
     const fmt = (n: number, unit: string) =>
       `${n.toFixed(1).replace(/\.0$/, "")}${unit}`;
     const cur = roomView.current != null ? fmt(roomView.current, "°") : "—";
     const tgt = roomView.target != null ? fmt(roomView.target, "°") : "—";
-    const arrowsDisabled = !split && view.variant === "off";
+    const arrowsDisabled = false;
     const upT = bumpTarget(roomView, 1);
     const downT = bumpTarget(roomView, -1);
     const statusLabel = split
-      ? splitRoomStatusLabel(view, roomAction)
+      ? splitRoomStatusLabel(ent)
       : THERMOSTAT_STATUS_LABEL[view.variant];
     const subLabel = split
-      ? splitRoomSubLabel(view, roomView.mode !== "off", sysView.mode, roomAction)
+      ? splitRoomSubLabel(ent)
       : THERMOSTAT_SUB_LABEL[view.variant];
     // Sit the variant accent on the host of THIS element. The style
     // bind in template strings can't push to the host directly, so
@@ -1891,13 +1928,13 @@ export class CowMobileDashboardCard
         </div>
         ${split
           ? html`
-              <div class="qc-section-title">Sistema</div>
+              <div class="qc-section-title">Tutta la casa</div>
               ${this.renderSystemModeChips(sysId, sysView)}
               ${sysView.fanModes.length > 1
                 ? this.renderClimateFanChips(sysId, sysView)
                 : nothing}
-              <div class="qc-section-title">Aria stanza</div>
-              ${this.renderAirParticipationChips(entity, roomView)}
+              <div class="qc-section-title">Questa stanza</div>
+              ${this.renderAirParticipationChips(entity, ent)}
             `
           : html`
               ${this.renderClimateModeChips(entity, view)}
@@ -1923,7 +1960,7 @@ export class CowMobileDashboardCard
             <button
               class="qc-climate-chip"
               ?data-active=${view.mode === m}
-              @click=${() => this.setClimateMode(entity, m)}
+              @click=${() => this.onSystemModeChip(entity, m)}
             >
               ${climateModeChipLabel(m)}
             </button>
@@ -1935,23 +1972,24 @@ export class CowMobileDashboardCard
 
   private renderAirParticipationChips(
     entity: string,
-    view: ReturnType<typeof deriveThermostatView>,
+    ent: HassEntity | undefined,
   ) {
+    const included = roomIncluded(ent);
     return html`
       <div class="qc-climate-chiprow">
         <button
           class="qc-climate-chip"
-          ?data-active=${view.mode !== "off"}
-          @click=${() => this.setClimateMode(entity, "heat")}
+          ?data-active=${included}
+          @click=${() => this.setClimateMode(entity, "auto")}
         >
-          On
+          Inclusa
         </button>
         <button
           class="qc-climate-chip"
-          ?data-active=${view.mode === "off"}
+          ?data-active=${!included}
           @click=${() => this.setClimateMode(entity, "off")}
         >
-          Off
+          Esclusa
         </button>
       </div>
     `;

@@ -4,6 +4,26 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and
 this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.5.0] — 2026-07-03
+
+### Changed — Climate v4 (centralized model)
+- **`system_climate` default is now `climate.casa_sistema`** (was `casa_aria`).
+- **Room proxies use `off`/`auto`** (Esclusa/Inclusa) instead of `off`/`heat`.
+  The card no longer overloads `heat` to mean "air on".
+- **Hero status reads the `air_state` attribute** published by the Pyscript
+  orchestrator (excluded/idle/comfort/heating/heating_floor/cooling/drying/fan)
+  — no more client-side inference of cooling/heating from deficit.
+- **UI rows relabelled**: "Tutta la casa" (system mode + fan) and
+  "Questa stanza" (Inclusa/Esclusa).
+- **Mode change confirmation**: changing the global mode from any surface asks
+  before switching the single motor for the whole house, but only when the
+  motor is already running in a different mode (spec D3). New
+  `cow-confirm-modal` component.
+
+> Requires the v4 backend (`examples/ha-cow-climate-v4.yaml` +
+> `examples/pyscript/cow_climate.py`). Big-bang migration — see
+> docs/08-climate-system-redesign-analysis.md.
+
 ## [1.4.29] — 2026-07-02
 
 ### Fixed

@@ -22,9 +22,11 @@ import { openingIconSvg } from "../../util/ajax-openings.js";
 import {
   climateModeChipLabel,
   deriveSplitRoomDisplayView,
-  effectiveRoomHvacAction,
+  needsModeChangeConfirm,
+  roomIncluded,
   splitRoomStatusLabel,
   splitRoomSubLabel,
+  systemModeName,
   SYSTEM_MODE_CHIP_ORDER,
   usesSplitClimate,
 } from "../state/split-climate.js";
@@ -33,6 +35,7 @@ import "../components/action-button.js";
 import "../components/chip-row.js";
 import "../visuals/thermostat-icon.js";
 import "../../shared/setpoint-modal.js";
+import "../../shared/confirm-modal.js";
 
 /**
  * Thermostat panel — pixel-exact reproduction of Figma frames
@@ -90,6 +93,7 @@ export class CowThermostatPanel extends LitElement {
 
   @state() private now = new Date();
   @state() private setpointModalOpen = false;
+  @state() private pendingSystemMode?: string;
   private timer?: number;
   private studioDoorTapCount = 0;
   private studioDoorTapTimer?: number;
@@ -431,6 +435,26 @@ export class CowThermostatPanel extends LitElement {
     );
   }
 
+  /** System mode chip → confirm first if the motor is active in another mode. */
+  private onSystemModeChip(mode: string): void {
+    const current = this.systemClimateEntity?.state;
+    if (needsModeChangeConfirm(current, mode)) {
+      this.pendingSystemMode = mode;
+    } else {
+      void this.setSystemMode(mode);
+    }
+  }
+
+  private confirmSystemMode = (): void => {
+    const mode = this.pendingSystemMode;
+    this.pendingSystemMode = undefined;
+    if (mode) void this.setSystemMode(mode);
+  };
+
+  private cancelSystemMode = (): void => {
+    this.pendingSystemMode = undefined;
+  };
+
   private async setSystemFan(fan: string): Promise<void> {
     if (!this.hass || !this.systemClimate) return;
     await this.hass.callService(
@@ -634,25 +658,12 @@ export class CowThermostatPanel extends LitElement {
       roomV.target != null ? roomV.target.toFixed(1).replace(".0", "") : null;
     const hum = this.humidityText(roomV);
     const out = this.outdoorText();
-    const setpointDisabled = !split && v.variant === "off";
-    const rawAction =
-      typeof this.climate?.attributes?.hvac_action === "string"
-        ? this.climate.attributes.hvac_action
-        : undefined;
-    const roomAction = split
-      ? effectiveRoomHvacAction(
-          rawAction,
-          roomV.mode !== "off",
-          sys.mode,
-          roomV.current,
-          roomV.target,
-        )
-      : rawAction;
+    const setpointDisabled = false;
     const statusLabel = split
-      ? splitRoomStatusLabel(v, roomAction)
+      ? splitRoomStatusLabel(this.climate)
       : STATUS_LABEL[v.variant];
     const subLabel = split
-      ? splitRoomSubLabel(v, roomV.mode !== "off", sys.mode, roomAction)
+      ? splitRoomSubLabel(this.climate)
       : SUB_LABEL[v.variant];
 
     const modes = split
@@ -678,10 +689,10 @@ export class CowThermostatPanel extends LitElement {
     }));
 
     const airItems = [
-      { id: "heat", label: "On" },
-      { id: "off", label: "Off" },
+      { id: "auto", label: "Inclusa" },
+      { id: "off", label: "Esclusa" },
     ];
-    const airActiveId = roomV.mode === "off" ? "off" : "heat";
+    const airActiveId = roomIncluded(this.climate) ? "auto" : "off";
 
     return html`
       <div class="left"></div>
@@ -728,7 +739,7 @@ export class CowThermostatPanel extends LitElement {
         ?disabled=${setpointDisabled}
         @click=${() => this.bump(-1)}
       ></cow-action-button>
-      <div class="mode-label">${split ? "Sistema" : "Mode"}</div>
+      <div class="mode-label">${split ? "Tutta la casa" : "Mode"}</div>
       <div class="mode-row">
         <cow-chip-row
           .items=${modes}
@@ -736,7 +747,7 @@ export class CowThermostatPanel extends LitElement {
           .accent=${ACCENT[v.variant].primary}
           @cow-chip-select=${(e: CustomEvent<{ id: string }>) =>
             split
-              ? this.setSystemMode(e.detail.id)
+              ? this.onSystemModeChip(e.detail.id)
               : this.setMode(e.detail.id)}
         ></cow-chip-row>
       </div>
@@ -758,7 +769,7 @@ export class CowThermostatPanel extends LitElement {
         : ""}
       ${split
         ? html`
-            <div class="air-label">Aria</div>
+            <div class="air-label">Questa stanza</div>
             <div class="air-row">
               <cow-chip-row
                 .items=${airItems}
@@ -783,6 +794,19 @@ export class CowThermostatPanel extends LitElement {
         @cow-setpoint-confirm=${this.onSetpointConfirm}
         @cow-setpoint-cancel=${this.closeSetpointModal}
       ></cow-setpoint-modal>
+      <cow-confirm-modal
+        .open=${this.pendingSystemMode != null}
+        .heading=${"Cambiare modalità?"}
+        .message=${this.pendingSystemMode
+          ? `Il sistema è in ${systemModeName(sys.mode)}. Passare a ${systemModeName(
+              this.pendingSystemMode,
+            )} per tutta la casa?`
+          : ""}
+        .confirmLabel=${"Cambia per tutti"}
+        .accent=${ACCENT[v.variant].primary}
+        @cow-confirm=${this.confirmSystemMode}
+        @cow-cancel=${this.cancelSystemMode}
+      ></cow-confirm-modal>
     `;
   }
 

@@ -1,16 +1,34 @@
-import type { HassClimateAttributes, HassEntity } from "../../types/hass.js";
+import type { HassEntity } from "../../types/hass.js";
 import type { ThermostatView, ThermostatVariant } from "./thermostat.js";
-import { deriveThermostatView, THERMOSTAT_SUB_LABEL } from "./thermostat.js";
+import { deriveThermostatView } from "./thermostat.js";
 
 /**
- * Room proxy with only off/heat modes — heat means "aria stanza accesa"
- * (participates in the Mitsubishi + serrande loop). Global mode/fan
- * live on `system_climate` (climate.casa_aria).
+ * Cow Climate v4 — split model.
+ *
+ *   climate.casa_sistema   → global mode (off/heat/cool/dry/fan_only) + fan
+ *   climate.casa_<room>    → include (off = Esclusa / auto = Inclusa) + setpoint
+ *                            + attribute `air_state` = rich per-room status
+ *
+ * The card never infers heating/cooling: it reads `air_state` published by
+ * the Pyscript orchestrator (single writer). See
+ * docs/08-climate-system-redesign-analysis.md.
  */
+
+export type AirState =
+  | "excluded"
+  | "idle"
+  | "comfort"
+  | "heating"
+  | "heating_floor"
+  | "cooling"
+  | "drying"
+  | "fan";
+
+/** Room proxy v4 exposes exactly modes [off, auto] (include toggle). */
 export function isAirParticipationProxy(view: ThermostatView): boolean {
   const modes = view.hvacModes;
-  if (!modes.includes("heat") || !modes.includes("off")) return false;
-  return !modes.some((m) => m === "cool" || m === "dry" || m === "fan_only");
+  if (!modes.includes("off") || !modes.includes("auto")) return false;
+  return !modes.some((m) => m === "heat" || m === "cool" || m === "dry" || m === "fan_only");
 }
 
 export function usesSplitClimate(
@@ -20,47 +38,81 @@ export function usesSplitClimate(
   return !!systemClimate && isAirParticipationProxy(roomView);
 }
 
-export const SETPOINT_TOLERANCE = 1.0;
-
-export function roomAirDeficit(
-  current: number | null,
-  target: number | null,
-  systemMode: string,
-): boolean {
-  if (current == null || target == null) return false;
-  const tol = SETPOINT_TOLERANCE;
-  if (systemMode === "heat") return current < target - tol;
-  if (systemMode === "cool" || systemMode === "dry") return current > target + tol;
-  if (systemMode === "fan_only") return true;
-  return false;
+/** Room air participation: proxy state `auto` = Inclusa, `off` = Esclusa. */
+export function roomIncluded(room: HassEntity | undefined): boolean {
+  return room?.state === "auto";
 }
 
-/** Prefer MQTT hvac_action; infer heating/cooling/drying from deficit when stale. */
-export function effectiveRoomHvacAction(
-  roomAction: string | undefined,
-  airOn: boolean,
-  systemMode: string,
-  current: number | null,
-  target: number | null,
-): string | undefined {
-  if (
-    roomAction === "heating" ||
-    roomAction === "cooling" ||
-    roomAction === "drying"
-  ) {
-    return roomAction;
-  }
-  if (!airOn) return roomAction;
-  if (systemMode === "heat" && roomAirDeficit(current, target, systemMode)) {
-    return "heating";
-  }
-  if (systemMode === "cool" && roomAirDeficit(current, target, systemMode)) {
-    return "cooling";
-  }
-  if (systemMode === "dry" && roomAirDeficit(current, target, systemMode)) {
-    return "drying";
-  }
-  return roomAction;
+/** Rich status published by the orchestrator on the `air_state` attribute. */
+export function readAirState(room: HassEntity | undefined): AirState | undefined {
+  const a = room?.attributes?.air_state;
+  return typeof a === "string" ? (a as AirState) : undefined;
+}
+
+export const AIR_STATE_VARIANT: Record<AirState, ThermostatVariant> = {
+  excluded: "off",
+  idle: "off",
+  comfort: "idle",
+  heating: "heating",
+  heating_floor: "heating",
+  cooling: "cooling",
+  drying: "cooling",
+  fan: "idle",
+};
+
+/** Short uppercase label for the wall pill / caption. */
+export const AIR_STATE_STATUS: Record<AirState, string> = {
+  excluded: "ESCLUSA",
+  idle: "IN ATTESA",
+  comfort: "A COMFORT",
+  heating: "RISCALDA",
+  heating_floor: "PAVIMENTO",
+  cooling: "RAFFREDDA",
+  drying: "DEUMIDIFICA",
+  fan: "VENTILA",
+};
+
+/** Italian sub-label under the status. */
+export const AIR_STATE_SUB: Record<AirState, string> = {
+  excluded: "Stanza esclusa",
+  idle: "In attesa",
+  comfort: "Temperatura raggiunta",
+  heating: "Aria calda + pavimento",
+  heating_floor: "Pavimento attivo",
+  cooling: "Sta raffreddando",
+  drying: "Sta deumidificando",
+  fan: "Ventilazione",
+};
+
+/**
+ * Hero view for a split room: numeric fields from the proxy, colour variant
+ * from `air_state`. Falls back to plain thermostat view for non-split rooms.
+ */
+export function deriveSplitRoomDisplayView(
+  room: HassEntity | undefined,
+  _system?: HassEntity | undefined,
+): ThermostatView {
+  const roomView = deriveThermostatView(room);
+  if (!isAirParticipationProxy(roomView)) return roomView;
+  const air = readAirState(room);
+  return {
+    ...roomView,
+    variant: air ? AIR_STATE_VARIANT[air] : "off",
+  };
+}
+
+/** Status pill text for a split room (from air_state). */
+export function splitRoomStatusLabel(room: HassEntity | undefined): string {
+  const air = readAirState(room);
+  if (air) return AIR_STATE_STATUS[air];
+  return roomIncluded(room) ? "IN ATTESA" : "ESCLUSA";
+}
+
+/** Sub-label text for a split room (from air_state). */
+export function splitRoomSubLabel(room: HassEntity | undefined): string {
+  const air = readAirState(room);
+  if (air) return AIR_STATE_SUB[air];
+  return roomIncluded(room) ? "In attesa" : "Stanza esclusa";
 }
 
 export const SYSTEM_MODE_CHIP_ORDER = [
@@ -90,89 +142,36 @@ export function climateModeChipLabel(mode: string): string {
   }
 }
 
-/** Map MQTT `hvac_action` (+ optional entity state) to panel variant colours. */
-export function variantFromHvacAction(
-  action: string | undefined,
-  modeOrState: string,
-): ThermostatVariant {
-  if (action === "heating") return "heating";
-  if (action === "cooling") return "cooling";
-  if (action === "drying") return "cooling";
-  if (action === "idle" || action === "fan") return "idle";
-  if (action === "off" || modeOrState === "off") return "off";
-  if (modeOrState === "heat") return "heating";
-  if (modeOrState === "cool" || modeOrState === "dry") return "cooling";
-  if (modeOrState === "fan_only") return "idle";
-  return "idle";
+/** Human label for the Italian system mode confirmation dialog. */
+export function systemModeName(mode: string): string {
+  switch (mode) {
+    case "cool":
+      return "Raffreddamento";
+    case "heat":
+      return "Riscaldamento";
+    case "dry":
+      return "Deumidificazione";
+    case "fan_only":
+      return "Ventilazione";
+    case "off":
+      return "Spento";
+    default:
+      return mode;
+  }
 }
 
 /**
- * Split-climate hero: room setpoint + air on/off come from the room proxy,
- * but the big status colours follow `hvac_action` when aria is on, or the
- * global `casa_aria` mode when aria is off (so "Dry" on the system row does
- * not leave the room hero stuck on grey OFF).
+ * Whether changing the global system to `nextMode` needs a confirmation:
+ * only when the motor is already running in a *different* active mode
+ * (spec D3). If the system is off or already in that mode → no confirm.
  */
-export function deriveSplitRoomDisplayView(
-  room: HassEntity | undefined,
-  system: HassEntity | undefined,
-): ThermostatView {
-  const roomView = deriveThermostatView(room);
-  if (!isAirParticipationProxy(roomView)) return roomView;
-
-  const systemView = deriveThermostatView(system);
-  const airOn = room?.state === "heat";
-  const roomAttrs = room?.attributes as HassClimateAttributes | undefined;
-  const rawAction =
-    typeof roomAttrs?.hvac_action === "string" ? roomAttrs.hvac_action : undefined;
-  const roomAction = effectiveRoomHvacAction(
-    rawAction,
-    airOn,
-    systemView.mode,
-    roomView.current,
-    roomView.target,
-  );
-
-  if (airOn) {
-    return {
-      ...roomView,
-      variant: variantFromHvacAction(roomAction, room!.state),
-    };
+export function needsModeChangeConfirm(
+  currentMode: string | undefined,
+  nextMode: string,
+): boolean {
+  if (!currentMode) return false;
+  if (currentMode === "off" || currentMode === "unavailable" || currentMode === "unknown") {
+    return false;
   }
-
-  if (systemView.mode !== "off") {
-    const sysAttrs = system?.attributes as HassClimateAttributes | undefined;
-    const sysAction =
-      typeof sysAttrs?.hvac_action === "string" ? sysAttrs.hvac_action : undefined;
-    return {
-      ...roomView,
-      variant: variantFromHvacAction(sysAction, systemView.mode),
-    };
-  }
-
-  return { ...roomView, variant: "off" };
-}
-
-export function splitRoomStatusLabel(
-  display: ThermostatView,
-  roomAction: string | undefined,
-): string {
-  if (roomAction === "drying") return "DRYING";
-  if (display.variant === "heating") return "HEATING";
-  if (display.variant === "cooling") return "COOLING";
-  if (display.variant === "idle") return "IDLE";
-  return "OFF";
-}
-
-export function splitRoomSubLabel(
-  display: ThermostatView,
-  airOn: boolean,
-  systemMode: string,
-  roomAction: string | undefined,
-): string {
-  if (roomAction === "drying") return "Sta deumidificando";
-  if (airOn) return THERMOSTAT_SUB_LABEL[display.variant];
-  if (systemMode === "off") return THERMOSTAT_SUB_LABEL.off;
-  if (systemMode === "dry") return "Aria spenta · sistema dry";
-  if (systemMode === "fan_only") return "Aria spenta · ventola";
-  return `Aria spenta · ${climateModeChipLabel(systemMode).toLowerCase()}`;
+  return currentMode !== nextMode;
 }

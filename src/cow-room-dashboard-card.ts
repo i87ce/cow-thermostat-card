@@ -441,7 +441,7 @@ export class CowRoomDashboardCard
           ></cow-xl-scenes>
           <cow-xl-clima-casa
             .hass=${this.hass}
-            .systemClimate=${cfg.system_climate ?? "climate.casa_aria"}
+            .systemClimate=${cfg.system_climate ?? "climate.casa_sistema"}
           ></cow-xl-clima-casa>
         </div>
 
@@ -453,7 +453,7 @@ export class CowRoomDashboardCard
         <cow-xl-drawer
           .hass=${this.hass}
           .room=${activeRoom}
-          .systemClimate=${cfg.system_climate ?? "climate.casa_aria"}
+          .systemClimate=${cfg.system_climate ?? "climate.casa_sistema"}
           ?open=${this.drawerOpen}
           @cow-drawer-close=${this.onDrawerClose}
         ></cow-xl-drawer>
