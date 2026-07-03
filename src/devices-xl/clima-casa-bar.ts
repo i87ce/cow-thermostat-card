@@ -160,13 +160,24 @@ export class CowXLClimaCasa extends LitElement {
     });
   }
 
-  private avgSetpoint(): number {
+  private setpoints(): number[] {
     const st = this.hass?.states ?? {};
-    const sps = this.airZones()
+    return this.airZones()
       .map((z) => st[z]?.attributes?.temperature)
       .filter((n): n is number => typeof n === "number");
+  }
+
+  private avgSetpoint(): number {
+    const sps = this.setpoints();
     if (sps.length === 0) return 21;
     return Math.round((sps.reduce((a, b) => a + b, 0) / sps.length) * 2) / 2;
+  }
+
+  /** The shared setpoint if every air zone agrees, else null (→ "—"). */
+  private commonSetpoint(): number | null {
+    const sps = this.setpoints();
+    if (sps.length === 0) return null;
+    return sps.every((v) => v === sps[0]) ? sps[0] : null;
   }
 
   private setMode(mode: string): void {
@@ -237,6 +248,9 @@ export class CowXLClimaCasa extends LitElement {
     );
     const fanModes = (ent.attributes?.fan_modes as string[] | undefined) ?? [];
     const fan = ent.attributes?.fan_mode as string | undefined;
+    const common = this.commonSetpoint();
+    const setpointLabel =
+      common != null ? `${common.toFixed(1).replace(/\.0$/, "")}°C` : "—°C";
 
     return html`
       <div class="bar" ?data-on=${on}>
@@ -288,7 +302,7 @@ export class CowXLClimaCasa extends LitElement {
             @click=${this.openSetpointModal}
             aria-label="Imposta setpoint per tutte le zone"
           >
-            —°C
+            ${setpointLabel}
           </button>
         </div>
       </div>
