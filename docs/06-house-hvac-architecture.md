@@ -45,6 +45,9 @@ recovers if the invariant is violated.
 - `casa_aria off` → Mitsubishi off first, then close all dampers.
 - **Sala & Cucina**: one setpoint (`sensor.display_sala_temperature`), dampers 4 (cucina) + 5 (sala).
 - **Bathrooms / Ingresso PT**: floor-only proxies (`off/heat`); no `casa_aria` coupling for air.
+- **Aria Off per stanza**: le serrande di quella zona vengono chiuse a fine
+  `cow_climate_sync_air` (`excluded_serrande`), anche se il Mitsubishi resta
+  acceso per altre stanze (REGOLA 1: almeno un'altra serranda resta aperta).
 
 ### UI (`cow-thermostat-card` / XL drawer)
 

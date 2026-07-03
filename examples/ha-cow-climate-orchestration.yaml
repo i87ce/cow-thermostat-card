@@ -318,6 +318,22 @@ script:
               {% endif %}
             {% endfor %}
             {{ ns.n }}
+          excluded_serrande: >-
+            {% set zones = [
+              {'proxy':'climate.casa_camera_padronale','serrande':['cover.koolnova_serrande_serranda_1']},
+              {'proxy':'climate.casa_studio_chiara','serrande':['cover.koolnova_serrande_serranda_2']},
+              {'proxy':'climate.casa_camera','serrande':['cover.koolnova_serrande_serranda_3']},
+              {'proxy':'climate.casa_sala_cucina','serrande':['cover.koolnova_serrande_serranda_4','cover.koolnova_serrande_serranda_5']}
+            ] %}
+            {% set ns = namespace(out=[]) %}
+            {% for z in zones %}
+              {% if states(z.proxy) != 'heat' %}
+                {% for s in z.serrande %}
+                  {% set ns.out = ns.out + [s] %}
+                {% endfor %}
+              {% endif %}
+            {% endfor %}
+            {{ ns.out | unique | join(',') }}
           all_at_setpoint: >-
             {% set ac = active_air_count | int %}
             {% set at = at_setpoint_serrande | trim %}
@@ -463,6 +479,14 @@ script:
                   entity_id: "{{ mitsu }}"
                 data:
                   fan_mode: "{{ mitsu_fan }}"
+
+      # Stanze con Aria Off: chiudi le loro serrande (REGOLA 1 guard in script).
+      - repeat:
+          for_each: "{{ excluded_serrande.split(',') if excluded_serrande | trim else [] }}"
+          sequence:
+            - service: script.cow_climate_close_serranda
+              data:
+                entity: "{{ repeat.item | trim }}"
 
       # Mirror fixed temps on casa_aria proxy for UI readback
       - service: mqtt.publish
