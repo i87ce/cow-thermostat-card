@@ -1,0 +1,101 @@
+# ---------------------------------------------------------------------------
+# Cow Scenes — script per i 4 pulsanti scena della dashboard XL
+# ---------------------------------------------------------------------------
+# Deploy come /config/packages/cow_scenes.yaml
+#
+# I pulsanti scena mappano su questi script:
+#   Apri tapparelle   → script.cow_tapparelle_apri
+#   Chiudi tapparelle → script.cow_tapparelle_chiudi
+#   Accendi luci      → script.cow_luci_accendi
+#   Spegni luci       → script.cow_luci_spegni
+#
+# TAPPARELLE: tutte le cover.tapparella_* (le cover.koolnova_serrande_* sono
+#   i deflettori del clima, NON tapparelle → escluse).
+#
+# LUCI: allowlist esplicita di luci interne. ESCLUSE (per scelta):
+#   - Esterne: led_esterno_p1, led_terrazzo, luce_esterna_studio
+#   - Scale:   ingresso_pt_led_scale, luce_scala
+#   - Tecniche (non vere luci): 50pus6703_12_ambilight, zw_nabu_router
+# ---------------------------------------------------------------------------
+
+script:
+  cow_tapparelle_apri:
+    alias: "Cow — Apri tutte le tapparelle"
+    icon: mdi:window-shutter-open
+    mode: restart
+    sequence:
+      - service: cover.open_cover
+        target:
+          entity_id:
+            - cover.tapparella_bagno_padronale
+            - cover.tapparella_bagno_piccola
+            - cover.tapparella_bagno_pt
+            - cover.tapparella_camera_1
+            - cover.tapparella_camera_2
+            - cover.tapparella_camera_padronale
+            - cover.tapparella_cucina
+            - cover.tapparella_cucina_terrazza
+            - cover.tapparella_sala
+            - cover.tapparella_sala_terrazza
+            - cover.tapparella_studio
+
+  cow_tapparelle_chiudi:
+    alias: "Cow — Chiudi tutte le tapparelle"
+    icon: mdi:window-shutter
+    mode: restart
+    sequence:
+      - service: cover.close_cover
+        target:
+          entity_id:
+            - cover.tapparella_bagno_padronale
+            - cover.tapparella_bagno_piccola
+            - cover.tapparella_bagno_pt
+            - cover.tapparella_camera_1
+            - cover.tapparella_camera_2
+            - cover.tapparella_camera_padronale
+            - cover.tapparella_cucina
+            - cover.tapparella_cucina_terrazza
+            - cover.tapparella_sala
+            - cover.tapparella_sala_terrazza
+            - cover.tapparella_studio
+
+  cow_luci_accendi:
+    alias: "Cow — Accendi tutte le luci (interne)"
+    icon: mdi:lightbulb-group
+    mode: restart
+    sequence:
+      - service: light.turn_on
+        target:
+          entity_id: &cow_luci_interne
+            - light.comodino_01
+            - light.comodino_02
+            - light.led_bagno_piccolo
+            - light.led_cabina_armadio
+            - light.led_calda_sala
+            - light.led_camera_1
+            - light.led_camera_2_2
+            - light.led_camera_3
+            - light.led_corridoio_p1
+            - light.led_cucina
+            - light.led_sala_fredda
+            - light.led_tv_soggiorno
+            - light.luce_bagno_padronale
+            - light.luce_bagno_pt
+            - light.luce_box
+            - light.luce_calda_studio
+            - light.luce_cucina
+            - light.luce_fredda_studio
+            - light.luce_locale_tecnico
+            - light.luce_specchio_bagno_padronale
+            - light.luce_specchio_bagno_piccolo
+            - light.luce_tavolo_sala
+            - light.sgabuzzino_pt
+
+  cow_luci_spegni:
+    alias: "Cow — Spegni tutte le luci (interne)"
+    icon: mdi:lightbulb-group-off
+    mode: restart
+    sequence:
+      - service: light.turn_off
+        target:
+          entity_id: *cow_luci_interne

@@ -58,6 +58,19 @@ export class CowXLScenes extends LitElement {
     `,
   ];
 
+  private renderIcon(s: CowSceneConfig, size: string) {
+    if (!s.icon) return "";
+    const color = s.accent ?? "var(--cow-text-primary)";
+    if (s.icon.startsWith("mdi:")) {
+      return html`<ha-icon
+        class="icon"
+        .icon=${s.icon}
+        style=${`color:${color};--mdc-icon-size:${size}`}
+      ></ha-icon>`;
+    }
+    return html`<span class="icon" style=${`color:${color}`}>${s.icon}</span>`;
+  }
+
   private onTap(s: CowSceneConfig) {
     this.dispatchEvent(
       new CustomEvent("cow-scene-tap", {
@@ -80,11 +93,7 @@ export class CowXLScenes extends LitElement {
                   aria-label=${s.name}
                   @click=${() => this.onTap(s)}
                 >
-                  <span
-                    class="icon"
-                    style=${`color:${s.accent ?? "var(--cow-text-primary)"}`}
-                    >${s.icon ?? "•"}</span
-                  >
+                  ${this.renderIcon(s, "1.5rem")}
                 </button>
               `
             : html`
@@ -93,13 +102,7 @@ export class CowXLScenes extends LitElement {
                     class="dot"
                     style=${`background:${s.accent ?? "var(--cow-text-primary)"}`}
                   ></span>
-                  ${s.icon
-                    ? html`<span
-                        class="icon"
-                        style=${`color:${s.accent ?? "var(--cow-text-primary)"}`}
-                        >${s.icon}</span
-                      >`
-                    : ""}
+                  ${this.renderIcon(s, "1.375rem")}
                   <span>${s.name}</span>
                 </button>
               `,
