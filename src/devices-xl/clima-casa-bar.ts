@@ -1,22 +1,37 @@
 import { LitElement, html, css, nothing } from "lit";
-import { customElement, property } from "lit/decorators.js";
+import { customElement, property, state } from "lit/decorators.js";
 import { buttonReset } from "../styles/button-reset.js";
 import type { HomeAssistant } from "../types/hass.js";
 import {
   climateModeChipLabel,
+  needsModeChangeConfirm,
+  systemModeName,
   SYSTEM_MODE_CHIP_ORDER,
 } from "../small/state/split-climate.js";
+import "../shared/setpoint-modal.js";
+import "../shared/confirm-modal.js";
 
 const DEFAULT_SYSTEM = "climate.casa_sistema";
 
 /**
- * Second row under Luci/tapparelle — global Mitsubishi mode shortcuts,
- * Buongiorno, Buonanotte. Setpoint is per-room (drawer / wall card).
+ * XL home — single climate rectangle (Cow Climate v4).
+ *
+ * One row: system mode (Cool/Heat/Dry/Fan/Off) + fan speed + a global
+ * setpoint. Mode and fan are global (single Mitsubishi motor). The
+ * setpoint here is a broadcast: tapping it applies the same setpoint to
+ * every air zone at once (rooms keep their own when set from the room
+ * tab). Floor-only rooms (bagni, ingresso) are excluded from the
+ * broadcast. Mode changes ask for confirmation when the motor is
+ * already running in another mode. Buongiorno/Buonanotte moved to the
+ * scenes row.
  */
 @customElement("cow-xl-clima-casa")
 export class CowXLClimaCasa extends LitElement {
   @property({ attribute: false }) hass?: HomeAssistant;
   @property({ type: String }) systemClimate = DEFAULT_SYSTEM;
+
+  @state() private setpointModalOpen = false;
+  @state() private pendingSystemMode?: string;
 
   static override styles = [
     buttonReset,
@@ -24,71 +39,101 @@ export class CowXLClimaCasa extends LitElement {
       :host {
         display: block;
       }
-      .row {
+      .bar {
         display: flex;
-        justify-content: center;
-        gap: 1rem;
-        flex-wrap: wrap;
-      }
-      .tile {
-        width: 17.5rem;
-        height: 4rem;
+        align-items: center;
+        gap: 1.25rem;
+        min-height: 4rem;
+        padding: 0.5rem 1.25rem;
         background: var(--cow-surface-white);
         border: 0.0625rem solid var(--cow-surface-border);
         border-radius: 1rem;
+        box-sizing: border-box;
+      }
+      .bar[data-on] {
+        background: var(--cow-accent-surface, linear-gradient(180deg, #2673eb, #59a6ff));
+        border-color: transparent;
+        color: #fff;
+      }
+      .title {
         display: flex;
         align-items: center;
-        gap: 0.75rem;
-        padding: 0 1rem;
-        font-weight: 600;
+        gap: 0.5rem;
+        font-weight: 700;
         font-size: 1rem;
-        color: var(--cow-text-primary);
+        flex: 0 0 auto;
       }
-      .tile[data-on] {
+      .title .icon {
+        font-size: 1.25rem;
+      }
+      .group {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+      }
+      .group-label {
+        font-size: 0.6875rem;
+        font-weight: 700;
+        letter-spacing: 0.04em;
+        text-transform: uppercase;
+        opacity: 0.6;
+      }
+      .bar[data-on] .group-label {
+        opacity: 0.8;
+      }
+      .chips {
+        display: flex;
+        gap: 0.375rem;
+      }
+      .chip {
+        min-width: 3rem;
+        height: 2.25rem;
+        padding: 0 0.75rem;
+        border-radius: 0.625rem;
+        border: 0.0625rem solid var(--cow-surface-border);
+        background: var(--cow-surface-background);
+        font-weight: 600;
+        font-size: 0.8125rem;
+        color: var(--cow-text-secondary);
+        cursor: pointer;
+      }
+      .bar[data-on] .chip {
+        border-color: rgba(255, 255, 255, 0.35);
+        background: rgba(255, 255, 255, 0.12);
+        color: #fff;
+      }
+      .chip[data-active] {
         background: var(--cow-accent-active, #2f9e6e);
         border-color: transparent;
         color: #fff;
       }
-      .tile[data-morning] {
-        background: rgba(255, 199, 46, 0.2);
-        border-color: rgba(255, 199, 46, 0.45);
-        color: #8a5f00;
+      .bar[data-on] .chip[data-active] {
+        background: #fff;
+        color: var(--cow-accent-active, #2673eb);
       }
-      .tile[data-night] {
-        background: rgba(255, 199, 46, 0.32);
-        border-color: transparent;
-        color: #6b4a00;
+      .spacer {
+        flex: 1 1 auto;
       }
-      .dot {
-        width: 0.625rem;
-        height: 0.625rem;
-        border-radius: 50%;
-        flex: 0 0 0.625rem;
-      }
-      .icon {
-        font-size: 1.125rem;
+      .setpoint {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
         flex: 0 0 auto;
       }
-      .modes {
-        display: flex;
-        gap: 0.375rem;
-        flex: 1;
-        justify-content: flex-end;
-      }
-      .mode-chip {
-        min-width: 2.75rem;
-        height: 2rem;
-        padding: 0 0.5rem;
-        border-radius: 0.5rem;
+      .setpoint-btn {
+        height: 2.5rem;
+        padding: 0 1rem;
+        border-radius: 0.75rem;
         border: 0.0625rem solid var(--cow-surface-border);
         background: var(--cow-surface-background);
-        font-weight: 600;
-        font-size: 0.75rem;
-        color: var(--cow-text-secondary);
+        font-weight: 700;
+        font-size: 1.0625rem;
+        color: var(--cow-text-primary);
+        cursor: pointer;
       }
-      .mode-chip[data-active] {
-        background: var(--cow-accent-active, #2f9e6e);
-        border-color: transparent;
+      .bar[data-on] .setpoint-btn {
+        border-color: rgba(255, 255, 255, 0.35);
+        background: rgba(255, 255, 255, 0.16);
         color: #fff;
       }
     `,
@@ -98,84 +143,180 @@ export class CowXLClimaCasa extends LitElement {
     return this.systemClimate || DEFAULT_SYSTEM;
   }
 
-  private runScript(entityId: string): void {
-    void this.hass?.callService("script", "turn_on", {}, { entity_id: entityId });
+  /** Air zones = casa_* proxies with modes [off,auto] and not floor-only. */
+  private airZones(): string[] {
+    const st = this.hass?.states ?? {};
+    return Object.keys(st).filter((id) => {
+      if (!id.startsWith("climate.casa_")) return false;
+      if (id === this.entityId()) return false;
+      const e = st[id];
+      const modes = e.attributes?.hvac_modes as string[] | undefined;
+      const isAir =
+        !!modes &&
+        modes.includes("off") &&
+        modes.includes("auto") &&
+        !modes.some((m) => ["heat", "cool", "dry", "fan_only"].includes(m));
+      return isAir && e.attributes?.floor_only !== true;
+    });
+  }
+
+  private avgSetpoint(): number {
+    const st = this.hass?.states ?? {};
+    const sps = this.airZones()
+      .map((z) => st[z]?.attributes?.temperature)
+      .filter((n): n is number => typeof n === "number");
+    if (sps.length === 0) return 21;
+    return Math.round((sps.reduce((a, b) => a + b, 0) / sps.length) * 2) / 2;
   }
 
   private setMode(mode: string): void {
-    const id = this.entityId();
     void this.hass?.callService(
       "climate",
       "set_hvac_mode",
       { hvac_mode: mode },
-      { entity_id: id },
+      { entity_id: this.entityId() },
     );
   }
+
+  private onModeChip(mode: string): void {
+    const current = this.hass?.states?.[this.entityId()]?.state;
+    if (needsModeChangeConfirm(current, mode)) {
+      this.pendingSystemMode = mode;
+    } else {
+      this.setMode(mode);
+    }
+  }
+
+  private confirmMode = (): void => {
+    const mode = this.pendingSystemMode;
+    this.pendingSystemMode = undefined;
+    if (mode) this.setMode(mode);
+  };
+
+  private cancelMode = (): void => {
+    this.pendingSystemMode = undefined;
+  };
+
+  private setFan(fan: string): void {
+    void this.hass?.callService(
+      "climate",
+      "set_fan_mode",
+      { fan_mode: fan },
+      { entity_id: this.entityId() },
+    );
+  }
+
+  private openSetpointModal = (): void => {
+    this.setpointModalOpen = true;
+    const modal = this.renderRoot.querySelector("cow-setpoint-modal");
+    modal?.show();
+  };
+
+  private onSetpointConfirm = (e: CustomEvent<{ value: number }>): void => {
+    this.setpointModalOpen = false;
+    const value = e.detail.value;
+    for (const z of this.airZones()) {
+      void this.hass?.callService(
+        "climate",
+        "set_temperature",
+        { temperature: value },
+        { entity_id: z },
+      );
+    }
+  };
 
   override render() {
     const id = this.entityId();
     const ent = this.hass?.states?.[id];
-    const bg = this.hass?.states?.["script.buongiorno"];
-    const bn = this.hass?.states?.["script.buonanotte"];
-    if (!ent && !bg && !bn) return nothing;
+    if (!ent) return nothing;
 
-    const mode = ent?.state ?? "off";
+    const mode = ent.state ?? "off";
     const on = mode !== "off";
-    const modes = ent
-      ? SYSTEM_MODE_CHIP_ORDER.filter((m) =>
-          (ent.attributes?.hvac_modes as string[] | undefined)?.includes(m),
-        )
-      : [];
+    const modes = SYSTEM_MODE_CHIP_ORDER.filter((m) =>
+      (ent.attributes?.hvac_modes as string[] | undefined)?.includes(m),
+    );
+    const fanModes = (ent.attributes?.fan_modes as string[] | undefined) ?? [];
+    const fan = ent.attributes?.fan_mode as string | undefined;
 
     return html`
-      <div class="row">
-        ${ent
-          ? html`<div class="tile" ?data-on=${on}>
-              <span
-                class="dot"
-                style=${`background:${on ? "#fff" : "#80858c"}`}
-              ></span>
-              <span class="icon">🌡</span>
-              <span>Sistema aria</span>
-              <div class="modes">
-                ${modes.map(
-                  (m) => html`<button
-                    type="button"
-                    class="mode-chip"
-                    ?data-active=${mode === m}
-                    @click=${() => this.setMode(m)}
+      <div class="bar" ?data-on=${on}>
+        <div class="title">
+          <span class="icon">🌡</span><span>Sistema</span>
+        </div>
+
+        <div class="group">
+          <span class="group-label">Modo</span>
+          <div class="chips">
+            ${modes.map(
+              (m) => html`<button
+                class="chip"
+                ?data-active=${mode === m}
+                @click=${() => this.onModeChip(m)}
+              >
+                ${climateModeChipLabel(m)}
+              </button>`,
+            )}
+          </div>
+        </div>
+
+        ${fanModes.length > 1
+          ? html`<div class="group">
+              <span class="group-label">Ventola</span>
+              <div class="chips">
+                ${fanModes.map(
+                  (f) => html`<button
+                    class="chip"
+                    ?data-active=${fan === f}
+                    @click=${() => this.setFan(f)}
                   >
-                    ${climateModeChipLabel(m)}
+                    ${f === "auto"
+                      ? "Auto"
+                      : f.charAt(0).toUpperCase() + f.slice(1)}
                   </button>`,
                 )}
               </div>
             </div>`
           : nothing}
-        ${bg
-          ? html`<button
-              type="button"
-              class="tile"
-              data-morning
-              @click=${() => this.runScript("script.buongiorno")}
-            >
-              <span class="dot" style="background:#FFC72E"></span>
-              <span class="icon">☀️</span>
-              <span>Buongiorno</span>
-            </button>`
-          : nothing}
-        ${bn
-          ? html`<button
-              type="button"
-              class="tile"
-              data-night
-              @click=${() => this.runScript("script.buonanotte")}
-            >
-              <span class="dot" style="background:#1F1F2E"></span>
-              <span class="icon">🌙</span>
-              <span>Buonanotte</span>
-            </button>`
-          : nothing}
+
+        <div class="spacer"></div>
+
+        <div class="setpoint">
+          <span class="group-label">Tutte</span>
+          <button
+            class="setpoint-btn"
+            type="button"
+            @click=${this.openSetpointModal}
+            aria-label="Imposta setpoint per tutte le zone"
+          >
+            —°C
+          </button>
+        </div>
       </div>
+
+      <cow-setpoint-modal
+        .open=${this.setpointModalOpen}
+        .value=${this.avgSetpoint()}
+        .min=${15}
+        .max=${30}
+        .step=${0.5}
+        .heading=${"Imposta tutte le stanze"}
+        .subtitle=${"Applica lo stesso setpoint a tutte le zone con aria"}
+        @cow-setpoint-confirm=${this.onSetpointConfirm}
+        @cow-setpoint-cancel=${() => (this.setpointModalOpen = false)}
+      ></cow-setpoint-modal>
+
+      <cow-confirm-modal
+        .open=${this.pendingSystemMode != null}
+        .heading=${"Cambiare modalità?"}
+        .message=${this.pendingSystemMode
+          ? `Il sistema è in ${systemModeName(mode)}. Passare a ${systemModeName(
+              this.pendingSystemMode,
+            )} per tutta la casa?`
+          : ""}
+        .confirmLabel=${"Cambia per tutti"}
+        @cow-confirm=${this.confirmMode}
+        @cow-cancel=${this.cancelMode}
+      ></cow-confirm-modal>
     `;
   }
 }

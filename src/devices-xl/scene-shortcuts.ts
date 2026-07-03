@@ -46,6 +46,15 @@ export class CowXLScenes extends LitElement {
       .icon {
         font-size: 1.125rem;
       }
+      .scene.icon-only {
+        width: 4rem;
+        justify-content: center;
+        gap: 0;
+        padding: 0;
+      }
+      .scene.icon-only .icon {
+        font-size: 1.5rem;
+      }
     `,
   ];
 
@@ -62,23 +71,38 @@ export class CowXLScenes extends LitElement {
   override render() {
     return html`
       <div class="row">
-        ${this.scenes.map(
-          (s) => html`
-            <button class="scene" @click=${() => this.onTap(s)}>
-              <span
-                class="dot"
-                style=${`background:${s.accent ?? "var(--cow-text-primary)"}`}
-              ></span>
-              ${s.icon
-                ? html`<span
+        ${this.scenes.map((s) =>
+          s.icon_only
+            ? html`
+                <button
+                  class="scene icon-only"
+                  title=${s.name}
+                  aria-label=${s.name}
+                  @click=${() => this.onTap(s)}
+                >
+                  <span
                     class="icon"
                     style=${`color:${s.accent ?? "var(--cow-text-primary)"}`}
-                    >${s.icon}</span
-                  >`
-                : ""}
-              <span>${s.name}</span>
-            </button>
-          `,
+                    >${s.icon ?? "•"}</span
+                  >
+                </button>
+              `
+            : html`
+                <button class="scene" @click=${() => this.onTap(s)}>
+                  <span
+                    class="dot"
+                    style=${`background:${s.accent ?? "var(--cow-text-primary)"}`}
+                  ></span>
+                  ${s.icon
+                    ? html`<span
+                        class="icon"
+                        style=${`color:${s.accent ?? "var(--cow-text-primary)"}`}
+                        >${s.icon}</span
+                      >`
+                    : ""}
+                  <span>${s.name}</span>
+                </button>
+              `,
         )}
       </div>
     `;

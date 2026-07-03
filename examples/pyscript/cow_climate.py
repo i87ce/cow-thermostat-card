@@ -156,19 +156,16 @@ def _room_air_state(slug, sistema):
     r = ROOMS[slug]
     if not _included(slug):
         return "excluded"
-    if sistema in ("off", "unknown", "unavailable", "none", None):
-        return "idle"
     cur = _num(r["temp"])
     sp = _setpoint(slug)
-    if cur is None or sp is None:
-        return "idle"
     if r["floor_only"]:
-        # solo pavimento: rilevante solo in heat
-        if sistema == "heat":
-            gap = sp - cur
-            if gap > IDLE:
-                return "heating_floor"
-            return "comfort"
+        # Pavimento indipendente dal modo globale (impianto idronico a parte).
+        if cur is None or sp is None:
+            return "idle"
+        return "heating_floor" if cur < sp - IDLE else "comfort"
+    if sistema in ("off", "unknown", "unavailable", "none", None):
+        return "idle"
+    if cur is None or sp is None:
         return "idle"
     if sistema == "heat":
         gap = sp - cur
@@ -289,14 +286,23 @@ def cow_climate_orchestrate(**kwargs):
             if c not in want_open and _serranda_open(c):
                 cover.close_cover(entity_id=c)
 
-    # 3) Pavimento — solo in Heat, solo stanze incluse ─────────────────
+    # 3) Pavimento ─────────────────────────────────────────────────────
+    #   - stanze con aria: pavimento solo in Heat globale + incluse (@ sp-offset)
+    #   - stanze SOLO pavimento (bagni, ingresso): indipendenti dal modo
+    #     globale, on quando incluse (@ setpoint, impianto idronico separato)
     for slug, r in ROOMS.items():
         pav = r["pavimento"]
-        if sistema == "heat" and _included(slug):
-            sp = _setpoint(slug)
+        inc = _included(slug)
+        if r["floor_only"]:
+            want = inc
+            target = _setpoint(slug)
+        else:
+            want = (sistema == "heat" and inc)
+            target = _setpoint(slug) - FLOOR_OFFSET
+        if want:
             if state.get(pav) != "heat":
                 climate.set_hvac_mode(entity_id=pav, hvac_mode="heat")
-            climate.set_temperature(entity_id=pav, temperature=sp - FLOOR_OFFSET)
+            climate.set_temperature(entity_id=pav, temperature=target)
         else:
             if state.get(pav) not in ("off", None, "unavailable"):
                 climate.set_hvac_mode(entity_id=pav, hvac_mode="off")
@@ -312,10 +318,13 @@ def cow_climate_orchestrate(**kwargs):
         if hum is not None:
             _publish("%s/humidity/state" % base, hum)
         _publish("%s/action/state" % base, _hvac_action(air))
-        floor_on = (sistema == "heat" and _included(slug)
-                    and state.get(r["pavimento"]) == "heat")
+        floor_on = state.get(r["pavimento"]) == "heat"
         _publish("%s/attrs/state" % base,
-                 json.dumps({"air_state": air, "floor_on": floor_on}))
+                 json.dumps({
+                     "air_state": air,
+                     "floor_on": floor_on,
+                     "floor_only": r["floor_only"],
+                 }))
         # echo per persistenza retain (optimistic non pubblica lo state)
         _publish("%s/mode/state" % base, state.get(r["proxy"]))
         _publish("%s/setpoint/state" % base, _setpoint(slug))

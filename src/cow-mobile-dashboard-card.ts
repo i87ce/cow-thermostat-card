@@ -73,6 +73,7 @@ import {
 import {
   climateModeChipLabel,
   deriveSplitRoomDisplayView,
+  isFloorOnlyRoom,
   needsModeChangeConfirm,
   roomIncluded,
   splitRoomStatusLabel,
@@ -1927,7 +1928,12 @@ export class CowMobileDashboardCard
           </div>
         </div>
         ${split
-          ? html`
+          ? isFloorOnlyRoom(ent)
+            ? html`
+              <div class="qc-section-title">Riscaldamento pavimento</div>
+              ${this.renderAirParticipationChips(entity, ent, true)}
+            `
+            : html`
               <div class="qc-section-title">Tutta la casa</div>
               ${this.renderSystemModeChips(sysId, sysView)}
               ${sysView.fanModes.length > 1
@@ -1973,6 +1979,7 @@ export class CowMobileDashboardCard
   private renderAirParticipationChips(
     entity: string,
     ent: HassEntity | undefined,
+    floorOnly = false,
   ) {
     const included = roomIncluded(ent);
     return html`
@@ -1982,14 +1989,14 @@ export class CowMobileDashboardCard
           ?data-active=${included}
           @click=${() => this.setClimateMode(entity, "auto")}
         >
-          Inclusa
+          ${floorOnly ? "On" : "Inclusa"}
         </button>
         <button
           class="qc-climate-chip"
           ?data-active=${!included}
           @click=${() => this.setClimateMode(entity, "off")}
         >
-          Esclusa
+          ${floorOnly ? "Off" : "Esclusa"}
         </button>
       </div>
     `;

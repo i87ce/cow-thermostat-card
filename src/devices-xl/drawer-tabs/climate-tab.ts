@@ -13,6 +13,7 @@ import {
 import {
   climateModeChipLabel,
   deriveSplitRoomDisplayView,
+  isFloorOnlyRoom,
   needsModeChangeConfirm,
   readAirState,
   roomIncluded,
@@ -600,7 +601,8 @@ export class CowXLClimateTab extends LitElement {
   ) {
     if (!this.room) return nothing;
     const arrowsDisabled = false;
-    const systemModes = split
+    const floorOnly = split && isFloorOnlyRoom(room);
+    const systemModes = split && !floorOnly
       ? SYSTEM_MODE_CHIP_ORDER.filter((m) => sysView.hvacModes.includes(m))
       : [];
     const statusLabel = split
@@ -665,7 +667,9 @@ export class CowXLClimateTab extends LitElement {
           </div>
         </div>
         <div class="col right">
-          <div class="col-label">${split ? "TUTTA LA CASA" : "MODALITÀ"}</div>
+          ${floorOnly
+            ? ""
+            : html`<div class="col-label">${split ? "TUTTA LA CASA" : "MODALITÀ"}</div>
           <div class="modes">
             ${split
               ? systemModes.map(
@@ -722,28 +726,33 @@ export class CowXLClimateTab extends LitElement {
                     Off
                   </button>
                 `}
-          </div>
+          </div>`}
           ${split
             ? html`
-                <div class="schedule-label">QUESTA STANZA</div>
+                <div class="schedule-label">
+                  ${floorOnly ? "RISCALDAMENTO PAVIMENTO" : "QUESTA STANZA"}
+                </div>
                 <div class="air-modes">
                   <button
                     class="mode-btn"
                     ?data-active=${roomIncluded(room)}
                     @click=${() => this.setMode("auto")}
                   >
-                    Inclusa
+                    ${floorOnly ? "On" : "Inclusa"}
                   </button>
                   <button
                     class="mode-btn"
                     ?data-active=${!roomIncluded(room)}
                     @click=${() => this.setMode("off")}
                   >
-                    Esclusa
+                    ${floorOnly ? "Off" : "Esclusa"}
                   </button>
                 </div>
               `
             : ""}
+          ${floorOnly
+            ? ""
+            : html`
           <div class="schedule-label">VENTOLA</div>
           <div class="fans">
             ${fans.slice(0, 4).map(
@@ -758,7 +767,7 @@ export class CowXLClimateTab extends LitElement {
                 </button>
               `,
             )}
-          </div>
+          </div>`}
           <div class="schedule-label">UMIDITÀ</div>
           <div class="schedule-text">
             ${this.roomHumidityText(roomView)}

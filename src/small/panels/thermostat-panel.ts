@@ -22,6 +22,7 @@ import { openingIconSvg } from "../../util/ajax-openings.js";
 import {
   climateModeChipLabel,
   deriveSplitRoomDisplayView,
+  isFloorOnlyRoom,
   needsModeChangeConfirm,
   roomIncluded,
   splitRoomStatusLabel,
@@ -688,10 +689,16 @@ export class CowThermostatPanel extends LitElement {
       label: f === "auto" ? "Auto" : f.charAt(0).toUpperCase() + f.slice(1),
     }));
 
-    const airItems = [
-      { id: "auto", label: "Inclusa" },
-      { id: "off", label: "Esclusa" },
-    ];
+    const floorOnly = split && isFloorOnlyRoom(this.climate);
+    const airItems = floorOnly
+      ? [
+          { id: "auto", label: "On" },
+          { id: "off", label: "Off" },
+        ]
+      : [
+          { id: "auto", label: "Inclusa" },
+          { id: "off", label: "Esclusa" },
+        ];
     const airActiveId = roomIncluded(this.climate) ? "auto" : "off";
 
     return html`
@@ -739,6 +746,9 @@ export class CowThermostatPanel extends LitElement {
         ?disabled=${setpointDisabled}
         @click=${() => this.bump(-1)}
       ></cow-action-button>
+      ${floorOnly
+        ? ""
+        : html`
       <div class="mode-label">${split ? "Tutta la casa" : "Mode"}</div>
       <div class="mode-row">
         <cow-chip-row
@@ -750,8 +760,10 @@ export class CowThermostatPanel extends LitElement {
               ? this.onSystemModeChip(e.detail.id)
               : this.setMode(e.detail.id)}
         ></cow-chip-row>
-      </div>
-      ${fanItems.length > 1
+      </div>`}
+      ${floorOnly
+        ? ""
+        : fanItems.length > 1
         ? html`
             <div class="fan-label">Fan</div>
             <div class="fan-row">
@@ -769,7 +781,9 @@ export class CowThermostatPanel extends LitElement {
         : ""}
       ${split
         ? html`
-            <div class="air-label">Questa stanza</div>
+            <div class="air-label">
+              ${floorOnly ? "Riscaldamento pavimento" : "Questa stanza"}
+            </div>
             <div class="air-row">
               <cow-chip-row
                 .items=${airItems}

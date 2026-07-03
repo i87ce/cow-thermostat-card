@@ -4,6 +4,19 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and
 this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.5.1] — 2026-07-03
+
+### Changed — XL clima bar + floor-only rooms
+- **XL home clima bar redesigned** into a single rectangle: mode + fan +
+  a global setpoint that broadcasts to all air zones (rooms keep their own
+  when set from the room tab). Fixes the overflowing chips. Buongiorno /
+  Buonanotte moved to the scenes row (new `icon_only` scene option).
+- **Floor-only rooms (bagni, ingresso PT)** now expose a dedicated
+  "Riscaldamento pavimento" On/Off + setpoint on their display — no
+  whole-house mode/fan row — and the floor runs **independently** of the
+  global system mode (separate hydronic circuit). Orchestrator publishes
+  `floor_only` on the room `air_state` attributes.
+
 ## [1.5.0] — 2026-07-03
 
 ### Changed — Climate v4 (centralized model)

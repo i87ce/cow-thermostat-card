@@ -43,6 +43,16 @@ export function roomIncluded(room: HassEntity | undefined): boolean {
   return room?.state === "auto";
 }
 
+/**
+ * Floor-only room (bagni, ingresso): no air vent, only hydronic floor.
+ * The orchestrator flags these on the `floor_only` attribute. Their UI
+ * shows just a "Riscaldamento pavimento" On/Off + setpoint — no global
+ * mode/fan row — and the floor runs independently of the system mode.
+ */
+export function isFloorOnlyRoom(room: HassEntity | undefined): boolean {
+  return room?.attributes?.floor_only === true;
+}
+
 /** Rich status published by the orchestrator on the `air_state` attribute. */
 export function readAirState(room: HassEntity | undefined): AirState | undefined {
   const a = room?.attributes?.air_state;

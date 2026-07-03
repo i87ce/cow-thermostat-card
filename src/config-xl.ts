@@ -67,6 +67,8 @@ export interface CowSceneConfig {
   accent?: string;
   /** Service call to invoke when tapped, e.g. "script.tutto_off" */
   service?: string;
+  /** Render as a compact icon-only button (no label), e.g. Buongiorno. */
+  icon_only?: boolean;
 }
 
 /**
@@ -257,6 +259,7 @@ export function validateXLConfig(input: unknown): CowRoomDashboardConfig {
           icon: typeof sc.icon === "string" ? sc.icon : undefined,
           accent: typeof sc.accent === "string" ? sc.accent : undefined,
           service: typeof sc.service === "string" ? sc.service : undefined,
+          icon_only: sc.icon_only === true,
         };
       })
     : undefined;
