@@ -1,7 +1,7 @@
 # Analisi — ridisegno sistema clima (UI + orchestratore)
 
-> **Stato:** spec quasi vincolante — §2 e le decisioni §12 confermate
-> dall’utente (2026-07-03). Resta aperto solo il naming entity (D8).  
+> **Stato:** spec **vincolante** — §2 e tutte le decisioni §12 (D1–D8)
+> confermate dall’utente (2026-07-03). Pronta per implementazione v4.  
 > **Data:** 2026-07-03  
 > **Motivazione:** v3 accumula patch su naming ambiguo (`heat` = partecipazione),
 > stati MQTT non allineati alla realtà fisica, e UI che mescola “sistema” e “stanza”.
@@ -106,7 +106,7 @@ chiaramente (vedi §4 e §9).
 │  LIVELLO 1 — SISTEMA (uguale su TUTTI i display)            │
 │  Modalità: Off | Heat | Cool | Dry | Fan only               │
 │  Ventola:  Auto | Bassa | Media | Alta                        │
-│  Entity HA: climate.casa_aria (o successore)                │
+│  Entity HA: climate.casa_sistema                            │
 └─────────────────────────────────────────────────────────────┘
                               │
 ┌─────────────────────────────────────────────────────────────┐
@@ -370,12 +370,28 @@ Per ogni stanza con aria, topic `cow/casa/<slug>/`:
 | `current/state` | HA → UI | temperatura |
 | `humidity/state` | HA → UI | umidità |
 
-Sistema `cow/casa/aria/`:
+Sistema `cow/casa/sistema/`:
 
 | Topic | Valori |
 |---|---|
-| `mode/state` | `off` \| `heat` \| `cool` \| `dry` \| `fan_only` |
-| `fan/state` | `auto` \| `low` \| `medium` \| `high` |
+| `mode/set` → `mode/state` | `off` \| `heat` \| `cool` \| `dry` \| `fan_only` |
+| `fan/set` → `fan/state` | `auto` \| `low` \| `medium` \| `high` |
+
+---
+
+## 10-bis. Mappa naming vecchio (v3) → nuovo (v4)
+
+| v3 | v4 | Note |
+|---|---|---|
+| `climate.casa_aria` | **`climate.casa_sistema`** | mode + fan globali |
+| `cow/casa/aria/*` | `cow/casa/sistema/*` | topic sistema |
+| `climate.casa_<room>` con `mode: [off,heat]` | `climate.casa_<room>` con **`include`** bool | `heat` non significa più “aria on” |
+| attr `hvac_action` (calcolato a parte) | attr/topic **`air_state`** (scritto dall’orchestratore) | stati §5 |
+| automazioni `cow_climate_*` (Jinja) | modulo **Pyscript** `cow_climate.py` | single writer |
+| `clima_casa_auto`, `koolnova_*` per-zona | **rimossi** dalla UI | hardware invariato dietro l’orchestratore |
+
+Hardware invariato (mai in UI): `climate.koolnova_clima_clim1`,
+`cover.koolnova_serrande_serranda_1..5`, `climate.pavimento_*`.
 
 ---
 
@@ -440,9 +456,15 @@ Orchestratore in **Pyscript/Python**: elimina i bug Jinja (`set` in loop,
 **D7. Migrazione = Big-bang** ✅ *deciso*  
 Spegniamo v3 e accendiamo v4 in un’unica sessione. Backup del package v3 prima.
 
-**D8. Naming entity** ⏳ *aperto*  
-Rinominare `climate.casa_aria` → `climate.casa_sistema`? Proxy stanza da
-`mode heat` a `include on/off`? *(Non bloccante: decidiamo in fase implementazione.)*
+**D8. Naming entity** ✅ *deciso*  
+Abbandoniamo tutto il vecchio. In v4:
+
+- Sistema: **`climate.casa_sistema`** (era `casa_aria`) — mode + fan globali.
+- Stanza: **`climate.casa_<room>`** mantiene il nome ma cambia semantica:
+  `setpoint` + **`include`** (bool, era `mode heat/off`) + **`air_state`** (retain).
+- Nessun proxy usa più `mode: heat` per indicare “aria on”.
+
+Vedi §10-bis per la mappa completa vecchio → nuovo.
 
 ---
 
@@ -461,8 +483,8 @@ Decisioni chiave: **Pyscript** (D6), **big-bang** (D7).
 5. Trigger: cambio `mode/fan/setpoint/include` + sensori temperatura.
 
 **Fase 2 — proxy MQTT v4**
-6. Sistema `climate.casa_sistema` (mode+fan) — o mantenere `casa_aria`.  
-7. Per stanza: `setpoint` + `include` (bool) + `air_state` (retain).
+6. Sistema **`climate.casa_sistema`** (mode+fan), topic `cow/casa/sistema/*`.  
+7. Per stanza: `setpoint` + **`include`** (bool) + **`air_state`** (retain).
 
 **Fase 3 — card v2**
 8. Riga **Tutta la casa** (mode+fan) con conferma cambio modo (D3).  
