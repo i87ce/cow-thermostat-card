@@ -11,6 +11,14 @@
 # Abbinando i due nel grafico storico si vede setpoint vs temperatura reale.
 # ---------------------------------------------------------------------------
 
+# Helper per la persistenza dell'intento clima (modo/ventola/include/setpoint).
+# HA lo ripristina nativamente ai riavvii; l'orchestratore Pyscript ci scrive
+# lo stato compatto e lo rilegge all'avvio.
+input_text:
+  cow_climate_intent:
+    name: "Cow Climate Intent"
+    max: 255
+
 template:
   - sensor:
       # ── Setpoint (numerici) ──────────────────────────────────────────

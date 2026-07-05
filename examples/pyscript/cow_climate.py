@@ -151,6 +151,66 @@ def _publish(topic, payload, retain=True):
                  payload=str(payload), retain=retain)
 
 
+# ─── Persistenza intento (sopravvive a riavvii / retain perso) ────────
+# Usiamo un helper input_text (HA lo ripristina nativamente da .storage al
+# riavvio), NON un file: il sandbox pyscript non fa vera I/O su file.
+# Formato compatto: "mode|fan|inc1,inc2,...|sp1,sp2,..." (ordine ROOMS).
+INTENT_ENTITY = "input_text.cow_climate_intent"
+_intent_sig = None
+# I salvataggi sono bloccati durante la finestra d'avvio (prima che il
+# restore abbia riportato lo stato buono), così il watchdog non sovrascrive
+# l'intento salvato con i default (off/21) che le entità mostrano al boot.
+# Parte True così un semplice reload di pyscript (senza startup) continua a
+# salvare; lo startup lo mette a False finché il restore non è completato.
+_ready = True
+
+
+def _current_intent_str():
+    mode = state.get(SYSTEM) or "off"
+    fan = _attr(SYSTEM, "fan_mode", "auto") or "auto"
+    inc = [str(state.get(r["proxy"]) or "off") for r in ROOMS.values()]
+    sp = [str(_setpoint(slug)) for slug in ROOMS]
+    return "%s|%s|%s|%s" % (mode, fan, ",".join(inc), ",".join(sp))
+
+
+def _save_intent():
+    """Salva l'intento nell'helper input_text, solo quando cambia."""
+    global _intent_sig
+    if not _ready:
+        return  # finestra d'avvio: non sovrascrivere l'intento salvato
+    val = _current_intent_str()
+    if val == _intent_sig:
+        return
+    _intent_sig = val
+    try:
+        input_text.set_value(entity_id=INTENT_ENTITY, value=val)
+    except Exception as e:
+        log.warning("cow_climate: salvataggio intento fallito: %r" % e)
+
+
+def _restore_intent():
+    """All'avvio ripubblica l'ultimo intento salvato sui topic di stato."""
+    val = state.get(INTENT_ENTITY)
+    if not val or val in ("unknown", "unavailable", ""):
+        return  # nessun intento salvato: si parte dai retain del broker
+    try:
+        mode, fan, inc_csv, sp_csv = val.split("|")
+        incs = inc_csv.split(",")
+        sps = sp_csv.split(",")
+        slugs = list(ROOMS.keys())
+        _publish("cow/casa/sistema/mode/state", mode)
+        _publish("cow/casa/sistema/fan/state", fan)
+        for i, slug in enumerate(slugs):
+            base = "cow/casa/%s" % slug
+            if i < len(incs) and incs[i]:
+                _publish("%s/mode/state" % base, incs[i])
+            if i < len(sps) and sps[i]:
+                _publish("%s/setpoint/state" % base, sps[i])
+        log.info("cow_climate: intento ripristinato da %s" % INTENT_ENTITY)
+    except Exception as e:
+        log.warning("cow_climate: ripristino intento fallito: %r" % e)
+
+
 # ─── Log tracciabile (Logbook HA) ─────────────────────────────────────
 # Stato precedente per rilevare i cambiamenti (persiste tra i trigger).
 _prev = {"motor": None, "rooms": {}}
@@ -411,15 +471,12 @@ def cow_climate_orchestrate(**kwargs):
                      "floor_on": floor_on,
                      "floor_only": r["floor_only"],
                  }))
-        # echo per persistenza retain (optimistic non pubblica lo state)
-        _publish("%s/mode/state" % base, state.get(r["proxy"]))
-        _publish("%s/setpoint/state" % base, _setpoint(slug))
+        # NB: nessun echo di mode/setpoint qui. Con optimistic:true l'entità
+        # gestisce da sé lo stato dai comandi; ripubblicarlo creava una race
+        # che sovrascriveva i comandi utente. La persistenza è su input_text.
 
-    # Sistema: echo + action.
-    # hvac_action riflette il motore, ma se il sistema è acceso e il motore
+    # Sistema: solo action (hvac_action). Se il sistema è acceso ma il motore
     # è momentaneamente off (target raggiunto) mostriamo "idle", non "off".
-    _publish("cow/casa/sistema/mode/state", sistema)
-    _publish("cow/casa/sistema/fan/state", _attr(SYSTEM, "fan_mode", "auto"))
     mitsu_state = state.get(MITSU)
     if sistema == "off":
         sys_action = "off"
@@ -435,8 +492,46 @@ def cow_climate_orchestrate(**kwargs):
     # 5) Log tracciabile dei cambi (stanze + motore) ───────────────────
     _log_changes(kwargs, motor_mode, want_open, air_by_slug)
 
+    # 6) Persisti l'intento (solo se cambiato) ─────────────────────────
+    _save_intent()
+
 
 @time_trigger("startup")
 def cow_climate_startup():
+    global _ready
     log.info("cow_climate v4 orchestrator caricato")
+    # Blocca i salvataggi durante il boot così il watchdog non sovrascrive
+    # l'intento salvato con i default che le entità mostrano prima del restore.
+    _ready = False
+    # pyscript parte prima che MQTT e input_text siano pronti: aspetta che
+    # l'intento salvato sia disponibile (max ~40s) + margine MQTT.
+    for _ in range(40):
+        if state.get(INTENT_ENTITY) not in (None, "unavailable", "unknown", ""):
+            break
+        task.sleep(1)
+    task.sleep(8)
+    _restore_intent()
+    task.sleep(5)  # lascia aggiornare le entità dai topic di stato
+    _ready = True
     cow_climate_orchestrate(trigger_type="startup")
+
+
+# ─── Riconciliazione al ritorno online di un ESP32 (post-reboot) ──────
+# Gli ESP32 (Mitsubishi + serrande) al riavvio possono ripartire in uno
+# stato di sicurezza (es. serrande tutte aperte). Appena tornano
+# raggiungibili ri-applichiamo subito lo stato desiderato, senza aspettare
+# il watchdog dei 30s. (Fire solo sulla transizione unavailable→online,
+# quindi niente thrash sui normali cambi di stato.)
+@state_trigger(
+    "climate.koolnova_clima_clim1",
+    "cover.koolnova_serrande_serranda_1",
+    "cover.koolnova_serrande_serranda_2",
+    "cover.koolnova_serrande_serranda_3",
+    "cover.koolnova_serrande_serranda_4",
+    "cover.koolnova_serrande_serranda_5",
+)
+def cow_climate_device_online(value=None, old_value=None, **kwargs):
+    offline = (None, "unavailable", "unknown")
+    if old_value in offline and value not in offline:
+        task.sleep(2)  # attende che l'ESP32 pubblichi lo stato iniziale
+        cow_climate_orchestrate(trigger_type="event", var_name="esp32 online")
