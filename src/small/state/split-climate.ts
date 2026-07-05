@@ -171,17 +171,96 @@ export function systemModeName(mode: string): string {
 }
 
 /**
- * Whether changing the global system to `nextMode` needs a confirmation:
- * only when the motor is already running in a *different* active mode
- * (spec D3). If the system is off or already in that mode → no confirm.
+ * All room proxies (air + floor-only) for a given system entity: every
+ * `climate.casa_*` that is an off/auto participation proxy.
+ */
+export function roomProxyIds(
+  states: Record<string, HassEntity> | undefined,
+  systemClimate: string | undefined,
+): string[] {
+  if (!states) return [];
+  return Object.keys(states).filter((id) => {
+    if (!id.startsWith("climate.casa_")) return false;
+    if (id === systemClimate) return false;
+    const modes = states[id]?.attributes?.hvac_modes as string[] | undefined;
+    return (
+      Array.isArray(modes) &&
+      modes.includes("off") &&
+      modes.includes("auto") &&
+      !modes.some((m) => ["heat", "cool", "dry", "fan_only"].includes(m))
+    );
+  });
+}
+
+/** True if at least one room proxy is currently Esclusa (state !== auto). */
+export function anyRoomExcluded(
+  states: Record<string, HassEntity> | undefined,
+  systemClimate: string | undefined,
+): boolean {
+  return roomProxyIds(states, systemClimate).some(
+    (id) => states?.[id]?.state !== "auto",
+  );
+}
+
+/**
+ * Apply a global mode: it's a whole-house action. Turning the system to a
+ * real mode also **includes every room** (auto) — the master switch engages
+ * the whole house; excludes are then done per-room afterwards. Turning to
+ * `off` just stops the system without touching includes.
+ */
+export async function applyGlobalMode(
+  hass: { states: Record<string, HassEntity>; callService: Function },
+  systemClimate: string,
+  mode: string,
+): Promise<void> {
+  if (mode !== "off") {
+    const ids = roomProxyIds(hass.states, systemClimate);
+    if (ids.length) {
+      await hass.callService(
+        "climate",
+        "set_hvac_mode",
+        { hvac_mode: "auto" },
+        { entity_id: ids },
+      );
+    }
+  }
+  await hass.callService(
+    "climate",
+    "set_hvac_mode",
+    { hvac_mode: mode },
+    { entity_id: systemClimate },
+  );
+}
+
+/**
+ * Whether changing the global system to `nextMode` needs confirmation.
+ * Since a global mode change is house-wide and re-includes all rooms, we
+ * confirm when it switches between active modes, turns the system on, or
+ * would re-include currently-excluded rooms.
  */
 export function needsModeChangeConfirm(
   currentMode: string | undefined,
   nextMode: string,
+  anyExcluded = false,
 ): boolean {
-  if (!currentMode) return false;
-  if (currentMode === "off" || currentMode === "unavailable" || currentMode === "unknown") {
-    return false;
+  const curActive =
+    !!currentMode &&
+    currentMode !== "off" &&
+    currentMode !== "unavailable" &&
+    currentMode !== "unknown";
+  if (nextMode !== currentMode && curActive) return true; // switch active → active/off
+  if (nextMode !== "off" && (nextMode !== currentMode || anyExcluded)) return true; // turn on / re-include
+  return false;
+}
+
+/** Confirmation message for a global mode change. */
+export function globalModeConfirmMessage(
+  _currentMode: string | undefined,
+  nextMode: string,
+): string {
+  const to = systemModeName(nextMode);
+  if (nextMode === "off") {
+    return "Spegnere il clima per tutta la casa?";
   }
-  return currentMode !== nextMode;
+  return `Impostare tutta la casa su ${to} e includere tutte le stanze?`;
 }

@@ -71,14 +71,16 @@ import {
   type ThermostatVariant,
 } from "./small/state/thermostat.js";
 import {
+  anyRoomExcluded,
+  applyGlobalMode,
   climateModeChipLabel,
   deriveSplitRoomDisplayView,
+  globalModeConfirmMessage,
   isFloorOnlyRoom,
   needsModeChangeConfirm,
   roomIncluded,
   splitRoomStatusLabel,
   splitRoomSubLabel,
-  systemModeName,
   SYSTEM_MODE_CHIP_ORDER,
   usesSplitClimate,
 } from "./small/state/split-climate.js";
@@ -600,15 +602,21 @@ export class CowMobileDashboardCard
     );
   }
 
-  /** System mode chip → confirm if motor active in another mode (spec D3). */
+  /** System mode chip → whole-house action (includes all rooms), confirm first. */
   private onSystemModeChip(entity: string, mode: string): void {
     const current = this.hass?.states?.[entity]?.state;
-    if (needsModeChangeConfirm(current, mode)) {
+    const excluded = anyRoomExcluded(this.hass?.states, entity);
+    if (needsModeChangeConfirm(current, mode, excluded)) {
       this.pendingSystemMode = mode;
       this.pendingSystemEntity = entity;
     } else {
-      this.setClimateMode(entity, mode);
+      this.applyGlobalMode(entity, mode);
     }
+  }
+
+  private applyGlobalMode(entity: string, mode: string): void {
+    if (!this.hass) return;
+    void applyGlobalMode(this.hass, entity, mode);
   }
 
   private confirmSystemMode = (): void => {
@@ -616,7 +624,7 @@ export class CowMobileDashboardCard
     const entity = this.pendingSystemEntity;
     this.pendingSystemMode = undefined;
     this.pendingSystemEntity = undefined;
-    if (mode && entity) this.setClimateMode(entity, mode);
+    if (mode && entity) this.applyGlobalMode(entity, mode);
   };
 
   private cancelSystemMode = (): void => {
@@ -1464,13 +1472,9 @@ export class CowMobileDashboardCard
     return html`
       <cow-confirm-modal
         .open=${mode != null}
-        .heading=${"Cambiare modalità?"}
-        .message=${mode
-          ? `Il sistema è in ${systemModeName(current ?? "off")}. Passare a ${systemModeName(
-              mode,
-            )} per tutta la casa?`
-          : ""}
-        .confirmLabel=${"Cambia per tutti"}
+        .heading=${"Modalità di tutta la casa"}
+        .message=${mode ? globalModeConfirmMessage(current, mode) : ""}
+        .confirmLabel=${"Applica a tutti"}
         @cow-confirm=${this.confirmSystemMode}
         @cow-cancel=${this.cancelSystemMode}
       ></cow-confirm-modal>

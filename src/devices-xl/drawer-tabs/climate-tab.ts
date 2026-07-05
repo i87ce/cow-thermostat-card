@@ -11,15 +11,17 @@ import {
   THERMOSTAT_SUB_LABEL,
 } from "../../small/state/thermostat.js";
 import {
+  anyRoomExcluded,
+  applyGlobalMode,
   climateModeChipLabel,
   deriveSplitRoomDisplayView,
+  globalModeConfirmMessage,
   isFloorOnlyRoom,
   needsModeChangeConfirm,
   readAirState,
   roomIncluded,
   splitRoomStatusLabel,
   splitRoomSubLabel,
-  systemModeName,
   SYSTEM_MODE_CHIP_ORDER,
   usesSplitClimate,
 } from "../../small/state/split-climate.js";
@@ -326,27 +328,25 @@ export class CowXLClimateTab extends LitElement {
     `,
   ];
 
-  private async setSystemMode(mode: string) {
-    if (!this.systemClimate || !this.hass) return;
-    await this.hass.callService("climate", "set_hvac_mode", {
-      entity_id: this.systemClimate,
-      hvac_mode: mode,
-    });
-  }
-
   private onSystemModeChip(mode: string): void {
     const current = this.hass?.states?.[this.systemClimate]?.state;
-    if (needsModeChangeConfirm(current, mode)) {
+    const excluded = anyRoomExcluded(this.hass?.states, this.systemClimate);
+    if (needsModeChangeConfirm(current, mode, excluded)) {
       this.pendingSystemMode = mode;
     } else {
-      void this.setSystemMode(mode);
+      this.applyGlobalMode(mode);
     }
+  }
+
+  private applyGlobalMode(mode: string): void {
+    if (!this.hass || !this.systemClimate) return;
+    void applyGlobalMode(this.hass, this.systemClimate, mode);
   }
 
   private confirmSystemMode = (): void => {
     const mode = this.pendingSystemMode;
     this.pendingSystemMode = undefined;
-    if (mode) void this.setSystemMode(mode);
+    if (mode) this.applyGlobalMode(mode);
   };
 
   private cancelSystemMode = (): void => {
@@ -788,13 +788,11 @@ export class CowXLClimateTab extends LitElement {
       ></cow-setpoint-modal>
       <cow-confirm-modal
         .open=${this.pendingSystemMode != null}
-        .heading=${"Cambiare modalità?"}
+        .heading=${"Modalità di tutta la casa"}
         .message=${this.pendingSystemMode
-          ? `Il sistema è in ${systemModeName(sysView.mode)}. Passare a ${systemModeName(
-              this.pendingSystemMode,
-            )} per tutta la casa?`
+          ? globalModeConfirmMessage(sysView.mode, this.pendingSystemMode)
           : ""}
-        .confirmLabel=${"Cambia per tutti"}
+        .confirmLabel=${"Applica a tutti"}
         .accent=${THERMOSTAT_ACCENT[view.variant].primary}
         @cow-confirm=${this.confirmSystemMode}
         @cow-cancel=${this.cancelSystemMode}

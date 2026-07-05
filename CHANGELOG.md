@@ -4,6 +4,17 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and
 this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.5.4] — 2026-07-05
+
+### Changed — Global mode is a true whole-house switch
+- **Changing the global mode now includes every room** (all `casa_*` proxies →
+  `auto`) and asks for confirmation. Previously turning the system Off→Cool left
+  rooms Excluded, so nothing happened. Applies on every mode change (excludes are
+  redone per-room afterwards); turning the system Off only stops it, without
+  touching includes. New helpers `applyGlobalMode` / `globalModeConfirmMessage`
+  in split-climate; confirmation dialog reused on wall panel, XL bar, XL drawer,
+  and mobile.
+
 ## [1.5.3] — 2026-07-03
 
 ### Fixed

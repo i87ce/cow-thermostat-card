@@ -3,9 +3,11 @@ import { customElement, property, state } from "lit/decorators.js";
 import { buttonReset } from "../styles/button-reset.js";
 import type { HomeAssistant } from "../types/hass.js";
 import {
+  anyRoomExcluded,
+  applyGlobalMode,
   climateModeChipLabel,
+  globalModeConfirmMessage,
   needsModeChangeConfirm,
-  systemModeName,
   SYSTEM_MODE_CHIP_ORDER,
 } from "../small/state/split-climate.js";
 import "../shared/setpoint-modal.js";
@@ -180,28 +182,25 @@ export class CowXLClimaCasa extends LitElement {
     return sps.every((v) => v === sps[0]) ? sps[0] : null;
   }
 
-  private setMode(mode: string): void {
-    void this.hass?.callService(
-      "climate",
-      "set_hvac_mode",
-      { hvac_mode: mode },
-      { entity_id: this.entityId() },
-    );
+  private applyMode(mode: string): void {
+    if (!this.hass) return;
+    void applyGlobalMode(this.hass, this.entityId(), mode);
   }
 
   private onModeChip(mode: string): void {
     const current = this.hass?.states?.[this.entityId()]?.state;
-    if (needsModeChangeConfirm(current, mode)) {
+    const excluded = anyRoomExcluded(this.hass?.states, this.entityId());
+    if (needsModeChangeConfirm(current, mode, excluded)) {
       this.pendingSystemMode = mode;
     } else {
-      this.setMode(mode);
+      this.applyMode(mode);
     }
   }
 
   private confirmMode = (): void => {
     const mode = this.pendingSystemMode;
     this.pendingSystemMode = undefined;
-    if (mode) this.setMode(mode);
+    if (mode) this.applyMode(mode);
   };
 
   private cancelMode = (): void => {
@@ -321,13 +320,11 @@ export class CowXLClimaCasa extends LitElement {
 
       <cow-confirm-modal
         .open=${this.pendingSystemMode != null}
-        .heading=${"Cambiare modalità?"}
+        .heading=${"Modalità di tutta la casa"}
         .message=${this.pendingSystemMode
-          ? `Il sistema è in ${systemModeName(mode)}. Passare a ${systemModeName(
-              this.pendingSystemMode,
-            )} per tutta la casa?`
+          ? globalModeConfirmMessage(mode, this.pendingSystemMode)
           : ""}
-        .confirmLabel=${"Cambia per tutti"}
+        .confirmLabel=${"Applica a tutti"}
         @cow-confirm=${this.confirmMode}
         @cow-cancel=${this.cancelMode}
       ></cow-confirm-modal>

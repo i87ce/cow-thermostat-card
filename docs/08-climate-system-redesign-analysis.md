@@ -333,10 +333,13 @@ la cambia **per tutta la casa**.
    Raffreddamento per **tutta la casa**?”* → [Annulla] / [Cambia per tutti].  
 3. Alla conferma: `mode = cool` globale, l’orchestratore riconfigura tutto.
 
-**Quando chiedere conferma (D3, deciso):**
+**Il modo globale è un interruttore di TUTTA la casa (aggiornato 2026-07-05):**
 
-- Conferma **solo se il motore è già attivo in un modo diverso** da quello richiesto.
-- Se il sistema è **Spento** o già nel modo richiesto → cambio **immediato**.
+- Cambiare il modo globale **include tutte le stanze** (tutti i proxy `casa_*`
+  → `auto`), ad **ogni** cambio. Le esclusioni si rifanno a mano dopo, per stanza.
+- Impostare **Spento** ferma il sistema senza toccare le inclusioni.
+- **Conferma** quando il cambio include/riattiva stanze (es. Off→Cool) o quando
+  c'è già un modo attivo diverso. Nessuna conferma se è un no-op.
 
 **Nessuna conferma** per: **Ventola** (globale ma non ferma/inverte il motore),
 **Setpoint** e **Inclusa/Esclusa** (locali alla stanza).
