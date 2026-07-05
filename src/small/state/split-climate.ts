@@ -203,6 +203,26 @@ export function anyRoomExcluded(
 }
 
 /**
+ * Whether applying `mode` would actually re-include some currently-excluded
+ * room. Only the rooms the mode targets count: air rooms always, floor-only
+ * rooms only in Heat (in Cool/Dry/Fan they have no air, so their exclusion is
+ * normal and shouldn't trigger a confirmation).
+ */
+export function modeReincludesExcluded(
+  states: Record<string, HassEntity> | undefined,
+  systemClimate: string | undefined,
+  mode: string,
+): boolean {
+  if (mode === "off") return false;
+  const ids = roomProxyIds(states, systemClimate);
+  const targets =
+    mode === "heat"
+      ? ids
+      : ids.filter((id) => !isFloorOnlyRoom(states?.[id]));
+  return targets.some((id) => states?.[id]?.state !== "auto");
+}
+
+/**
  * Apply a global mode: it's a whole-house action. Turning the system to a
  * real mode also **includes every room** (auto) — the master switch engages
  * the whole house; excludes are then done per-room afterwards. Turning to
@@ -215,12 +235,25 @@ export async function applyGlobalMode(
 ): Promise<void> {
   if (mode !== "off") {
     const ids = roomProxyIds(hass.states, systemClimate);
-    if (ids.length) {
+    // Stanze con aria: sempre incluse. Stanze solo-pavimento (bagni,
+    // ingresso): incluse dal generale SOLO in Heat (in Cool/Dry/Fan non
+    // hanno aria, quindi le lasciamo com'erano — controllo indipendente).
+    const air = ids.filter((id) => !isFloorOnlyRoom(hass.states[id]));
+    const floor = ids.filter((id) => isFloorOnlyRoom(hass.states[id]));
+    if (air.length) {
       await hass.callService(
         "climate",
         "set_hvac_mode",
         { hvac_mode: "auto" },
-        { entity_id: ids },
+        { entity_id: air },
+      );
+    }
+    if (mode === "heat" && floor.length) {
+      await hass.callService(
+        "climate",
+        "set_hvac_mode",
+        { hvac_mode: "auto" },
+        { entity_id: floor },
       );
     }
   }

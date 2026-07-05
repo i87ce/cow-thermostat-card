@@ -71,12 +71,12 @@ import {
   type ThermostatVariant,
 } from "./small/state/thermostat.js";
 import {
-  anyRoomExcluded,
   applyGlobalMode,
   climateModeChipLabel,
   deriveSplitRoomDisplayView,
   globalModeConfirmMessage,
   isFloorOnlyRoom,
+  modeReincludesExcluded,
   needsModeChangeConfirm,
   roomIncluded,
   splitRoomStatusLabel,
@@ -605,7 +605,7 @@ export class CowMobileDashboardCard
   /** System mode chip → whole-house action (includes all rooms), confirm first. */
   private onSystemModeChip(entity: string, mode: string): void {
     const current = this.hass?.states?.[entity]?.state;
-    const excluded = anyRoomExcluded(this.hass?.states, entity);
+    const excluded = modeReincludesExcluded(this.hass?.states, entity, mode);
     if (needsModeChangeConfirm(current, mode, excluded)) {
       this.pendingSystemMode = mode;
       this.pendingSystemEntity = entity;

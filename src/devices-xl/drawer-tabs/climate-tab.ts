@@ -11,12 +11,12 @@ import {
   THERMOSTAT_SUB_LABEL,
 } from "../../small/state/thermostat.js";
 import {
-  anyRoomExcluded,
   applyGlobalMode,
   climateModeChipLabel,
   deriveSplitRoomDisplayView,
   globalModeConfirmMessage,
   isFloorOnlyRoom,
+  modeReincludesExcluded,
   needsModeChangeConfirm,
   readAirState,
   roomIncluded,
@@ -330,7 +330,7 @@ export class CowXLClimateTab extends LitElement {
 
   private onSystemModeChip(mode: string): void {
     const current = this.hass?.states?.[this.systemClimate]?.state;
-    const excluded = anyRoomExcluded(this.hass?.states, this.systemClimate);
+    const excluded = modeReincludesExcluded(this.hass?.states, this.systemClimate, mode);
     if (needsModeChangeConfirm(current, mode, excluded)) {
       this.pendingSystemMode = mode;
     } else {

@@ -4,6 +4,14 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and
 this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.5.5] — 2026-07-05
+
+### Changed
+- **Global mode includes floor-only rooms (bagni, ingresso PT) only in Heat.**
+  They have no air, so in Cool/Dry/Fan the whole-house switch leaves them as-is
+  (independent floor control). Mode-change confirmation is now mode-aware, so it
+  no longer prompts just because floor-only rooms are excluded in Cool.
+
 ## [1.5.4] — 2026-07-05
 
 ### Changed — Global mode is a true whole-house switch

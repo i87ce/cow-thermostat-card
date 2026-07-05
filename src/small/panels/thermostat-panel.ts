@@ -20,12 +20,12 @@ import {
 import type { OpeningKind } from "../config.js";
 import { openingIconSvg } from "../../util/ajax-openings.js";
 import {
-  anyRoomExcluded,
   applyGlobalMode,
   climateModeChipLabel,
   deriveSplitRoomDisplayView,
   globalModeConfirmMessage,
   isFloorOnlyRoom,
+  modeReincludesExcluded,
   needsModeChangeConfirm,
   roomIncluded,
   splitRoomStatusLabel,
@@ -431,7 +431,7 @@ export class CowThermostatPanel extends LitElement {
   /** System mode chip → whole-house action (includes all rooms), confirm first. */
   private onSystemModeChip(mode: string): void {
     const current = this.systemClimateEntity?.state;
-    const excluded = anyRoomExcluded(this.hass?.states, this.systemClimate);
+    const excluded = modeReincludesExcluded(this.hass?.states, this.systemClimate, mode);
     if (needsModeChangeConfirm(current, mode, excluded)) {
       this.pendingSystemMode = mode;
     } else {

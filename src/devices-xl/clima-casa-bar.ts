@@ -3,10 +3,10 @@ import { customElement, property, state } from "lit/decorators.js";
 import { buttonReset } from "../styles/button-reset.js";
 import type { HomeAssistant } from "../types/hass.js";
 import {
-  anyRoomExcluded,
   applyGlobalMode,
   climateModeChipLabel,
   globalModeConfirmMessage,
+  modeReincludesExcluded,
   needsModeChangeConfirm,
   SYSTEM_MODE_CHIP_ORDER,
 } from "../small/state/split-climate.js";
@@ -189,7 +189,7 @@ export class CowXLClimaCasa extends LitElement {
 
   private onModeChip(mode: string): void {
     const current = this.hass?.states?.[this.entityId()]?.state;
-    const excluded = anyRoomExcluded(this.hass?.states, this.entityId());
+    const excluded = modeReincludesExcluded(this.hass?.states, this.entityId(), mode);
     if (needsModeChangeConfirm(current, mode, excluded)) {
       this.pendingSystemMode = mode;
     } else {
