@@ -1,0 +1,124 @@
+# ---------------------------------------------------------------------------
+# Comandi Cucina — telecomando IKEA STYRBAR (comandi_cucina)
+# ---------------------------------------------------------------------------
+# Deploy come /config/packages/cow_comandi_cucina.yaml
+#
+# STYRBAR (Zigbee2MQTT, topic zigbee2mqtt/comandi_cucina). Azioni:
+#   arrow_left_click / arrow_right_click → cambia luce selezionata
+#   on  (click)  → accende la luce selezionata
+#   off (click)  → spegne  la luce selezionata
+#   brightness_move_up   (tieni ON)  → aumenta luminosità (rampa)
+#   brightness_move_down (tieni OFF) → diminuisce luminosità (rampa)
+#   brightness_stop      (rilascio)  → ferma la rampa
+#
+# Luci gestite (ordine di scorrimento):
+#   LED Cucina · Luce Cucina · LED Caldo Sala · LED Freddo Sala
+# ---------------------------------------------------------------------------
+
+input_select:
+  cucina_led_selezionato:
+    name: "Cucina - LED selezionato"
+    icon: mdi:lightbulb-group
+    options:
+      - "LED Cucina"
+      - "Luce Cucina"
+      - "LED Caldo Sala"
+      - "LED Freddo Sala"
+    initial: "LED Cucina"
+
+input_boolean:
+  cucina_dim_active:
+    name: "Cucina - Dimmer attivo"
+    icon: mdi:brightness-6
+
+automation:
+  - id: cow_comandi_cucina
+    alias: "Cucina - Telecomando STYRBAR (comandi_cucina)"
+    description: >-
+      Frecce = cambia luce selezionata; ON/OFF = accende/spegne la
+      selezionata; tieni ON/OFF = dimmer su/giù fino al rilascio.
+    mode: parallel
+    max: 10
+    variables:
+      sel_map:
+        "LED Cucina": light.led_cucina
+        "Luce Cucina": light.luce_cucina
+        "LED Caldo Sala": light.led_calda_sala
+        "LED Freddo Sala": light.led_sala_fredda
+      selected: "{{ sel_map[states('input_select.cucina_led_selezionato')] }}"
+      act: "{{ trigger.payload_json.action | default('') }}"
+    trigger:
+      - platform: mqtt
+        topic: zigbee2mqtt/comandi_cucina
+    condition:
+      - "{{ act not in ['', none] }}"
+    action:
+      - choose:
+          # ── Frecce: cambia luce selezionata ─────────────────────
+          - conditions: "{{ act == 'arrow_right_click' }}"
+            sequence:
+              - service: input_select.select_next
+                target:
+                  entity_id: input_select.cucina_led_selezionato
+                data:
+                  cycle: true
+          - conditions: "{{ act == 'arrow_left_click' }}"
+            sequence:
+              - service: input_select.select_previous
+                target:
+                  entity_id: input_select.cucina_led_selezionato
+                data:
+                  cycle: true
+
+          # ── ON / OFF: accende/spegne la luce selezionata ────────
+          - conditions: "{{ act == 'on' }}"
+            sequence:
+              - service: light.turn_on
+                target:
+                  entity_id: "{{ selected }}"
+          - conditions: "{{ act == 'off' }}"
+            sequence:
+              - service: light.turn_off
+                target:
+                  entity_id: "{{ selected }}"
+
+          # ── Tieni premuto: dimmer su/giù (rampa) ────────────────
+          - conditions: "{{ act == 'brightness_move_up' }}"
+            sequence:
+              - service: input_boolean.turn_on
+                target:
+                  entity_id: input_boolean.cucina_dim_active
+              - repeat:
+                  while:
+                    - "{{ is_state('input_boolean.cucina_dim_active','on') }}"
+                    - "{{ repeat.index <= 40 }}"
+                  sequence:
+                    - service: light.turn_on
+                      target:
+                        entity_id: "{{ selected }}"
+                      data:
+                        brightness_step_pct: 8
+                        transition: 0.4
+                    - delay: "00:00:00.4"
+          - conditions: "{{ act == 'brightness_move_down' }}"
+            sequence:
+              - service: input_boolean.turn_on
+                target:
+                  entity_id: input_boolean.cucina_dim_active
+              - repeat:
+                  while:
+                    - "{{ is_state('input_boolean.cucina_dim_active','on') }}"
+                    - "{{ repeat.index <= 40 }}"
+                  sequence:
+                    - service: light.turn_on
+                      target:
+                        entity_id: "{{ selected }}"
+                      data:
+                        brightness_step_pct: -8
+                        transition: 0.4
+                    - delay: "00:00:00.4"
+          - conditions: "{{ act == 'brightness_stop' }}"
+            sequence:
+              - service: input_boolean.turn_off
+                target:
+                  entity_id: input_boolean.cucina_dim_active
