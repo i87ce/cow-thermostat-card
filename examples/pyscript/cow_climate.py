@@ -151,6 +151,90 @@ def _publish(topic, payload, retain=True):
                  payload=str(payload), retain=retain)
 
 
+# ─── Log tracciabile (Logbook HA) ─────────────────────────────────────
+# Stato precedente per rilevare i cambiamenti (persiste tra i trigger).
+_prev = {"motor": None, "rooms": {}}
+
+# Etichette leggibili per il log
+ROOM_LABEL = {
+    "camera_padronale": "Camera Padronale",
+    "studio_chiara": "Studio Chiara",
+    "camera": "Camera 1",
+    "sala_cucina": "Sala & Cucina",
+    "ingresso_pt": "Ingresso PT",
+    "bagno_padronale": "Bagno Padronale",
+    "bagno_ospiti": "Bagno Ospiti",
+}
+AIR_LABEL = {
+    "excluded": "esclusa",
+    "idle": "in attesa",
+    "comfort": "a comfort",
+    "heating": "riscalda (aria)",
+    "heating_floor": "riscalda (pavimento)",
+    "cooling": "raffredda",
+    "drying": "deumidifica",
+    "fan": "ventila",
+}
+MOTOR_LABEL = {
+    "off": "spento",
+    "heat": "heat 30°",
+    "cool": "cool 16°",
+    "dry": "dry 16°",
+    "fan_only": "fan",
+}
+
+
+def _cause(kwargs):
+    t = kwargs.get("trigger_type", "?")
+    v = kwargs.get("var_name", "")
+    if t == "time":
+        return "watchdog 30s"
+    if t == "state" and v:
+        return v
+    if t in ("event", "startup"):
+        return "avvio"
+    return t
+
+
+def _open_summary(want_open):
+    nums = [c.rsplit("_", 1)[-1] for c in want_open]
+    return ("serrande " + ", ".join(nums)) if nums else "nessuna serranda"
+
+
+def _logbook(name, message, entity_id=None):
+    # Sintassi diretta pyscript: logbook.log(...). NB: service.call("logbook",
+    # "log", name=...) andrebbe in conflitto col parametro posizionale `name`.
+    if entity_id:
+        logbook.log(name=name, message=message, entity_id=entity_id)
+    else:
+        logbook.log(name=name, message=message)
+
+
+def _log_changes(kwargs, motor_mode, want_open, air_by_slug):
+    cause = _cause(kwargs)
+    # Motore
+    if motor_mode != _prev["motor"]:
+        prev = MOTOR_LABEL.get(_prev["motor"], _prev["motor"] or "—")
+        now = MOTOR_LABEL.get(motor_mode, motor_mode)
+        _logbook(
+            "Cow Clima · Motore",
+            "%s → %s (causa: %s) · %s aperte" % (prev, now, cause, _open_summary(want_open)),
+            MITSU,
+        )
+        _prev["motor"] = motor_mode
+    # Stanze
+    for slug, air in air_by_slug.items():
+        if _prev["rooms"].get(slug) != air:
+            prev = AIR_LABEL.get(_prev["rooms"].get(slug), _prev["rooms"].get(slug) or "—")
+            now = AIR_LABEL.get(air, air)
+            _logbook(
+                "Cow Clima · " + ROOM_LABEL.get(slug, slug),
+                "%s → %s (causa: %s)" % (prev, now, cause),
+                ROOMS[slug]["proxy"],
+            )
+            _prev["rooms"][slug] = air
+
+
 # ─── Calcolo stato ricco per stanza (air_state, §5) ───────────────────
 def _room_air_state(slug, sistema):
     r = ROOMS[slug]
@@ -308,8 +392,10 @@ def cow_climate_orchestrate(**kwargs):
                 climate.set_hvac_mode(entity_id=pav, hvac_mode="off")
 
     # 4) Pubblica stato ricco + echo (unico writer) ────────────────────
+    air_by_slug = {}
     for slug, r in ROOMS.items():
         air = _room_air_state(slug, sistema)
+        air_by_slug[slug] = air
         base = "cow/casa/%s" % slug
         cur = _num(r["temp"])
         hum = _num(r["hum"])
@@ -329,17 +415,28 @@ def cow_climate_orchestrate(**kwargs):
         _publish("%s/mode/state" % base, state.get(r["proxy"]))
         _publish("%s/setpoint/state" % base, _setpoint(slug))
 
-    # Sistema: echo + action
+    # Sistema: echo + action.
+    # hvac_action riflette il motore, ma se il sistema è acceso e il motore
+    # è momentaneamente off (target raggiunto) mostriamo "idle", non "off".
     _publish("cow/casa/sistema/mode/state", sistema)
     _publish("cow/casa/sistema/fan/state", _attr(SYSTEM, "fan_mode", "auto"))
-    sys_action = {
-        "off": "off", "heat": "heating", "cool": "cooling",
-        "dry": "drying", "fan_only": "fan",
-    }.get(state.get(MITSU), "idle")
+    mitsu_state = state.get(MITSU)
+    if sistema == "off":
+        sys_action = "off"
+    elif mitsu_state == "off":
+        sys_action = "idle"
+    else:
+        sys_action = {
+            "heat": "heating", "cool": "cooling",
+            "dry": "drying", "fan_only": "fan",
+        }.get(mitsu_state, "idle")
     _publish("cow/casa/sistema/action/state", sys_action)
+
+    # 5) Log tracciabile dei cambi (stanze + motore) ───────────────────
+    _log_changes(kwargs, motor_mode, want_open, air_by_slug)
 
 
 @time_trigger("startup")
 def cow_climate_startup():
     log.info("cow_climate v4 orchestrator caricato")
-    cow_climate_orchestrate()
+    cow_climate_orchestrate(trigger_type="startup")

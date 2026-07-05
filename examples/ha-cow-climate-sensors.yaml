@@ -1,0 +1,94 @@
+# ---------------------------------------------------------------------------
+# Cow Climate — sensori derivati per grafici & analisi
+# ---------------------------------------------------------------------------
+# Deploy come /config/packages/cow_climate_sensors.yaml
+#
+# Per ogni stanza:
+#   sensor.cow_sp_<room>   → setpoint (numerico, °C) — graficabile vs temperatura
+#   sensor.cow_air_<room>  → air_state testuale (excluded/comfort/heating/...)
+#
+# La temperatura ambiente è già in sensor.display_<room>_temperature.
+# Abbinando i due nel grafico storico si vede setpoint vs temperatura reale.
+# ---------------------------------------------------------------------------
+
+template:
+  - sensor:
+      # ── Setpoint (numerici) ──────────────────────────────────────────
+      - name: "Setpoint Sala & Cucina"
+        unique_id: cow_sp_sala_cucina
+        device_class: temperature
+        state_class: measurement
+        unit_of_measurement: "°C"
+        state: "{{ state_attr('climate.casa_sala_cucina','temperature') }}"
+        availability: "{{ state_attr('climate.casa_sala_cucina','temperature') is not none }}"
+
+      - name: "Setpoint Camera Padronale"
+        unique_id: cow_sp_camera_padronale
+        device_class: temperature
+        state_class: measurement
+        unit_of_measurement: "°C"
+        state: "{{ state_attr('climate.casa_camera_padronale','temperature') }}"
+        availability: "{{ state_attr('climate.casa_camera_padronale','temperature') is not none }}"
+
+      - name: "Setpoint Camera 1"
+        unique_id: cow_sp_camera
+        device_class: temperature
+        state_class: measurement
+        unit_of_measurement: "°C"
+        state: "{{ state_attr('climate.casa_camera','temperature') }}"
+        availability: "{{ state_attr('climate.casa_camera','temperature') is not none }}"
+
+      - name: "Setpoint Studio Chiara"
+        unique_id: cow_sp_studio_chiara
+        device_class: temperature
+        state_class: measurement
+        unit_of_measurement: "°C"
+        state: "{{ state_attr('climate.casa_studio_chiara','temperature') }}"
+        availability: "{{ state_attr('climate.casa_studio_chiara','temperature') is not none }}"
+
+      - name: "Setpoint Ingresso PT"
+        unique_id: cow_sp_ingresso_pt
+        device_class: temperature
+        state_class: measurement
+        unit_of_measurement: "°C"
+        state: "{{ state_attr('climate.casa_ingresso_pt','temperature') }}"
+        availability: "{{ state_attr('climate.casa_ingresso_pt','temperature') is not none }}"
+
+      - name: "Setpoint Bagno Padronale"
+        unique_id: cow_sp_bagno_padronale
+        device_class: temperature
+        state_class: measurement
+        unit_of_measurement: "°C"
+        state: "{{ state_attr('climate.casa_bagno_padronale','temperature') }}"
+        availability: "{{ state_attr('climate.casa_bagno_padronale','temperature') is not none }}"
+
+      - name: "Setpoint Bagno Ospiti"
+        unique_id: cow_sp_bagno_ospiti
+        device_class: temperature
+        state_class: measurement
+        unit_of_measurement: "°C"
+        state: "{{ state_attr('climate.casa_bagno_ospiti','temperature') }}"
+        availability: "{{ state_attr('climate.casa_bagno_ospiti','temperature') is not none }}"
+
+      # ── Stato aria (testuale, per automazioni) ───────────────────────
+      - name: "Clima Stato Sala & Cucina"
+        unique_id: cow_air_sala_cucina
+        state: "{{ state_attr('climate.casa_sala_cucina','air_state') }}"
+      - name: "Clima Stato Camera Padronale"
+        unique_id: cow_air_camera_padronale
+        state: "{{ state_attr('climate.casa_camera_padronale','air_state') }}"
+      - name: "Clima Stato Camera 1"
+        unique_id: cow_air_camera
+        state: "{{ state_attr('climate.casa_camera','air_state') }}"
+      - name: "Clima Stato Studio Chiara"
+        unique_id: cow_air_studio_chiara
+        state: "{{ state_attr('climate.casa_studio_chiara','air_state') }}"
+      - name: "Clima Stato Ingresso PT"
+        unique_id: cow_air_ingresso_pt
+        state: "{{ state_attr('climate.casa_ingresso_pt','air_state') }}"
+      - name: "Clima Stato Bagno Padronale"
+        unique_id: cow_air_bagno_padronale
+        state: "{{ state_attr('climate.casa_bagno_padronale','air_state') }}"
+      - name: "Clima Stato Bagno Ospiti"
+        unique_id: cow_air_bagno_ospiti
+        state: "{{ state_attr('climate.casa_bagno_ospiti','air_state') }}"
