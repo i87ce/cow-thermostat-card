@@ -68,12 +68,19 @@ script:
     max: 10
     sequence:
       - service: rest_command.walldisplay_restart_app_camera_1
+        continue_on_error: true
       - service: rest_command.walldisplay_restart_app_camera_2
+        continue_on_error: true
       - service: rest_command.walldisplay_restart_app_bagno_ospiti
+        continue_on_error: true
       - service: rest_command.walldisplay_restart_app_camera_padronale
+        continue_on_error: true
       - service: rest_command.walldisplay_restart_app_sala_cucina_xl
+        continue_on_error: true
       - service: rest_command.walldisplay_restart_app_scala
+        continue_on_error: true
       - service: rest_command.walldisplay_restart_app_bagno_camera
+        continue_on_error: true
 
   cow_walldisplay_restart_app_camera_1:
     alias: "Wall Display — soft restart Camera 1"

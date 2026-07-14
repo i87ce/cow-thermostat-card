@@ -4,6 +4,7 @@
 //   node scripts/ha-push-walldisplay-restart.mjs --apply
 //
 // Requires SSH to HAOS (see docs/07-ha-remote-access.md).
+import { readFileSync } from "node:fs";
 import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
@@ -12,7 +13,6 @@ const APPLY = process.argv.includes("--apply");
 const SSH_HOST = process.env.HA_SSH_HOST || "172.16.0.200";
 const SSH_PORT = process.env.HA_SSH_PORT || "22222";
 const SSH_KEY = process.env.HA_SSH_KEY || `${process.env.HOME}/.ssh/id_rsa`;
-const REMOTE_TMP = "/tmp/cow_walldisplay_restart.yaml";
 const REMOTE = "/config/packages/cow_walldisplay_restart.yaml";
 
 const src = join(
@@ -21,9 +21,10 @@ const src = join(
   "examples",
   "ha-cow-walldisplay-restart.yaml",
 );
+const body = readFileSync(src, "utf8");
 
-function run(cmd, args) {
-  const r = spawnSync(cmd, args, { encoding: "utf8" });
+function run(cmd, args, input) {
+  const r = spawnSync(cmd, args, { encoding: "utf8", input });
   if (r.status !== 0) {
     console.error(r.stderr || r.stdout);
     process.exit(r.status || 1);
@@ -38,26 +39,20 @@ if (!APPLY) {
   process.exit(0);
 }
 
-run("scp", [
-  "-i",
-  SSH_KEY,
-  "-P",
-  SSH_PORT,
-  "-o",
-  "BatchMode=yes",
-  src,
-  `root@${SSH_HOST}:${REMOTE_TMP}`,
-]);
-run("ssh", [
-  "-i",
-  SSH_KEY,
-  "-p",
-  SSH_PORT,
-  "-o",
-  "BatchMode=yes",
-  `root@${SSH_HOST}`,
-  `docker exec homeassistant cp ${REMOTE_TMP} ${REMOTE}`,
-]);
+run(
+  "ssh",
+  [
+    "-i",
+    SSH_KEY,
+    "-p",
+    SSH_PORT,
+    "-o",
+    "BatchMode=yes",
+    `root@${SSH_HOST}`,
+    `docker exec -i homeassistant tee ${REMOTE} > /dev/null`,
+  ],
+  body,
+);
 console.log("✓ uploaded package");
 
 run("ssh", [
@@ -68,7 +63,7 @@ run("ssh", [
   "-o",
   "BatchMode=yes",
   `root@${SSH_HOST}`,
-  "docker exec homeassistant ha core reload --scripts 2>/dev/null || docker exec homeassistant ha core reload",
+  "ha core restart",
 ]);
-console.log("✓ reloaded HA (scripts/rest_command)");
+console.log("✓ restarted HA core (loads new package files)");
 console.log("\nService: script.cow_walldisplay_restart_all_apps");
