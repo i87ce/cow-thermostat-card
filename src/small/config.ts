@@ -58,6 +58,10 @@ export interface CowConfig {
   opening_windows: string[];
   /** Device names that are garage doors. */
   opening_garages: string[];
+  /** Extra ``binary_sensor.*`` contacts (Zigbee/MQTT, …). */
+  opening_entities: string[];
+  /** Ajax device names to skip in auto-discovery. */
+  opening_exclude_devices: string[];
   /**
    * When false, hide Ajax opening sensors on this card. Use while a
    * sensor is misconfigured (e.g. tilt instead of contact).
@@ -323,6 +327,11 @@ export function validateConfig(input: unknown): CowConfig {
     opening_doors: stringList(cfg.opening_doors, "opening_doors"),
     opening_windows: stringList(cfg.opening_windows, "opening_windows"),
     opening_garages: stringList(cfg.opening_garages, "opening_garages"),
+    opening_entities: stringList(cfg.opening_entities, "opening_entities"),
+    opening_exclude_devices: stringList(
+      cfg.opening_exclude_devices,
+      "opening_exclude_devices",
+    ),
     openings_enabled: cfg.openings_enabled === false ? false : undefined,
     hidden_studio_door: hiddenStudioDoor,
     studio_door_entity: studioDoorEntity,

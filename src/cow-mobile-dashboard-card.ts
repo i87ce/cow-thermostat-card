@@ -55,13 +55,11 @@ import type {
 } from "./types/hass.js";
 import { fontFaces, typography } from "./styles/typography.js";
 import {
-  applyKindOverrides,
-  findAjaxOpeningsInArea,
   openingIconSvg,
   type AjaxOpening,
   type OpeningKind,
-  type OpeningKindOverrides,
 } from "./util/ajax-openings.js";
+import { findRoomOpenings } from "./small/openings.js";
 import {
   bumpTarget,
   deriveThermostatView,
@@ -115,6 +113,10 @@ export interface CowMobileRoom {
    * ``"Sala & Cucina"`` — that's exactly the case this field solves).
    */
   areas?: string[];
+  /** Extra ``binary_sensor.*`` contacts for this room tile. */
+  opening_entities?: string[];
+  /** Ajax device names to skip in auto-discovery for this room. */
+  opening_exclude_devices?: string[];
   /**
    * When false, hide Ajax opening sensors for this room. Use while a
    * garage door still uses a tilt sensor instead of a contact.
@@ -188,6 +190,8 @@ interface NormalizedRoom {
   covers: CowMobileDeviceEntry[];
   areas: string[];
   openingsEnabled: boolean;
+  openingEntities: string[];
+  openingExcludeDevices: string[];
 }
 
 function normaliseDevices(
@@ -213,6 +217,12 @@ function normaliseRoom(r: CowMobileRoom): NormalizedRoom {
       ? r.areas.filter((a): a is string => typeof a === "string" && a.length > 0)
       : [],
     openingsEnabled: r.openings_enabled !== false,
+    openingEntities: Array.isArray(r.opening_entities)
+      ? r.opening_entities.filter((e): e is string => typeof e === "string" && e.length > 0)
+      : [],
+    openingExcludeDevices: Array.isArray(r.opening_exclude_devices)
+      ? r.opening_exclude_devices.filter((e): e is string => typeof e === "string" && e.length > 0)
+      : [],
   };
 }
 
@@ -352,59 +362,20 @@ export class CowMobileDashboardCard
   }
 
   // ── Ajax openings helpers ────────────────────────────────────────
-  //
-  // Discovery is registry-driven: we never ask the user to list opening
-  // entities in card config. ``findAjaxOpeningsInArea`` matches the
-  // HA area whose name fuzzy-matches the room's display name; ``Sala &
-  // Cucina`` will hit the ``Sala`` area, ``Studio Chiara`` hits ``Studio``,
-  // etc. (See src/util/ajax-openings.ts for the matcher.)
-
-  /**
-   * Card-level kind overrides loaded from YAML. Computed each call so
-   * a hot-reload of the card config takes effect without a restart.
-   */
-  private kindOverrides(): OpeningKindOverrides | undefined {
-    const c = this.config;
-    if (!c) return undefined;
-    if (
-      !c.opening_doors?.length &&
-      !c.opening_windows?.length &&
-      !c.opening_garages?.length &&
-      !c.opening_defaults?.kind
-    ) {
-      return undefined;
-    }
-    return {
-      default: c.opening_defaults?.kind,
-      doors: c.opening_doors,
-      windows: c.opening_windows,
-      garages: c.opening_garages,
-    };
-  }
 
   private roomOpenings(room: NormalizedRoom): AjaxOpening[] {
-    if (!room.openingsEnabled) return [];
-    // Prefer the explicit ``areas: [...]`` list when the user
-    // configured it (handles multi-area rooms like ``"Sala & Cucina"``
-    // and disambiguates short names like ``"Camera"`` vs ``"Camera 1"``
-    // / ``"Camera 2"``). Fall back to fuzzy-matching the room display
-    // name when ``areas`` is absent — preserves backward compat.
-    let raw: AjaxOpening[];
-    if (room.areas.length > 0) {
-      const seen = new Set<string>();
-      const out: AjaxOpening[] = [];
-      for (const a of room.areas) {
-        for (const o of findAjaxOpeningsInArea(this.hass, a)) {
-          if (seen.has(o.entityId)) continue;
-          seen.add(o.entityId);
-          out.push(o);
-        }
-      }
-      raw = out;
-    } else {
-      raw = findAjaxOpeningsInArea(this.hass, room.name);
-    }
-    return applyKindOverrides(raw, this.kindOverrides());
+    const c = this.config;
+    return findRoomOpenings(this.hass, {
+      areas: room.areas,
+      fallbackArea: room.name,
+      enabled: room.openingsEnabled,
+      entities: room.openingEntities,
+      excludeDevices: room.openingExcludeDevices,
+      defaultKind: c?.opening_defaults?.kind,
+      doors: c?.opening_doors,
+      windows: c?.opening_windows,
+      garages: c?.opening_garages,
+    });
   }
   private houseOpenings(): AjaxOpening[] {
     const seen = new Set<string>();

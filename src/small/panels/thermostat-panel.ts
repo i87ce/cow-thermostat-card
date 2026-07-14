@@ -89,6 +89,8 @@ export class CowThermostatPanel extends LitElement {
   @property({ type: Array }) openingDoors: string[] = [];
   @property({ type: Array }) openingWindows: string[] = [];
   @property({ type: Array }) openingGarages: string[] = [];
+  @property({ type: Array }) openingEntities: string[] = [];
+  @property({ type: Array }) openingExcludeDevices: string[] = [];
   @property({ type: Boolean }) openingsEnabled = true;
   @property({ type: Boolean }) hiddenStudioDoor = false;
   @property({ type: String }) studioDoorEntity = "";
@@ -414,6 +416,8 @@ export class CowThermostatPanel extends LitElement {
       doors: this.openingDoors,
       windows: this.openingWindows,
       garages: this.openingGarages,
+      entities: this.openingEntities,
+      excludeDevices: this.openingExcludeDevices,
       enabled: this.openingsEnabled,
     });
   }

@@ -1,0 +1,111 @@
+# ---------------------------------------------------------------------------
+# Cow Wall Display — soft restart kiosk app on all Shelly displays
+# ---------------------------------------------------------------------------
+# Deploy: /config/packages/cow_walldisplay_restart.yaml
+#   (homeassistant: packages: !include_dir_named packages)
+#
+# Calls Sys.RestartApplication via JSON-RPC (~2–5 s, app only).
+# If a display firmware lacks that method, run scripts/shelly-restart-app.mjs
+# from the LAN — it falls back to Shelly.Reboot automatically.
+#
+# Usage (Developer Tools → Services):
+#   script.cow_walldisplay_restart_all_apps     — all 7 displays in parallel
+#   script.cow_walldisplay_restart_app_camera_1 — single display retry
+#
+# IP map (2026-07): see docs/05-push-configuration-from-ha.md
+# ---------------------------------------------------------------------------
+
+rest_command:
+  walldisplay_restart_app_camera_1:
+    url: "http://172.16.2.10/rpc"
+    method: POST
+    content_type: "application/json"
+    payload: '{"id":1,"method":"Sys.RestartApplication","params":{}}'
+
+  walldisplay_restart_app_camera_2:
+    url: "http://172.16.2.11/rpc"
+    method: POST
+    content_type: "application/json"
+    payload: '{"id":1,"method":"Sys.RestartApplication","params":{}}'
+
+  walldisplay_restart_app_bagno_ospiti:
+    url: "http://172.16.2.12/rpc"
+    method: POST
+    content_type: "application/json"
+    payload: '{"id":1,"method":"Sys.RestartApplication","params":{}}'
+
+  walldisplay_restart_app_camera_padronale:
+    url: "http://172.16.2.13/rpc"
+    method: POST
+    content_type: "application/json"
+    payload: '{"id":1,"method":"Sys.RestartApplication","params":{}}'
+
+  walldisplay_restart_app_sala_cucina_xl:
+    url: "http://172.16.2.14/rpc"
+    method: POST
+    content_type: "application/json"
+    payload: '{"id":1,"method":"Sys.RestartApplication","params":{}}'
+
+  walldisplay_restart_app_scala:
+    url: "http://172.16.2.15/rpc"
+    method: POST
+    content_type: "application/json"
+    payload: '{"id":1,"method":"Sys.RestartApplication","params":{}}'
+
+  walldisplay_restart_app_bagno_camera:
+    url: "http://172.16.2.100/rpc"
+    method: POST
+    content_type: "application/json"
+    payload: '{"id":1,"method":"Sys.RestartApplication","params":{}}'
+
+script:
+  cow_walldisplay_restart_all_apps:
+    alias: "Wall Display — soft restart app (tutti)"
+    description: >-
+      Riavvia l'app kiosk HA su tutti i Shelly Wall Display (Sys.RestartApplication).
+      Usare dopo deploy HACS / patch Lovelace per caricare il nuovo JS.
+    mode: parallel
+    max: 10
+    sequence:
+      - service: rest_command.walldisplay_restart_app_camera_1
+      - service: rest_command.walldisplay_restart_app_camera_2
+      - service: rest_command.walldisplay_restart_app_bagno_ospiti
+      - service: rest_command.walldisplay_restart_app_camera_padronale
+      - service: rest_command.walldisplay_restart_app_sala_cucina_xl
+      - service: rest_command.walldisplay_restart_app_scala
+      - service: rest_command.walldisplay_restart_app_bagno_camera
+
+  cow_walldisplay_restart_app_camera_1:
+    alias: "Wall Display — soft restart Camera 1"
+    sequence:
+      - service: rest_command.walldisplay_restart_app_camera_1
+
+  cow_walldisplay_restart_app_camera_2:
+    alias: "Wall Display — soft restart Camera 2"
+    sequence:
+      - service: rest_command.walldisplay_restart_app_camera_2
+
+  cow_walldisplay_restart_app_bagno_ospiti:
+    alias: "Wall Display — soft restart Bagno Ospiti"
+    sequence:
+      - service: rest_command.walldisplay_restart_app_bagno_ospiti
+
+  cow_walldisplay_restart_app_camera_padronale:
+    alias: "Wall Display — soft restart Camera Padronale"
+    sequence:
+      - service: rest_command.walldisplay_restart_app_camera_padronale
+
+  cow_walldisplay_restart_app_sala_cucina_xl:
+    alias: "Wall Display — soft restart Sala & Cucina XL"
+    sequence:
+      - service: rest_command.walldisplay_restart_app_sala_cucina_xl
+
+  cow_walldisplay_restart_app_scala:
+    alias: "Wall Display — soft restart Scala"
+    sequence:
+      - service: rest_command.walldisplay_restart_app_scala
+
+  cow_walldisplay_restart_app_bagno_camera:
+    alias: "Wall Display — soft restart Bagno Camera"
+    sequence:
+      - service: rest_command.walldisplay_restart_app_bagno_camera

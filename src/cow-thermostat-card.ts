@@ -31,7 +31,7 @@ import "./cow-mobile-dashboard-card.js";
 
 type Kind = "thermostat" | "lights" | "blinds";
 
-const VERSION = "1.5.5";
+const VERSION = "1.5.6";
 
 const ACCENT_DOT: Record<Kind, (cfg: CowConfig, hass?: HomeAssistant) => string> =
   {
@@ -251,6 +251,8 @@ export class CowThermostatCard extends LitElement implements LovelaceCard {
                     .openingDoors=${cfg.opening_doors}
                     .openingWindows=${cfg.opening_windows}
                     .openingGarages=${cfg.opening_garages}
+                    .openingEntities=${cfg.opening_entities}
+                    .openingExcludeDevices=${cfg.opening_exclude_devices}
                     .openingsEnabled=${cfg.openings_enabled !== false}
                     .hiddenStudioDoor=${cfg.hidden_studio_door}
                     .studioDoorEntity=${cfg.studio_door_entity ?? ""}
@@ -270,6 +272,8 @@ export class CowThermostatCard extends LitElement implements LovelaceCard {
                     .openingDoors=${cfg.opening_doors}
                     .openingWindows=${cfg.opening_windows}
                     .openingGarages=${cfg.opening_garages}
+                    .openingEntities=${cfg.opening_entities}
+                    .openingExcludeDevices=${cfg.opening_exclude_devices}
                     .openingsEnabled=${cfg.openings_enabled !== false}
                   ></cow-lights-panel>
                 `;
@@ -285,6 +289,8 @@ export class CowThermostatCard extends LitElement implements LovelaceCard {
                   .openingDoors=${cfg.opening_doors}
                   .openingWindows=${cfg.opening_windows}
                   .openingGarages=${cfg.opening_garages}
+                  .openingEntities=${cfg.opening_entities}
+                  .openingExcludeDevices=${cfg.opening_exclude_devices}
                   .openingsEnabled=${cfg.openings_enabled !== false}
                 ></cow-blinds-panel>
               `;

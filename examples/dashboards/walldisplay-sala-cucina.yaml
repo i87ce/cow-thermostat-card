@@ -181,11 +181,10 @@ views:
             icon: "🚗"
             group: Altro
             light: light.luce_box
-            # Porta garage: sensore tilt (non contatto) — stato aperture
-            # non affidabile. Riattivare quando passeremo al contatto:
-            #   openings_enabled: true
-            #   areas: [Garage]
-            openings_enabled: false
+            areas: [Garage]
+            opening_exclude_devices: [Garage]
+            opening_entities: [sensor.porta_garage_orientamento]
+            opening_garages: [Porta Garage]
 
           - name: Ingresso PT
             icon: "🚪"

@@ -112,6 +112,8 @@ export class CowLightsPanel extends LitElement {
   @property({ type: Array }) openingDoors: string[] = [];
   @property({ type: Array }) openingWindows: string[] = [];
   @property({ type: Array }) openingGarages: string[] = [];
+  @property({ type: Array }) openingEntities: string[] = [];
+  @property({ type: Array }) openingExcludeDevices: string[] = [];
   @property({ type: Boolean }) openingsEnabled = true;
   /** "all" | entity_id of a single light */
   @state() private scope: string = "all";
@@ -728,6 +730,8 @@ export class CowLightsPanel extends LitElement {
         doors: this.openingDoors,
         windows: this.openingWindows,
         garages: this.openingGarages,
+        entities: this.openingEntities,
+        excludeDevices: this.openingExcludeDevices,
         enabled: this.openingsEnabled,
       }),
     );

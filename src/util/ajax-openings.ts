@@ -205,6 +205,152 @@ export function findAjaxOpeningsInArea(
   return out;
 }
 
+const OPENING_DEVICE_CLASSES = new Set([
+  "opening",
+  "door",
+  "garage",
+  "window",
+]);
+
+/**
+ * Build one {@link AjaxOpening} from any HA ``binary_sensor.*`` contact
+ * (Zigbee/MQTT, template, …). Accepts ``device_class`` ``opening``,
+ * ``door``, ``garage``, or ``window`` — ``on`` means open.
+ */
+export function openingFromEntity(
+  hass: HomeAssistant | undefined,
+  entityId: string,
+  opts: { kind?: OpeningKind; deviceName?: string } = {},
+): AjaxOpening | undefined {
+  if (!hass) return undefined;
+  const state = hass.states[entityId];
+  if (!state) return undefined;
+  if (!entityId.startsWith("binary_sensor.")) return undefined;
+  const dc = state.attributes?.device_class as string | undefined;
+  if (dc && !OPENING_DEVICE_CLASSES.has(dc)) return undefined;
+
+  const reg = hass.entities?.[entityId];
+  const device = reg?.device_id ? hass.devices?.[reg.device_id] : undefined;
+  const areaId = reg?.area_id ?? device?.area_id;
+  const area = areaId ? hass.areas?.[areaId] : undefined;
+  const deviceName =
+    opts.deviceName ??
+    device?.name_by_user ??
+    device?.name ??
+    (state.attributes?.friendly_name as string | undefined) ??
+    entityId;
+  const inferred = opts.kind
+    ? { kind: opts.kind, byKeyword: true as const }
+    : inferOpeningKind(deviceName);
+  const friendly =
+    (state.attributes?.friendly_name as string | undefined) ?? deviceName;
+
+  return {
+    entityId,
+    label: friendly,
+    deviceName,
+    kind: opts.kind ?? inferred.kind,
+    kindInferred: opts.kind
+      ? "keyword"
+      : inferred.byKeyword
+        ? "keyword"
+        : "fallback",
+    isOpen: state.state === "on",
+    rawState: state.state,
+    areaId,
+    areaName: area?.name,
+    isExtraContact: false,
+  };
+}
+
+/** P100 object-mode: ``tilt`` ≈ porta sezionale aperta; tutto il resto ≈ chiusa. */
+const DEFAULT_TILT_OPEN = new Set(["tilt"]);
+
+/**
+ * Build one {@link AjaxOpening} from a tilt/orientation ``sensor.*``
+ * (Aqara P100 in object mode on a sectional door).
+ */
+export function openingFromTiltEntity(
+  hass: HomeAssistant | undefined,
+  entityId: string,
+  opts: {
+    kind?: OpeningKind;
+    deviceName?: string;
+    openStates?: string[];
+  } = {},
+): AjaxOpening | undefined {
+  if (!hass) return undefined;
+  const state = hass.states[entityId];
+  if (!state || !entityId.startsWith("sensor.")) return undefined;
+
+  const raw = String(state.state).toLowerCase();
+  if (raw === "unavailable" || raw === "unknown") return undefined;
+
+  const openStates = new Set(
+    (opts.openStates ?? [...DEFAULT_TILT_OPEN]).map((s) => s.toLowerCase()),
+  );
+  const isOpen = openStates.has(raw);
+
+  const reg = hass.entities?.[entityId];
+  const device = reg?.device_id ? hass.devices?.[reg.device_id] : undefined;
+  const areaId = reg?.area_id ?? device?.area_id;
+  const area = areaId ? hass.areas?.[areaId] : undefined;
+  const deviceName =
+    opts.deviceName ??
+    device?.name_by_user ??
+    device?.name ??
+    (state.attributes?.friendly_name as string | undefined) ??
+    entityId;
+  const inferred = opts.kind
+    ? { kind: opts.kind, byKeyword: true as const }
+    : inferOpeningKind(deviceName);
+  const friendly =
+    (state.attributes?.friendly_name as string | undefined) ?? deviceName;
+
+  return {
+    entityId,
+    label: friendly,
+    deviceName,
+    kind: opts.kind ?? inferred.kind,
+    kindInferred: opts.kind
+      ? "keyword"
+      : inferred.byKeyword
+        ? "keyword"
+        : "fallback",
+    isOpen,
+    rawState: state.state,
+    areaId,
+    areaName: area?.name,
+    isExtraContact: false,
+  };
+}
+
+/**
+ * Resolve a configured opening entity — ``binary_sensor.*`` contact or
+ * ``sensor.*`` tilt/orientation (P100 object mode).
+ */
+export function openingFromConfiguredEntity(
+  hass: HomeAssistant | undefined,
+  entityId: string,
+  opts: { kind?: OpeningKind; deviceName?: string } = {},
+): AjaxOpening | undefined {
+  if (entityId.startsWith("binary_sensor."))
+    return openingFromEntity(hass, entityId, opts);
+  if (entityId.startsWith("sensor."))
+    return openingFromTiltEntity(hass, entityId, opts);
+  return undefined;
+}
+
+/** Drop Ajax auto-discovered openings whose device name is listed. */
+export function excludeDevicesByName(
+  openings: AjaxOpening[],
+  names: string[] | undefined,
+): AjaxOpening[] {
+  const drop = lowerSet(names);
+  if (drop.size === 0) return openings;
+  return openings.filter((o) => !drop.has(o.deviceName.toLowerCase().trim()));
+}
+
 /**
  * Resolve the HA area of a ``climate.*`` entity and return any Ajax
  * openings in the same area.

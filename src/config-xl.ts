@@ -50,6 +50,10 @@ export interface CowRoomConfig {
   opening_windows?: string[];
   /** Device names that are garage doors. */
   opening_garages?: string[];
+  /** Extra ``binary_sensor.*`` contacts (Zigbee/MQTT, …). */
+  opening_entities?: string[];
+  /** Ajax device names to skip in auto-discovery. */
+  opening_exclude_devices?: string[];
   /**
    * When false, hide Ajax opening sensors for this room (badge, security
    * tab, chip counter). Use while a sensor is misconfigured — e.g. tilt
@@ -240,6 +244,8 @@ export function validateXLConfig(input: unknown): CowRoomDashboardConfig {
       opening_doors: stringList(room.opening_doors),
       opening_windows: stringList(room.opening_windows),
       opening_garages: stringList(room.opening_garages),
+      opening_entities: stringList(room.opening_entities),
+      opening_exclude_devices: stringList(room.opening_exclude_devices),
       openings_enabled:
         room.openings_enabled === false ? false : undefined,
     };
@@ -387,34 +393,22 @@ export function countActiveDevices(
  * type at parse time.
  */
 import type { HomeAssistant } from "./types/hass.js";
-import {
-  findAjaxOpeningsInArea,
-  applyKindOverrides,
-  type AjaxOpening,
-} from "./util/ajax-openings.js";
+import { findRoomOpenings } from "./small/openings.js";
+import type { AjaxOpening } from "./util/ajax-openings.js";
 
 export function findRoomOpeningsXL(
   hass: HomeAssistant | undefined,
   room: CowRoomConfig,
 ): AjaxOpening[] {
-  if (room.openings_enabled === false) return [];
-  const areas =
-    room.areas && room.areas.length > 0 ? room.areas : [room.name];
-  if (areas.length === 0) return [];
-  const seen = new Set<string>();
-  const out: AjaxOpening[] = [];
-  for (const a of areas) {
-    for (const o of findAjaxOpeningsInArea(hass, a)) {
-      if (seen.has(o.entityId)) continue;
-      seen.add(o.entityId);
-      out.push(o);
-    }
-  }
-  return applyKindOverrides(out, {
-    default: room.opening_default_kind,
+  return findRoomOpenings(hass, {
+    areas: room.areas && room.areas.length > 0 ? room.areas : [room.name],
+    defaultKind: room.opening_default_kind,
     doors: room.opening_doors,
     windows: room.opening_windows,
     garages: room.opening_garages,
+    enabled: room.openings_enabled,
+    entities: room.opening_entities,
+    excludeDevices: room.opening_exclude_devices,
   });
 }
 

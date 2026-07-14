@@ -12,6 +12,7 @@ const DEFAULT_TARGETS = [
   { ip: "172.16.2.11",  slug: "walldisplay-camera-2" },
   { ip: "172.16.2.12",  slug: "walldisplay-bagno-ospiti" },
   { ip: "172.16.2.13",  slug: "walldisplay-camera-padronale" },
+  { ip: "172.16.2.14",  slug: "walldisplay-sala-cucina-xl" },
   { ip: "172.16.2.15",  slug: "walldisplay-scala" },
   { ip: "172.16.2.100", slug: "walldisplay-bagno-camera" },
 ];

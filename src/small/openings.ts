@@ -24,7 +24,9 @@ import { css, html, nothing, type TemplateResult } from "lit";
 import type { HomeAssistant } from "../types/hass.js";
 import {
   applyKindOverrides,
+  excludeDevicesByName,
   findAjaxOpeningsInArea,
+  openingFromConfiguredEntity,
   openingIconSvg,
   type AjaxOpening,
   type OpeningKind,
@@ -85,6 +87,10 @@ export interface OpeningsOpts {
   garages?: string[];
   /** When false, return no openings (tilt-only garage, etc.). */
   enabled?: boolean;
+  /** Extra opening entity_ids — ``binary_sensor.*`` contact or ``sensor.*`` tilt (P100). */
+  entities?: string[];
+  /** Ajax device names to omit from auto-discovery (e.g. tilt sensor). */
+  excludeDevices?: string[];
 }
 
 /**
@@ -103,7 +109,7 @@ export function findRoomOpenings(
     : opts.fallbackArea
       ? [opts.fallbackArea]
       : [];
-  if (areas.length === 0) return [];
+  if (areas.length === 0 && (opts.entities?.length ?? 0) === 0) return [];
   const seen = new Set<string>();
   const out: AjaxOpening[] = [];
   for (const a of areas) {
@@ -113,7 +119,15 @@ export function findRoomOpenings(
       out.push(o);
     }
   }
-  return applyKindOverrides(out, {
+  let merged = excludeDevicesByName(out, opts.excludeDevices);
+  for (const eid of opts.entities ?? []) {
+    if (seen.has(eid)) continue;
+    const o = openingFromConfiguredEntity(hass, eid);
+    if (!o) continue;
+    seen.add(eid);
+    merged.push(o);
+  }
+  return applyKindOverrides(merged, {
     default: opts.defaultKind,
     doors: opts.doors,
     windows: opts.windows,

@@ -95,11 +95,13 @@ const PLAN = {
         areas: ["Studio"],
         opening_default_kind: "window",
       },
-      // Garage: porta con sensore tilt, non contatto — niente badge aperture
-      // finché non installiamo il contatto. Riattivare:
-      //   areas: ["Garage"], opening_default_kind: "window"
+      // Garage: Aqara P100 object mode — orientamento tilt/vertical (sezionale).
       "Garage": {
-        openings_enabled: false,
+        areas: ["Garage"],
+        opening_default_kind: "window",
+        opening_exclude_devices: ["Garage"],
+        opening_entities: ["sensor.porta_garage_orientamento"],
+        opening_garages: ["Porta Garage"],
       },
       "Ingresso PT": {
         areas: ["Ingresso PT"],
@@ -120,6 +122,8 @@ const KEYS = [
   "opening_windows",
   "opening_garages",
   "openings_enabled",
+  "opening_entities",
+  "opening_exclude_devices",
 ];
 
 const ws = new WebSocket(`wss://${HOST}/api/websocket`);

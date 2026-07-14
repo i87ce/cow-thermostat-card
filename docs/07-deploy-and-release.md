@@ -188,12 +188,23 @@ refresh on a stuck display:
 curl -sS "http://172.16.2.10/rpc/KVS.Get?key=launcher.url"        # discover current URL
 curl -sS "http://172.16.2.10/rpc/HTTP.GET?url=…&follow_redirects=true"  # nope, doesn't actually reload the UI
 
-# 2) Hard: restart the Shelly app — bounces the kiosk Chromium fresh
+# 2) Soft (preferred): restart only the kiosk app (~2–5 s)
+curl -sS -X POST "http://172.16.2.10/rpc" \
+  -H 'Content-Type: application/json' \
+  -d '{"id":1,"method":"Sys.RestartApplication","params":{}}'
+
+# 2b) From HA (after deploying examples/ha-cow-walldisplay-restart.yaml):
+#     script.cow_walldisplay_restart_all_apps
+
+# 3) Hard fallback: full device reboot (~25 s offline)
 curl -sS "http://172.16.2.10/rpc/Shelly.Reboot"
 ```
 
-`scripts/shelly-restart-app.mjs` reboots every display in one
-shot — use it after a release that touches the wall-display UI.
+`scripts/shelly-restart-app.mjs` soft-restarts every display in one
+shot (falls back to `Shelly.Reboot` if needed) — use it after a
+release that touches the wall-display UI. From HA, prefer
+`script.cow_walldisplay_restart_all_apps` (deploy with
+`node scripts/ha-push-walldisplay-restart.mjs --apply`).
 
 Don't reboot the displays for every release — only when:
 

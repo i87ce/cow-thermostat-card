@@ -4,6 +4,20 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and
 this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.5.6] — 2026-07-14
+
+### Added
+- **Garage door opening via explicit entities (Aqara P100 object mode).**
+  New YAML fields `opening_entities` and `opening_exclude_devices` on room
+  config (small, XL, mobile). Point `opening_entities` at a tilt/orientation
+  sensor (`tilt` = open, anything else = closed) or a contact; exclude stale
+  Ajax devices by friendly name. Garage on XL and mobile Servizi uses
+  `sensor.porta_garage_orientamento` with Ajax "Garage" excluded.
+- **HA script `script.cow_walldisplay_restart_all_apps`.**
+  Package `examples/ha-cow-walldisplay-restart.yaml` — parallel soft restart
+  (`Sys.RestartApplication`) on all 7 Shelly Wall Displays after HACS deploy.
+  `scripts/shelly-restart-app.mjs` now includes the XL at `172.16.2.14`.
+
 ## [1.5.5] — 2026-07-05
 
 ### Changed
