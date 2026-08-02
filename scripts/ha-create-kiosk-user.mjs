@@ -8,9 +8,14 @@
 //                                            over the LAN — Nabu Casa can't
 //                                            auth local_only users)
 //
-// After this, add the username → kiosk URL mapping to USER_ROUTES in
-// src/cow-redirect-card.ts and release: the display logs in once with
-// code/code and the Overview redirect-card sends it to its dashboard.
+// After this:
+//   1. add the display IP to trusted_networks/trusted_users in HA's
+//      configuration.yaml (autologin — see docs/03 §E) + core restart;
+//   2. add the username → kiosk URL mapping to USER_ROUTES in
+//      src/cow-redirect-card.ts and release.
+// The display then logs in by IP with no credentials and the Overview
+// redirect-card sends it to its dashboard. The code/code password is
+// only a manual fallback.
 //
 // Idempotent: if the user already exists it only reconciles default_panel.
 // Refuses to run when the target dashboard doesn't exist.

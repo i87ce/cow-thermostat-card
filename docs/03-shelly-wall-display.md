@@ -48,7 +48,32 @@ The Wall Display's local sensors (temperature / humidity / illuminance + the int
 
 Wire `sensor.shelly_walldisplay_<room>_temperature` into the card config as `local_temp`, and `..._humidity` as `local_humidity`. The thermostat panel will use these to show the room's actual temperature and humidity.
 
-## E. Per-display checklist
+## E. Kiosk account + autologin (house convention)
+
+Each display gets a dedicated HA user and logs in automatically via
+the `trusted_networks` auth provider (IP → user, `allow_bypass_login`):
+
+1. **Kiosk user** — created with `scripts/ha-create-kiosk-user.mjs`:
+   short-code name (`sala`, `c1`, `st`, …), group `system-users`,
+   `local_only: true`, homeassistant credential username = password =
+   code (fallback only), `default_panel` set to the room dashboard.
+2. **Stable IP** — the Wall Display firmware ignores static IP config
+   (`WiFi.SetConfig` accepts it but keeps using DHCP), so pin the IP
+   with a **fixed-IP reservation in UniFi** for the display's MAC,
+   like every other display (172.16.2.10–.16, .100, …).
+3. **Autologin** — add the IP to `configuration.yaml` on HA
+   (`homeassistant.auth_providers` → `trusted_networks`): one entry in
+   `trusted_networks:` (`<ip>/32`) and one in `trusted_users:`
+   (`<ip>/32: <user_id>  # <code>`). Requires a **core restart**.
+4. **Redirect** — add the code → `/walldisplay-<room>/0?kiosk` route to
+   `USER_ROUTES` in `src/cow-redirect-card.ts` (+ sibling maps in
+   `ha-fix-displays.mjs`, `ha-merge-lovelace.mjs`, `ha-list-users.mjs`)
+   and release. The display opens `/lovelace`, the redirect card reads
+   `hass.user.name` and lands it on the room dashboard.
+5. On the device, point the HA app at `http://172.16.0.200:8123` —
+   with the trusted network in place no credentials are asked.
+
+## F. Per-display checklist
 
 For each Wall Display you mount in a room, complete:
 
