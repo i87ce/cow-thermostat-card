@@ -11,11 +11,6 @@ import type { DeviceEntry, OpeningKind } from "../config.js";
 import { panelStyles } from "../styles/shell.js";
 import { animKeyframes, animTokens, colorTransition } from "../styles/anim.js";
 import { formatTime } from "../../utils/format.js";
-import {
-  findRoomOpenings,
-  openingsStripStyles,
-  renderOpeningsStrip,
-} from "../openings.js";
 
 import "../components/action-button.js";
 import "../components/scope-row.js";
@@ -121,7 +116,6 @@ export class CowBlindsPanel extends LitElement {
     animTokens,
     animKeyframes,
     panelStyles,
-    openingsStripStyles,
     css`
       .left {
         background: var(--cow-accent-surface);
@@ -133,20 +127,6 @@ export class CowBlindsPanel extends LitElement {
       }
       :host > :not(.left):not(.right) {
         z-index: 1;
-      }
-
-      /* When the room has Ajax openings AND multiple covers (which
-         means the .scope-wrap selector is rendered at y=620 and the
-         strip's default bottom:22.5 slot would overlap it), lift the
-         scope-row into the slim band between preset-row and the
-         strip. Single-cover blinds rooms keep the original layout
-         and just let the strip sit in its default bottom slot —
-         that's the common case (every Camera/Bagno wall display
-         has exactly 1 tapparella).
-         The lift mirrors what thermostat-panel does to its fan-row
-         under the same data-has-openings host flag. */
-      :host([data-has-openings][data-multi-cover]) .scope-wrap {
-        top: 593.75px;
       }
       .icon {
         position: absolute;
@@ -314,22 +294,7 @@ export class CowBlindsPanel extends LitElement {
     this.style.setProperty("--cow-accent-light", a.light);
     this.style.setProperty("--cow-accent-active", a.active);
     this.style.setProperty("--cow-accent-surface", a.surface);
-    this.toggleAttribute("data-has-openings", this.openings().length > 0);
     this.toggleAttribute("data-multi-cover", this.devices.length > 1);
-  }
-
-  private openings() {
-    return findRoomOpenings(this.hass, {
-      areas: this.areas,
-      fallbackArea: this.roomName,
-      defaultKind: this.openingDefaultKind,
-      doors: this.openingDoors,
-      windows: this.openingWindows,
-      garages: this.openingGarages,
-      entities: this.openingEntities,
-      excludeDevices: this.openingExcludeDevices,
-      enabled: this.openingsEnabled,
-    });
   }
 
   private async open(): Promise<void> {
@@ -459,7 +424,6 @@ export class CowBlindsPanel extends LitElement {
             </div>
           `
         : ""}
-      ${renderOpeningsStrip(this.openings())}
     `;
   }
 

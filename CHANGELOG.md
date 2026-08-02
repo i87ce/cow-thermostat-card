@@ -4,6 +4,29 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and
 this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.6.1] — 2026-08-02
+
+### Changed — openings strip: solo tab clima, spostata sul pannello accent
+The Ajax door/window strip used to render on all three swiper panels
+(thermostat / lights / blinds) in the bottom-right slot, where it kept
+colliding with interactive rows — e.g. it overlapped the
+"Riscaldamento pavimento" On/Off chips on the Ingresso PT display.
+Now it renders **only on the thermostat tab**, in the top-right corner
+of the left accent pane (an area empty in every variant): translucent
+white glyphs that blend with the gradient, solid white + red badge dot
+when a contact is open, "+N" overflow past 4 icons. All the
+`data-has-openings` layout shims (fan-row / air-row / scope-row lifts)
+were removed since nothing collides anymore.
+
+### Added — Studio: termostato "vero" col sensore Zigbee (HA-side)
+New `examples/ha-studio-termostato.yaml` documenting the two
+automations + three helpers created in HA: the Daikin is switched
+off when `sensor.termostato_studio_ale_temperature` reaches the
+setpoint (±0.3 °C hysteresis) and back on — same remembered mode and
+setpoint — when the room drifts. Manual off is never overridden
+(resume only when the thermostat itself paused the unit); 4-minute
+anti-short-cycle guard. No card changes needed.
+
 ## [1.6.0] — 2026-08-02
 
 ### Added — "Comandi" tab (TVs + door button) on the small card

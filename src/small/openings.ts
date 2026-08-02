@@ -1,11 +1,14 @@
 /**
  * Ajax openings strip helper for the small cow-thermostat-card panels.
  *
- * Each of the three swiper panels (thermostat / lights / blinds) can
- * call this from its render() to draw the bottom-right opening icons
- * row with the same look & feel. Centralising the data + DOM avoids a
- * 3× copy of the same code and guarantees behaviour stays consistent
- * across panels.
+ * Rendered ONLY on the thermostat (clima) tab since v1.6.1 — on the
+ * lights/blinds tabs the bottom-right strip kept colliding with the
+ * fan chips / scope rows (e.g. it overlapped the "Riscaldamento
+ * pavimento" On/Off chips on the Ingresso PT display). The strip now
+ * lives in the top-right corner of the LEFT accent pane, an area
+ * that is empty in every thermostat variant, drawn as translucent
+ * white glyphs that blend with the gradient plus a red badge dot
+ * when a contact is open.
  *
  * Discovery rules:
  *   1. If ``opts.areas`` is non-empty, aggregate Ajax openings from
@@ -33,45 +36,62 @@ import {
 } from "../util/ajax-openings.js";
 
 /**
- * CSS for the openings strip. Mix this into every panel's
- * ``static styles`` array so the strip looks identical across
- * thermostat / lights / blinds. Coordinates target the small card's
- * 720x720 internal stage (the same grid the rest of the panel uses).
+ * CSS for the openings strip. Coordinates target the small card's
+ * 720x720 internal stage. The strip sits in the top-right corner of
+ * the LEFT accent pane (pane spans x 0–360): right edge at 337.5
+ * mirrors the 22.5px margin the pane uses elsewhere, top 45 aligns
+ * with the thermostat icon row. Glyphs are translucent white so they
+ * sink into the accent gradient when closed; an open contact goes
+ * full white with a red badge dot — readable on every variant
+ * (orange heat, blue cool, grey off) without fighting the accent.
  */
 export const openingsStripStyles = css`
   .ajax-openings {
     position: absolute;
-    left: 397.5px;
-    right: 30px;
-    bottom: 22.5px;
+    left: 157.5px;
+    width: 180px;
+    top: 45px;
     display: flex;
     flex-direction: row;
     align-items: center;
-    gap: 16.875px;
+    justify-content: flex-end;
+    gap: 12px;
     pointer-events: none;
   }
   .ajax-opening {
+    position: relative;
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    width: 45px;
-    height: 45px;
-    color: var(--cow-text-disabled, #b3b3bd);
+    width: 36px;
+    height: 36px;
+    color: rgba(255, 255, 255, 0.38);
     transition: color 200ms ease;
   }
   .ajax-opening[data-open] {
-    color: var(--cow-stop, #e74c3c);
+    color: #ffffff;
   }
   .ajax-opening svg {
     width: 100%;
     height: 100%;
     display: block;
   }
+  .ajax-opening .ajax-opening-badge {
+    position: absolute;
+    top: -4px;
+    right: -4px;
+    width: 13px;
+    height: 13px;
+    border-radius: 50%;
+    background: var(--cow-stop, #e74c3c);
+    border: 2.5px solid rgba(255, 255, 255, 0.95);
+    box-sizing: border-box;
+  }
   .ajax-openings-more {
     font-weight: 600;
-    font-size: 22.5px;
-    color: var(--cow-text-secondary, #8c8c99);
-    margin-left: 4px;
+    font-size: 20px;
+    color: rgba(255, 255, 255, 0.7);
+    margin-left: 2px;
   }
 `;
 
@@ -165,6 +185,9 @@ export function renderOpeningsStrip(
             title=${`${o.deviceName} — ${o.isOpen ? "aperta" : "chiusa"}`}
           >
             ${openingIconSvg(o.kind, o.isOpen)}
+            ${o.isOpen
+              ? html`<span class="ajax-opening-badge"></span>`
+              : nothing}
           </span>
         `,
       )}

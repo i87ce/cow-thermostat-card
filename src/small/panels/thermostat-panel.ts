@@ -310,19 +310,6 @@ export class CowThermostatPanel extends LitElement {
         --cow-accent: var(--cow-accent-primary);
       }
 
-      /* When the room has Ajax openings, drop fan-label + fan-row into
-         the visual midpoint between the .mode-row (ends at y≈548) and
-         the openings strip (starts at y≈652). Originally fan-row sat
-         at y=637.5 and the openings strip overlapped its chips. The
-         new y≈605 leaves ~21px of air above and ~14px below, which
-         visually centres the fan chips in the lower-right quadrant.
-         Host attribute is toggled in willUpdate(). */
-      :host([data-has-openings]) .fan-label {
-        top: 569.0625px;
-      }
-      :host([data-has-openings]) .fan-row {
-        top: 605.625px;
-      }
       .air-label {
         position: absolute;
         left: 397.5px;
@@ -354,12 +341,6 @@ export class CowThermostatPanel extends LitElement {
       }
       :host([data-split-climate]) .air-row {
         top: 682px;
-      }
-      :host([data-split-climate][data-has-openings]) .air-label {
-        top: 620px;
-      }
-      :host([data-split-climate][data-has-openings]) .air-row {
-        top: 656px;
       }
     `,
   ];
@@ -411,7 +392,6 @@ export class CowThermostatPanel extends LitElement {
     this.style.setProperty("--cow-accent-active", a.active);
     this.style.setProperty("--cow-accent-surface", a.surface);
     this.style.setProperty("--cow-on-accent", a.textOnAccent);
-    this.toggleAttribute("data-has-openings", this.openings().length > 0);
     this.toggleAttribute("data-split-climate", this.isSplitClimate());
   }
 
@@ -846,19 +826,19 @@ export class CowThermostatPanel extends LitElement {
   }
 
   /**
-   * Bottom-right opening indicators for every Ajax door/window in the
-   * card's owned area(s). See `src/small/openings.ts` for the
-   * discovery + override logic; this method only wires the panel
-   * properties to the shared helper.
+   * Opening indicators for every Ajax door/window in the card's owned
+   * area(s), drawn top-right of the left accent pane (see
+   * `src/small/openings.ts` for placement rationale + discovery).
+   * Rendered only on this tab — lights/blinds dropped the strip in
+   * v1.6.1 because it collided with their bottom rows.
    *
    * UX rules:
    *   * Nothing rendered when ``hass`` is missing, registries haven't
    *     bootstrapped yet, or the area has zero Ajax openings.
-   *   * Max 4 glyphs visible; "+N" pill takes over after that to keep
-   *     the row from colliding with the fan chips on small displays.
-   *   * Glyph color: closed → ``--cow-text-disabled``; open → ``--cow-stop``.
-   *   * ``pointer-events: none`` on the strip — read-only signal, the
-   *     panel's swipe affordance and chip buttons stay tappable.
+   *   * Max 4 glyphs visible; "+N" pill takes over after that.
+   *   * Glyph: translucent white when closed, solid white + red badge
+   *     dot when open — readable on every accent gradient.
+   *   * ``pointer-events: none`` on the strip — read-only signal.
    */
   private renderAjaxOpenings() {
     return renderOpeningsStrip(this.openings());
