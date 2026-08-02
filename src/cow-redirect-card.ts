@@ -33,6 +33,7 @@ const USER_ROUTES: Record<string, RedirectEntry> = {
   bo:   { url: "/walldisplay-bagno-ospiti/0?kiosk", label: "Bagno Ospiti", icon: "🚿" },
   sc:   { url: "/walldisplay-scala/0?kiosk",        label: "Ingresso PT", icon: "🚪" },
   bp:   { url: "/walldisplay-bagno-camera/0?kiosk", label: "Bagno Padronale", icon: "🚿" },
+  st:   { url: "/walldisplay-studio/0?kiosk",       label: "Studio", icon: "🖥" },
 };
 
 @customElement("cow-redirect-card")

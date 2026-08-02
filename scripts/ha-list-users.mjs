@@ -20,6 +20,7 @@ const KIOSK_IDS = new Set([
   "b3368b8a3d6341b382416c1a9d86e329", // bo
   "a94ee22c1ea540aab28ef276a0318319", // sc
   "94f5bab2981a4dc9aa220a22ac101ac4", // bp
+  "8901de7d3c15471ba380badf27be9b3c", // st (studio, created 2026-08)
 ]);
 
 const ws = new WebSocket(`wss://${HOST}/api/websocket`);

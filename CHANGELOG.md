@@ -4,6 +4,20 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and
 this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.6.3] — 2026-08-02
+
+### Added — Studio wall display onboarding
+- `cow-redirect-card`: new `st` → `/walldisplay-studio/0?kiosk` route
+  (kiosk user `st`, id `8901de7d…`, created with the usual convention:
+  system-users group, local_only, homeassistant credential, LAN-set
+  `default_panel: walldisplay-studio`).
+- New reusable `scripts/ha-create-kiosk-user.mjs` — parameterised
+  version of the old c1 restore script: creates the kiosk user +
+  credential and sets `default_panel`, idempotent, dry-run by default.
+- Studio display (172.16.2.222) added to `shelly-restart-app.mjs` and
+  `shelly-screenshots.mjs` target lists; `ha-fix-displays.mjs`,
+  `ha-merge-lovelace.mjs` and `ha-list-users.mjs` maps updated.
+
 ## [1.6.2] — 2026-08-02
 
 ### Fixed — mobile hero off-centre by 8px

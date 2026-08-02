@@ -15,6 +15,7 @@ const DEFAULT_TARGETS = [
   { ip: "172.16.2.14",  slug: "walldisplay-sala-cucina-xl" },
   { ip: "172.16.2.15",  slug: "walldisplay-scala" },
   { ip: "172.16.2.100", slug: "walldisplay-bagno-camera" },
+  { ip: "172.16.2.222", slug: "walldisplay-studio" },
 ];
 
 const argv = process.argv.slice(2);

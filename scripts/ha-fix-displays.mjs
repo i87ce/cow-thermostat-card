@@ -38,6 +38,7 @@ const USER_MAP = {
   bo:   { dashboard: "walldisplay-bagno-ospiti", password: "bo" },
   sc:   { dashboard: "walldisplay-scala", password: "sc" },
   bp:   { dashboard: "walldisplay-bagno-camera", password: "bp" }, // bagno padronale → "bagno camera"
+  st:   { dashboard: "walldisplay-studio", password: "st" },
 };
 
 function dryLog(action, detail) {

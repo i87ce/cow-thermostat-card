@@ -15,6 +15,7 @@ const DEFAULT_TARGETS = [
   { ip: "172.16.2.13",  slug: "camera-padronale" },
   { ip: "172.16.2.15",  slug: "scala" },
   { ip: "172.16.2.100", slug: "bagno-camera" },
+  { ip: "172.16.2.222", slug: "studio" },
 ];
 
 const argv = process.argv.slice(2);

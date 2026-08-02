@@ -19,6 +19,7 @@ const MAP = [
   ["bo",   "walldisplay-bagno-ospiti",     "b3368b8a3d6341b382416c1a9d86e329", "Bagno Ospiti"],
   ["sc",   "walldisplay-scala",            "a94ee22c1ea540aab28ef276a0318319", "Ingresso PT"],
   ["bp",   "walldisplay-bagno-camera",     "94f5bab2981a4dc9aa220a22ac101ac4", "Bagno Padronale"],
+  ["st",   "walldisplay-studio",           "8901de7d3c15471ba380badf27be9b3c", "Studio"],
 ];
 
 function ws() {
