@@ -4,6 +4,17 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and
 this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.6.2] — 2026-08-02
+
+### Fixed — mobile hero off-centre by 8px
+`<cow-mobile-hero>` declared `width: 100%` on its `:host` while the
+mobile dashboard card wraps it with `margin: 0 8px` — the two added up,
+shifting the hero 8px right (16px left gutter, 0 right, clipped against
+the viewport edge). Measured live via CDP: hero was 374px wide vs the
+summary's 358px. Dropped the explicit width; a `display: block` host
+with auto width fills the container margin-aware, restoring symmetric
+16/16 gutters.
+
 ## [1.6.1] — 2026-08-02
 
 ### Changed — openings strip: solo tab clima, spostata sul pannello accent

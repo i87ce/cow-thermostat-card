@@ -58,8 +58,13 @@ export class CowMobileHero extends LitElement {
 
   static override styles = css`
     :host {
+      /* NO width: 100% here — the host card wraps us in
+         "margin: 0 8px" and an explicit 100% width would add up with
+         those margins, shifting the hero 8px right and clipping it
+         against the right edge (asymmetric 16/0 gutters on mobile).
+         display: block with auto width fills the container correctly
+         margin-aware. */
       display: block;
-      width: 100%;
       min-height: 20rem;
       position: relative;
     }
