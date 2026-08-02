@@ -10,4 +10,4 @@ views:
         climate: climate.casa_camera
         light: light.led_camera_1
         cover: cover.tapparella_camera_1
-        initial_view: lights
+        initial_view: thermostat

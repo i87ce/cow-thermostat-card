@@ -12,4 +12,4 @@ views:
           - light.luce_specchio_bagno_padronale
         light_labels: ["Soffitto", "Specchio"]
         cover: cover.tapparella_bagno_padronale
-        initial_view: lights
+        initial_view: thermostat

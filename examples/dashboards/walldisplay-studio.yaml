@@ -50,4 +50,4 @@ views:
         door: button.studio_unlock
         door_label: Apri porta
         areas: [Studio]
-        initial_view: thermostat
+        initial_view: extras

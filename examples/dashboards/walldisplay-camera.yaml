@@ -20,4 +20,4 @@ views:
         cover: cover.tapparella_camera_padronale
         # local_temp:     sensor.shellywalldisplay_<MAC>_temperature
         # local_humidity: sensor.shellywalldisplay_<MAC>_humidity
-        initial_view: lights
+        initial_view: thermostat
