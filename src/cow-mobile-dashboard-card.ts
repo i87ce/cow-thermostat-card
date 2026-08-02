@@ -26,7 +26,7 @@
  * Config schema (Lovelace YAML):
  *
  *   type: custom:cow-mobile-dashboard-card
- *   weather: weather.pirateweather
+ *   weather: weather.openweathermap
  *   sun: sun.sun
  *   alarm: alarm_control_panel.casa
  *   persons:

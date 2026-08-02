@@ -12,3 +12,4 @@ backups/
 # Local credentials/infra reference — NEVER commit
 .secret
 .secret.*
+casa/

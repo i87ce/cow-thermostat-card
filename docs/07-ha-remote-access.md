@@ -186,7 +186,25 @@ All of them follow the same skeleton: open WS, auth, run a few
 > reboots gracefully). Reach for SSH only when you hit "Method not
 > found" or when the data lives outside `/config`.
 
-## D. Troubleshooting
+## D. UniFi Dream Machine Pro Max (router / gateway)
+
+The home network gateway is a **UniFi Dream Machine Pro Max** at
+`172.16.0.1` (it also answers on the other VLAN gateways, e.g.
+`172.16.1.1`). SSH is enabled from UniFi OS → Console Settings.
+
+> **Credentials are NOT in this file** — this repo is public. SSH
+> user/password live in the local-only knowledge base at
+> `~/casa/01-credenziali.md` (outside the repo), together with the
+> rest of the home-infra credentials.
+
+- Host: `172.16.0.1`, user `root`, password auth (`sshpass` is
+  installed via Homebrew on this Mac).
+
+Useful on the UDM shell: `iptables-save` / `nft list ruleset` (firewall
+rules), MongoDB of the Network app on port 27117 (`/usr/bin/mongo
+--port 27117 ace`), config lives under `/data/udapi-config/`.
+
+## E. Troubleshooting
 
 **"Permission denied (publickey)" on port 22222**
 The public key is not registered in the Advanced SSH add-on YAML

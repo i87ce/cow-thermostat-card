@@ -1,5 +1,6 @@
 // Aqara P100 on sectional garage door — object mode + orientation/tilt.
-// Ajax "Garage" (tilt) stays excluded; dashboards read sensor.porta_garage_orientamento.
+// Il contatto Z2M in object mode non è affidabile (resta sempre on).
+// Ajax "Garage" (tilt) resta escluso; dashboards leggono orientamento.
 //
 //   HA_HOST=... HA_TOKEN=... node scripts/ha-setup-garage-aqara-opening.mjs --apply
 import WebSocket from "ws";

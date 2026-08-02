@@ -95,7 +95,7 @@ const PLAN = {
         areas: ["Studio"],
         opening_default_kind: "window",
       },
-      // Garage: Aqara P100 object mode — orientamento tilt/vertical (sezionale).
+      // Garage: Aqara P100 object mode — orientamento vertical/tilt (sezionale).
       "Garage": {
         areas: ["Garage"],
         opening_default_kind: "window",

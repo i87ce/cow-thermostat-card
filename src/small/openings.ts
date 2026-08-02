@@ -120,9 +120,14 @@ export function findRoomOpenings(
     }
   }
   let merged = excludeDevicesByName(out, opts.excludeDevices);
-  for (const eid of opts.entities ?? []) {
+  const entityOpts = (i: number) => ({
+    kind: opts.garages?.[i] || opts.garages?.[0] ? ("garage" as const) : undefined,
+    deviceName: opts.garages?.[i] ?? opts.garages?.[0],
+  });
+  for (let i = 0; i < (opts.entities ?? []).length; i++) {
+    const eid = opts.entities![i];
     if (seen.has(eid)) continue;
-    const o = openingFromConfiguredEntity(hass, eid);
+    const o = openingFromConfiguredEntity(hass, eid, entityOpts(i));
     if (!o) continue;
     seen.add(eid);
     merged.push(o);

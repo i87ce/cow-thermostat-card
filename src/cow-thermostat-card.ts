@@ -16,6 +16,7 @@ import "./small/swiper.js";
 import "./small/panels/thermostat-panel.js";
 import "./small/panels/lights-panel.js";
 import "./small/panels/blinds-panel.js";
+import "./small/panels/extras-panel.js";
 
 import { deriveThermostatView } from "./small/state/thermostat.js";
 import {
@@ -29,9 +30,12 @@ import "./cow-room-dashboard-card.js";
 import "./cow-redirect-card.js";
 import "./cow-mobile-dashboard-card.js";
 
-type Kind = "thermostat" | "lights" | "blinds";
+type Kind = "thermostat" | "lights" | "blinds" | "extras";
 
-const VERSION = "1.5.6";
+/** Mirrors `tvIsOn` in extras-panel — media_player "on-ish" states. */
+const TV_OFF_STATES = new Set(["off", "unavailable", "unknown", "standby"]);
+
+const VERSION = "1.6.0";
 
 const ACCENT_DOT: Record<Kind, (cfg: CowConfig, hass?: HomeAssistant) => string> =
   {
@@ -76,6 +80,13 @@ const ACCENT_DOT: Record<Kind, (cfg: CowConfig, hass?: HomeAssistant) => string>
           : v === "moving"
             ? "#e6a626"
             : "#3a3a4a";
+    },
+    extras: (cfg, hass) => {
+      if (!hass) return "#8c6be0";
+      const anyOn = cfg.tvs.some(
+        (d) => !TV_OFF_STATES.has(hass.states[d.entity]?.state ?? "off"),
+      );
+      return anyOn ? "#8c6be0" : "#808088";
     },
   };
 
@@ -196,6 +207,9 @@ export class CowThermostatCard extends LitElement implements LovelaceCard {
     if (this.config?.climate) k.push("thermostat");
     if (this.config && this.config.lights.length > 0) k.push("lights");
     if (this.config && this.config.covers.length > 0) k.push("blinds");
+    if (this.config && (this.config.tvs.length > 0 || this.config.door)) {
+      k.push("extras");
+    }
     return k;
   }
 
@@ -246,6 +260,7 @@ export class CowThermostatCard extends LitElement implements LovelaceCard {
                     .roomName=${cfg.room}
                     .outdoorEntity=${cfg.outdoor_temp ?? ""}
                     .humidityEntity=${cfg.local_humidity ?? ""}
+                    .localTempEntity=${cfg.local_temp ?? ""}
                     .areas=${cfg.areas}
                     .openingDefaultKind=${cfg.opening_default_kind}
                     .openingDoors=${cfg.opening_doors}
@@ -276,6 +291,18 @@ export class CowThermostatCard extends LitElement implements LovelaceCard {
                     .openingExcludeDevices=${cfg.opening_exclude_devices}
                     .openingsEnabled=${cfg.openings_enabled !== false}
                   ></cow-lights-panel>
+                `;
+              }
+              if (kind === "extras") {
+                return html`
+                  <cow-extras-panel
+                    slot="slide-${i}"
+                    .hass=${this.hass}
+                    .devices=${cfg.tvs}
+                    .roomName=${cfg.room}
+                    .doorEntity=${cfg.door ?? ""}
+                    .doorLabel=${cfg.door_label ?? ""}
+                  ></cow-extras-panel>
                 `;
               }
               return html`

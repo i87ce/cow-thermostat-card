@@ -263,7 +263,7 @@ export function openingFromEntity(
   };
 }
 
-/** P100 object-mode: ``tilt`` ≈ porta sezionale aperta; tutto il resto ≈ chiusa. */
+/** P100 object-mode sectional door: ``tilt`` = open; ``vertical`` = closed. */
 const DEFAULT_TILT_OPEN = new Set(["tilt"]);
 
 /**
@@ -283,7 +283,7 @@ export function openingFromTiltEntity(
   const state = hass.states[entityId];
   if (!state || !entityId.startsWith("sensor.")) return undefined;
 
-  const raw = String(state.state).toLowerCase();
+  const raw = String(state.state).toLowerCase().trim();
   if (raw === "unavailable" || raw === "unknown") return undefined;
 
   const openStates = new Set(
@@ -332,7 +332,11 @@ export function openingFromTiltEntity(
 export function openingFromConfiguredEntity(
   hass: HomeAssistant | undefined,
   entityId: string,
-  opts: { kind?: OpeningKind; deviceName?: string } = {},
+  opts: {
+    kind?: OpeningKind;
+    deviceName?: string;
+    openStates?: string[];
+  } = {},
 ): AjaxOpening | undefined {
   if (entityId.startsWith("binary_sensor."))
     return openingFromEntity(hass, entityId, opts);

@@ -25,12 +25,13 @@ views:
     type: panel
     cards:
       - type: custom:cow-room-dashboard-card
-        # Pirate Weather (HA core integration). Provides the attributes
-        # the hero card consumes natively: `temperature`,
-        # `apparent_temperature`, `humidity`, `wind_speed` (km/h with
-        # `Units = si`). Replaces the previous Met.no `weather.forecast_home`
-        # which lacked `apparent_temperature` and had coarser resolution.
-        weather_entity: weather.pirateweather
+        # OpenWeatherMap (HA core integration, mode `current`). Current
+        # conditions come from station observations, so localized
+        # thunderstorms show up — the previous PirateWeather entity was
+        # model-derived and kept reporting `sunny` during storms. Still
+        # provides everything the hero consumes: `temperature`,
+        # `apparent_temperature`, `humidity`, `wind_speed` (km/h).
+        weather_entity: weather.openweathermap
         # Live sky / sun position / moon phases (v0.7.0+).
         sun_entity: sun.sun
         moon_entity: sensor.moon

@@ -82,6 +82,13 @@ export class CowThermostatPanel extends LitElement {
   @property({ type: String }) roomName = "";
   @property({ type: String }) outdoorEntity = "";
   @property({ type: String }) humidityEntity = "";
+  /**
+   * Ambient temperature sensor that overrides the climate entity's
+   * `current_temperature` in the big left-pane readout. Used when the
+   * room has a dedicated Zigbee sensor that's more trustworthy than
+   * the AC's internal probe (e.g. Studio: Daikin vs `termostato_studio_ale`).
+   */
+  @property({ type: String }) localTempEntity = "";
 
   /* ─── Ajax openings (forwarded from card config) ──────────────── */
   @property({ type: Array }) areas: string[] = [];
@@ -616,6 +623,14 @@ export class CowThermostatPanel extends LitElement {
     );
   }
 
+  private localTempNumber(): number | null {
+    if (!this.localTempEntity || !this.hass?.states[this.localTempEntity]) {
+      return null;
+    }
+    const n = Number(this.hass.states[this.localTempEntity].state);
+    return Number.isFinite(n) ? n : null;
+  }
+
   private humidityText(v: ThermostatView): string | null {
     if (this.humidityEntity && this.hass?.states[this.humidityEntity]) {
       const s = this.hass.states[this.humidityEntity].state;
@@ -656,7 +671,13 @@ export class CowThermostatPanel extends LitElement {
     const v = this.displayView();
     const split = this.isSplitClimate();
     const sys = split ? this.systemView() : roomV;
-    const current = roomV.current != null ? Math.round(roomV.current) : null;
+    const localT = this.localTempNumber();
+    const current =
+      localT != null
+        ? Math.round(localT)
+        : roomV.current != null
+          ? Math.round(roomV.current)
+          : null;
     const target =
       roomV.target != null ? roomV.target.toFixed(1).replace(".0", "") : null;
     const hum = this.humidityText(roomV);

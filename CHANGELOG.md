@@ -4,6 +4,42 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and
 this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.6.0] — 2026-08-02
+
+### Added — "Comandi" tab (TVs + door button) on the small card
+New optional swiper panel for the small `cow-thermostat-card`, built for
+the Studio wall display: on/off tiles for the room's TVs plus a wide
+"Apri porta" button. Configured via three new YAML keys — `tvs:`
+(list of `{entity, label}` media_players), `door:` (any of
+lock/cover/script/button/switch, dispatched domain-aware like the
+hidden studio-door affordance) and `door_label:`. The tab only appears
+when `tvs` or `door` is set, so existing rooms are untouched.
+`initial_view: extras` is accepted. Tap on the left pane toggles all
+TVs at once; the door button shows a 3 s "✓ Aperta" confirmation.
+
+### Added
+- **`local_temp` now actually drives the thermostat readout.** The key
+  was validated but never wired to the panel, so the big left-pane
+  temperature always came from the climate entity's internal probe.
+  A dedicated room sensor (e.g. Zigbee `termostato_studio_ale` vs the
+  Daikin's own probe) now takes precedence when configured.
+- **New dashboard `examples/dashboards/walldisplay-studio.yaml`.**
+  Studio room: standalone Daikin climate (no `system_climate` — the
+  room is outside the casa_aria system), Zigbee ambient sensors,
+  4 lights (incl. `light.insegne_studio`, a Switch-as-X over the
+  group of the two insegne switches, excluded from Alexa), cover,
+  TVs + door in the Comandi tab.
+
+### Changed
+- **Weather source swapped to OpenWeatherMap** (`weather.openweathermap`)
+  on the XL hero and mobile dashboard docs. PirateWeather is
+  model-derived and kept reporting `sunny` during localized storms;
+  OWM `current` mode uses station observations.
+- **Garage P100 tilt handling hardened** — configured `opening_entities`
+  now inherit the garage kind/name overrides, tilt state parsing trims
+  whitespace, and `openingFromConfiguredEntity` accepts custom
+  `openStates`.
+
 ## [1.5.6] — 2026-07-14
 
 ### Added

@@ -1,0 +1,53 @@
+# Studio — Wall Display (Shelly SAWD) — single-room card
+#
+# Clima: SOLO il Daikin (climate.condizionatore_studio) — gestisce da
+# solo heat / cool / dry / fan_only (+ heat_cool). Niente
+# `system_climate`: lo studio NON partecipa al sistema casa_aria
+# (KoolNova), quindi la card mostra i chip modo/fan del Daikin stesso.
+#
+# Temperatura & umidità ambiente: sensore Zigbee in stanza
+# (`termostato_studio_ale`), più affidabile della sonda interna del
+# Daikin. `local_temp` richiede card >= v1.6.0 — su versioni precedenti
+# il grande numero a sinistra mostra la current_temperature del Daikin.
+#
+# Aperture Ajax: auto-discovery dall'area HA "Studio" (contatto porta
+# "Studio Ale" + extra contact).
+#
+# "Insegne" = light.insegne_studio, helper Switch-as-X sopra il gruppo
+# switch.insegne_studio (Insegne Studio 1 + Insegne Studio 2). Escluso
+# da Alexa via entity-registry options (cloud.alexa should_expose=false).
+#
+# Tab "Comandi" (extras, v1.6.0+): tile on/off per le 3 TV dello studio
+# (TV Game 1/2/3 — tutte in area Studio; la "Studio 1" OLED65G5 resta
+# fuori) + pulsante largo che preme button.studio_unlock per aprire la
+# porta. Su card < v1.6.0 le chiavi `tvs`/`door` vengono ignorate e il
+# tab semplicemente non appare.
+#
+# URL sul display:
+#   https://<ha-host>/walldisplay-studio/0?kiosk&block_context_menu&cache
+
+title: Studio
+views:
+  - title: Studio
+    path: "0"
+    type: panel
+    cards:
+      - type: custom:cow-thermostat-card
+        room: "Studio"
+        climate: climate.condizionatore_studio
+        local_temp: sensor.termostato_studio_ale_temperature
+        local_humidity: sensor.termostato_studio_ale_humidity
+        lights:
+          - { entity: light.luce_calda_studio, label: Calda }
+          - { entity: light.luce_fredda_studio, label: Fredda }
+          - { entity: light.luce_esterna_studio, label: Esterna }
+          - { entity: light.insegne_studio, label: Insegne }
+        cover: cover.tapparella_studio
+        tvs:
+          - { entity: media_player.studio_lg_webos_tv_e42d_game1, label: TV Game 1 }
+          - { entity: media_player.lg_webos_tv_2c8b, label: TV Game 2 }
+          - { entity: media_player.studio_game_3, label: TV Game 3 }
+        door: button.studio_unlock
+        door_label: Apri porta
+        areas: [Studio]
+        initial_view: thermostat

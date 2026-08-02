@@ -19,7 +19,7 @@
  * Either shape normalizes to the same internal `CowConfig`.
  */
 
-export type InitialView = "thermostat" | "lights" | "blinds";
+export type InitialView = "thermostat" | "lights" | "blinds" | "extras";
 export type OpeningKind = "door" | "window" | "garage";
 
 export interface DeviceEntry {
@@ -35,6 +35,15 @@ export interface CowConfig {
   climate?: string;
   lights: DeviceEntry[];
   covers: DeviceEntry[];
+  /**
+   * TVs shown as on/off tiles in the "Comandi" (extras) tab. The tab
+   * appears in the swiper only when `tvs` or `door` is configured.
+   */
+  tvs: DeviceEntry[];
+  /** Lock / cover / script / button / switch that opens the room door. */
+  door?: string;
+  /** Label on the door button, default "Apri porta". */
+  door_label?: string;
   outdoor_temp?: string;
   local_temp?: string;
   local_humidity?: string;
@@ -88,6 +97,7 @@ export class CowConfigError extends Error {
 
 const DOMAIN_LIGHT = "light.";
 const DOMAIN_COVER = "cover.";
+const DOMAIN_MEDIA_PLAYER = "media_player.";
 const DOMAIN_CLIMATE = "climate.";
 const DOMAIN_SENSOR = "sensor.";
 
@@ -224,9 +234,36 @@ export function validateConfig(input: unknown): CowConfig {
     room,
   );
 
-  if (!climate && lights.length === 0 && covers.length === 0) {
+  const tvs = ((): DeviceEntry[] => {
+    const raw = cfg.tvs;
+    if (raw == null) return [];
+    if (!Array.isArray(raw)) throw new CowConfigError("'tvs' must be a list");
+    return raw.map((v, i) =>
+      normalizeEntry(v, DOMAIN_MEDIA_PLAYER, `tvs[${i}]`, room),
+    );
+  })();
+
+  const door = ((): string | undefined => {
+    const v = cfg.door;
+    if (v == null) return undefined;
+    if (typeof v !== "string" || !v.includes(".")) {
+      throw new CowConfigError(
+        "'door' must be a valid entity_id (domain.object)",
+      );
+    }
+    return v;
+  })();
+
+  const doorLabel =
+    typeof cfg.door_label === "string" && cfg.door_label.length > 0
+      ? cfg.door_label
+      : undefined;
+
+  const hasExtras = tvs.length > 0 || door != null;
+
+  if (!climate && lights.length === 0 && covers.length === 0 && !hasExtras) {
     throw new CowConfigError(
-      "At least one of 'climate', 'lights' or 'covers' must be configured",
+      "At least one of 'climate', 'lights', 'covers', 'tvs' or 'door' must be configured",
     );
   }
 
@@ -235,11 +272,17 @@ export function validateConfig(input: unknown): CowConfig {
     if (v == null) {
       if (climate) return "thermostat";
       if (lights.length > 0) return "lights";
-      return "blinds";
+      if (covers.length > 0) return "blinds";
+      return "extras";
     }
-    if (v !== "thermostat" && v !== "lights" && v !== "blinds") {
+    if (
+      v !== "thermostat" &&
+      v !== "lights" &&
+      v !== "blinds" &&
+      v !== "extras"
+    ) {
       throw new CowConfigError(
-        `'initial_view' must be one of thermostat | lights | blinds`,
+        `'initial_view' must be one of thermostat | lights | blinds | extras`,
       );
     }
     if (v === "thermostat" && !climate) {
@@ -255,6 +298,11 @@ export function validateConfig(input: unknown): CowConfig {
     if (v === "blinds" && covers.length === 0) {
       throw new CowConfigError(
         "'initial_view: blinds' but no covers configured",
+      );
+    }
+    if (v === "extras" && !hasExtras) {
+      throw new CowConfigError(
+        "'initial_view: extras' but no tvs / door configured",
       );
     }
     return v;
@@ -318,6 +366,9 @@ export function validateConfig(input: unknown): CowConfig {
     climate,
     lights,
     covers,
+    tvs,
+    door,
+    door_label: doorLabel,
     outdoor_temp: optionalEntity(cfg, "outdoor_temp", DOMAIN_SENSOR),
     local_temp: optionalEntity(cfg, "local_temp", DOMAIN_SENSOR),
     local_humidity: optionalEntity(cfg, "local_humidity", DOMAIN_SENSOR),
