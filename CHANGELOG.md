@@ -4,6 +4,19 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and
 this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.7.0] — 2026-08-03
+
+### Added — TVs in the mobile dashboard rooms
+- `cow-mobile-dashboard-card`: new per-room `tvs:` list
+  (`media_player.*` entities, `{ entity, label }` or plain string).
+  Each TV renders as an on/off toggle row in the room drawer — same
+  layout as the light rows, backed by `media_player.turn_on/turn_off`,
+  with "Accesa / Spenta / N.D." status. On-state semantics mirror the
+  wall-display extras tab (anything not `off`/`standby`/`unavailable`/
+  `unknown` counts as on).
+- Room tiles show a purple `📺 N` badge when at least one TV is on,
+  next to the lights/covers counters.
+
 ## [1.6.3] — 2026-08-02
 
 ### Added — Studio wall display onboarding

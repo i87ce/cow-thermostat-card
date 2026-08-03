@@ -42,6 +42,8 @@
  *         - { entity: light.luce_sala, label: "Sala" }
  *       covers:
  *         - { entity: cover.tapparella_sala, label: "Sala" }
+ *       tvs:
+ *         - { entity: media_player.sala_tv_sala, label: "TV Sala" }
  *     - …
  */
 import { LitElement, html, css, nothing } from "lit";
@@ -104,6 +106,11 @@ export interface CowMobileRoom {
   climate?: string;
   lights?: Array<string | CowMobileDeviceEntry>;
   covers?: Array<string | CowMobileDeviceEntry>;
+  /**
+   * ``media_player.*`` TVs for this room — rendered as on/off toggle
+   * rows in the drawer (same semantics as the wall-display extras tab).
+   */
+  tvs?: Array<string | CowMobileDeviceEntry>;
   /**
    * HA areas this room maps to (display names OR area_ids — both
    * resolved by the openings discovery util). When set, the openings
@@ -188,6 +195,7 @@ interface NormalizedRoom {
   climate?: string;
   lights: CowMobileDeviceEntry[];
   covers: CowMobileDeviceEntry[];
+  tvs: CowMobileDeviceEntry[];
   areas: string[];
   openingsEnabled: boolean;
   openingEntities: string[];
@@ -213,6 +221,7 @@ function normaliseRoom(r: CowMobileRoom): NormalizedRoom {
     climate: r.climate,
     lights: normaliseDevices(r.lights),
     covers: normaliseDevices(r.covers),
+    tvs: normaliseDevices(r.tvs),
     areas: Array.isArray(r.areas)
       ? r.areas.filter((a): a is string => typeof a === "string" && a.length > 0)
       : [],
@@ -236,6 +245,15 @@ function normaliseRoom(r: CowMobileRoom): NormalizedRoom {
 
 function isOn(s: HassEntity | undefined): boolean {
   return !!s && s.state === "on";
+}
+/**
+ * media_player "on" semantics — mirror the wall-display extras panel:
+ * anything that isn't clearly off/standby/unreachable counts as on
+ * (playing, paused, idle, on…).
+ */
+const TV_OFF_STATES = new Set(["off", "unavailable", "unknown", "standby"]);
+function tvIsOn(s: HassEntity | undefined): boolean {
+  return !!s && !TV_OFF_STATES.has(s.state);
 }
 function isOpenish(s: HassEntity | undefined): boolean {
   if (!s) return false;
@@ -340,6 +358,9 @@ export class CowMobileDashboardCard
   private roomCoversOpen(room: NormalizedRoom): number {
     return room.covers.filter((c) => isOpenish(this.getEnt(c.entity))).length;
   }
+  private roomTvsOn(room: NormalizedRoom): number {
+    return room.tvs.filter((t) => tvIsOn(this.getEnt(t.entity))).length;
+  }
   private totalLightsOn(): number {
     let n = 0;
     for (const r of this.rooms) n += this.roomLightsOn(r);
@@ -439,6 +460,14 @@ export class CowMobileDashboardCard
       "light",
       "turn_on",
       { brightness: Math.round((pct / 100) * 255) },
+      { entity_id: entity },
+    );
+  }
+  private callTv(entity: string, on: boolean): void {
+    void this.hass?.callService(
+      "media_player",
+      on ? "turn_on" : "turn_off",
+      {},
       { entity_id: entity },
     );
   }
@@ -879,6 +908,10 @@ export class CowMobileDashboardCard
       .badge.cov {
         background: rgba(76, 184, 255, 0.18);
         color: #0a6699;
+      }
+      .badge.tv {
+        background: rgba(155, 109, 255, 0.16);
+        color: #6b3fc9;
       }
       /* Setpoint variants mirror the small thermostat panel tokens. */
       .badge.set-heating { background: #ffeae0; color: #b85100; }
@@ -1631,6 +1664,7 @@ export class CowMobileDashboardCard
         : null;
     const lOn = this.roomLightsOn(room);
     const cOpen = this.roomCoversOpen(room);
+    const tOn = this.roomTvsOn(room);
     const openings = this.roomOpenings(room);
     const climate = this.roomClimateView(room);
     return html`
@@ -1657,7 +1691,7 @@ export class CowMobileDashboardCard
         </div>
         <div class="room-badges">
           ${this.renderOpeningsBadgeRow(openings)}
-          ${this.renderControlBadgeRow(climate, lOn, cOpen)}
+          ${this.renderControlBadgeRow(climate, lOn, cOpen, tOn)}
         </div>
       </div>
     `;
@@ -1702,8 +1736,10 @@ export class CowMobileDashboardCard
     climate: { variant: ThermostatVariant; target: number | null } | null,
     lOn: number,
     cOpen: number,
+    tOn: number,
   ) {
-    if (climate == null && lOn === 0 && cOpen === 0) return nothing;
+    if (climate == null && lOn === 0 && cOpen === 0 && tOn === 0)
+      return nothing;
     // Label rules:
     //   * variant=off (HVAC off entirely)         → "Off"
     //   * variant=idle + target available         → target °C (it's the
@@ -1732,6 +1768,7 @@ export class CowMobileDashboardCard
         ${cOpen > 0
           ? html`<span class="badge cov">▤ ${cOpen}</span>`
           : nothing}
+        ${tOn > 0 ? html`<span class="badge tv">📺 ${tOn}</span>` : nothing}
       </div>
     `;
   }
@@ -1777,13 +1814,15 @@ export class CowMobileDashboardCard
                 ${this.renderDrawerOpenings(room)}
                 ${!room.climate &&
                 room.lights.length === 0 &&
-                room.covers.length === 0
+                room.covers.length === 0 &&
+                room.tvs.length === 0
                   ? html`<div class="qc-row-sub">
                       Nessun dispositivo configurato.
                     </div>`
                   : nothing}
                 ${room.lights.map((l) => this.renderLightRow(l))}
                 ${room.covers.map((c) => this.renderCoverRow(c))}
+                ${room.tvs.map((t) => this.renderTvRow(t))}
               </div>
             `
           : nothing}
@@ -2059,6 +2098,37 @@ export class CowMobileDashboardCard
           class="toggle"
           ?data-on=${on}
           @click=${() => this.callLight(d.entity, !on)}
+          aria-label=${on ? "Spegni" : "Accendi"}
+        ></button>
+      </div>
+    `;
+  }
+
+  /**
+   * TV row — same layout as the light row but backed by
+   * ``media_player.turn_on/turn_off``. No slider: TVs are plain
+   * on/off toggles here (volume/source stay in the HA more-info).
+   * Unreachable TVs (state ``unavailable``) show "N.D." and keep the
+   * toggle enabled — turn_on may still wake them (e.g. WoL).
+   */
+  private renderTvRow(d: CowMobileDeviceEntry) {
+    const ent = this.getEnt(d.entity);
+    const label = d.label ?? ent?.attributes?.friendly_name ?? d.entity;
+    const on = tvIsOn(ent);
+    const unavailable = !ent || ent.state === "unavailable";
+    return html`
+      <div class="qc-row">
+        <span class="qc-row-icon" aria-hidden="true">📺</span>
+        <div class="qc-row-label">
+          <div>${label}</div>
+          <div class="qc-row-sub">
+            ${unavailable ? "N.D." : on ? "Accesa" : "Spenta"}
+          </div>
+        </div>
+        <button
+          class="toggle"
+          ?data-on=${on}
+          @click=${() => this.callTv(d.entity, !on)}
           aria-label=${on ? "Spegni" : "Accendi"}
         ></button>
       </div>
