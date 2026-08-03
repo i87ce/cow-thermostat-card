@@ -29,6 +29,12 @@
  *   weather: weather.openweathermap
  *   sun: sun.sun
  *   alarm: alarm_control_panel.casa
+ *   alarm_controls:            # opt-in alarm panel under the hero
+ *     - { label: Disarma, action: disarm }
+ *     - { label: Giorno, action: arm_away,
+ *         entity: alarm_control_panel.locale_tecnico_casa_giorno }
+ *     - { label: Notte, action: arm_night }
+ *     - { label: Arma, action: arm_away }
  *   persons:
  *     - person.alessio_vigilante
  *     - { entity: person.koma, label: "Koma" }
@@ -136,6 +142,26 @@ export interface CowMobilePersonEntry {
   label?: string;
 }
 
+export type CowMobileAlarmAction =
+  | "arm_away"
+  | "arm_home"
+  | "arm_night"
+  | "arm_vacation"
+  | "disarm";
+
+export interface CowMobileAlarmControl {
+  /** Button text, e.g. "Arma", "Notte". */
+  label: string;
+  /** alarm_control_panel service suffix (alarm_<action>). */
+  action: CowMobileAlarmAction;
+  /**
+   * Target panel — defaults to the card-level `alarm` entity. Point it
+   * at a group panel (Ajax groups expose their own entities) for
+   * partial-arm buttons like "Giorno".
+   */
+  entity?: string;
+}
+
 export interface CowMobileDashboardConfig extends LovelaceCardConfig {
   type: "custom:cow-mobile-dashboard-card";
   title?: string;
@@ -145,6 +171,12 @@ export interface CowMobileDashboardConfig extends LovelaceCardConfig {
   moon?: string;
   outdoor_temp?: string;
   alarm?: string;
+  /**
+   * Alarm quick-action buttons rendered in a dedicated panel under the
+   * hero. Opt-in: the panel only shows when this list is non-empty.
+   * Every tap asks for confirmation before calling the service.
+   */
+  alarm_controls?: CowMobileAlarmControl[];
   /**
    * `person.*` entities shown as presence chips in the hero. Strings
    * are accepted as a shorthand; pass `{ entity, label }` to override
@@ -305,6 +337,8 @@ export class CowMobileDashboardCard
    */
   @state() private setpointModalEntity: string | null = null;
   @state() private pendingSystemMode?: string;
+  /** Alarm action waiting for user confirmation (null = modal closed). */
+  @state() private pendingAlarm: CowMobileAlarmControl | null = null;
   private pendingSystemEntity?: string;
   /**
    * Live reference to the `<dialog>` element used as the modal drawer.
@@ -630,6 +664,31 @@ export class CowMobileDashboardCard
   private cancelSystemMode = (): void => {
     this.pendingSystemMode = undefined;
     this.pendingSystemEntity = undefined;
+  };
+
+  // ── Alarm panel ──────────────────────────────────────────────────
+
+  /** Resolve a control's target entity (own entity or card-level alarm). */
+  private alarmControlEntity(c: CowMobileAlarmControl): string | undefined {
+    return c.entity ?? this.config?.alarm;
+  }
+
+  private confirmAlarm = (): void => {
+    const c = this.pendingAlarm;
+    this.pendingAlarm = null;
+    if (!c) return;
+    const entity = this.alarmControlEntity(c);
+    if (!entity) return;
+    void this.hass?.callService(
+      "alarm_control_panel",
+      `alarm_${c.action}`,
+      {},
+      { entity_id: entity },
+    );
+  };
+
+  private cancelAlarm = (): void => {
+    this.pendingAlarm = null;
   };
   private setClimateTarget(entity: string, temperature: number): void {
     void this.hass?.callService(
@@ -1440,11 +1499,98 @@ export class CowMobileDashboardCard
         box-shadow: inset 0 0 0 1.5px rgba(76, 184, 255, 0.42);
       }
 
+      /* ── Alarm panel ─────────────────────────────────────────── */
+      .alarm-panel {
+        margin: 0 8px;
+        padding: 14px 16px;
+        background: var(--card-background-color, #fff);
+        border-radius: 18px;
+        box-shadow: 0 1px 4px rgba(31, 31, 46, 0.06);
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+      }
+      .alarm-panel-head {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        font-size: 14px;
+        font-weight: 600;
+      }
+      .alarm-panel-head[data-armed] {
+        color: #b03024;
+      }
+      .alarm-panel-head[data-transitioning] {
+        animation: alarmPulse 1.4s ease-in-out infinite;
+      }
+      .alarm-panel-head[data-triggered] {
+        color: #e74c3c;
+        animation: alarmPulse 0.8s ease-in-out infinite;
+      }
+      .alarm-actions {
+        display: flex;
+        gap: 8px;
+      }
+      .alarm-btn {
+        flex: 1;
+        appearance: none;
+        border: 0;
+        font: inherit;
+        font-size: 13px;
+        font-weight: 600;
+        padding: 10px 6px;
+        border-radius: 12px;
+        cursor: pointer;
+        transition: opacity 160ms ease, transform 160ms ease;
+      }
+      .alarm-btn:active:not(:disabled) {
+        transform: scale(0.98);
+      }
+      .alarm-btn:disabled {
+        opacity: 0.35;
+        cursor: not-allowed;
+      }
+      /* Tones: soft tint at rest, solid fill when the panel is already
+         in that button's target state. */
+      .alarm-btn[data-tone="ok"] {
+        background: rgba(46, 184, 92, 0.14);
+        color: #1e7a44;
+      }
+      .alarm-btn[data-tone="ok"][data-active] {
+        background: #2eb85c;
+        color: #fff;
+      }
+      .alarm-btn[data-tone="arm"] {
+        background: rgba(231, 76, 60, 0.12);
+        color: #b03024;
+      }
+      .alarm-btn[data-tone="arm"][data-active] {
+        background: #e74c3c;
+        color: #fff;
+      }
+      .alarm-btn[data-tone="night"] {
+        background: rgba(91, 106, 191, 0.14);
+        color: #3f4c9c;
+      }
+      .alarm-btn[data-tone="night"][data-active] {
+        background: #5b6abf;
+        color: #fff;
+      }
+      .alarm-btn[data-tone="part"] {
+        background: rgba(240, 169, 46, 0.16);
+        color: #b87b0a;
+      }
+      .alarm-btn[data-tone="part"][data-active] {
+        background: #f0a92e;
+        color: #fff;
+      }
+
       /* ── Dark mode tweaks ────────────────────────────────────── */
       @media (prefers-color-scheme: dark) {
         .room-tile,
         .qc,
-        .summary {
+        .summary,
+        .alarm-panel {
           background: var(--card-background-color, #1c1c24);
           box-shadow: 0 1px 4px rgba(0, 0, 0, 0.3);
         }
@@ -1461,11 +1607,98 @@ export class CowMobileDashboardCard
     // the room grid.
     return html`
       <div class="card">
-        ${this.renderHero()} ${this.renderSummary()} ${this.renderRooms()}
+        ${this.renderHero()} ${this.renderAlarmPanel()} ${this.renderSummary()}
+        ${this.renderRooms()}
       </div>
       ${this.renderDrawer()}
       ${this.renderSetpointModal()}
       ${this.renderModeConfirm()}
+      ${this.renderAlarmConfirm()}
+    `;
+  }
+
+  /**
+   * Alarm quick-action panel — opt-in via `alarm_controls`. Shows the
+   * hub state (same wording as the hero pill) plus one button per
+   * configured action. Buttons highlight when their target state is
+   * the panel's current state; every tap goes through the confirm
+   * modal — arming/disarming a house is not a fat-finger action.
+   */
+  private renderAlarmPanel() {
+    const controls = this.config?.alarm_controls;
+    if (!Array.isArray(controls) || controls.length === 0) return nothing;
+    const main = this.getEnt(this.config?.alarm);
+    const state = main?.state ?? "unknown";
+    const armed = state.startsWith("armed");
+    const triggered = state === "triggered";
+    const transitioning = ["arming", "disarming", "pending"].includes(state);
+    const label = ALARM_STATE_LABEL[state] ?? state;
+    return html`
+      <div class="alarm-panel">
+        <div
+          class="alarm-panel-head"
+          ?data-armed=${armed}
+          ?data-triggered=${triggered}
+          ?data-transitioning=${transitioning}
+        >
+          <span aria-hidden="true"
+            >${triggered ? "⚠" : armed ? "🔒" : "🔓"}</span
+          >
+          <span>Allarme · ${label}</span>
+        </div>
+        <div class="alarm-actions">
+          ${controls.map((c) => this.renderAlarmButton(c))}
+        </div>
+      </div>
+    `;
+  }
+
+  private renderAlarmButton(c: CowMobileAlarmControl) {
+    const entity = this.alarmControlEntity(c);
+    const ent = this.getEnt(entity);
+    const active = ent?.state === ALARM_ACTION_TARGET[c.action];
+    // Buttons that target a group panel (≠ hub) are partial-arm
+    // actions ("Giorno") — amber, so they read as "less than armed".
+    const partial = !!c.entity && c.entity !== this.config?.alarm;
+    const tone =
+      c.action === "disarm"
+        ? "ok"
+        : partial
+          ? "part"
+          : c.action === "arm_night"
+            ? "night"
+            : "arm";
+    return html`
+      <button
+        class="alarm-btn"
+        data-tone=${tone}
+        ?data-active=${active}
+        ?disabled=${!ent || ent.state === "unavailable"}
+        @click=${() => (this.pendingAlarm = c)}
+      >
+        ${c.label}
+      </button>
+    `;
+  }
+
+  private renderAlarmConfirm() {
+    const c = this.pendingAlarm;
+    const message = c
+      ? c.action === "disarm"
+        ? "Disarmare l'allarme?"
+        : `Attivare la modalità "${c.label}"?`
+      : "";
+    const accent = c?.action === "disarm" ? "#2eb85c" : "#e74c3c";
+    return html`
+      <cow-confirm-modal
+        .open=${c != null}
+        .heading=${"Allarme"}
+        .message=${message}
+        .confirmLabel=${c?.label ?? "Conferma"}
+        .accent=${accent}
+        @cow-confirm=${this.confirmAlarm}
+        @cow-cancel=${this.cancelAlarm}
+      ></cow-confirm-modal>
     `;
   }
 
@@ -2342,6 +2575,15 @@ export class CowMobileDashboardCard
   }
 
 }
+
+/** alarm service suffix → the panel state it lands on when done. */
+const ALARM_ACTION_TARGET: Record<CowMobileAlarmAction, string> = {
+  arm_away: "armed_away",
+  arm_home: "armed_home",
+  arm_night: "armed_night",
+  arm_vacation: "armed_vacation",
+  disarm: "disarmed",
+};
 
 const ALARM_STATE_LABEL: Record<string, string> = {
   disarmed: "Disinserito",

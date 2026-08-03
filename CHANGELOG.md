@@ -4,6 +4,21 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and
 this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.8.0] — 2026-08-03
+
+### Added — alarm quick-action panel on the mobile dashboard
+- `cow-mobile-dashboard-card`: new opt-in `alarm_controls:` list — a
+  dedicated panel under the hero with one button per action
+  (`arm_away` / `arm_home` / `arm_night` / `arm_vacation` / `disarm`),
+  each optionally targeting a different `alarm_control_panel` entity
+  (Ajax group panels → partial-arm buttons like "Giorno").
+- Panel header shows the hub state with the hero-pill wording and
+  pulse animations for arming/triggered; buttons are tone-coloured
+  (disarm green, full-arm red, night indigo, partial amber) and fill
+  solid when their target state is active.
+- Every tap opens the shared confirm modal before calling the
+  service — no fat-finger arming.
+
 ## [1.7.0] — 2026-08-03
 
 ### Added — TVs in the mobile dashboard rooms
