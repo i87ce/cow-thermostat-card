@@ -27,6 +27,12 @@ export interface CowRoomConfig {
   temperature?: string;
   /** Optional ambient humidity sensor */
   humidity?: string;
+  /**
+   * Optional `input_number` for fine setpoint (e.g. Studio Daikin 0.5 °C).
+   * When set, the climate tab reads/writes this helper instead of the
+   * physical `climate.*` entity's coarse setpoint.
+   */
+  target_entity?: string;
   /** Single light entity_id or list */
   light?: string | string[];
   /** Optional friendly labels per light entity (length must match) */
@@ -230,6 +236,8 @@ export function validateXLConfig(input: unknown): CowRoomDashboardConfig {
         typeof room.temperature === "string" ? room.temperature : undefined,
       humidity:
         typeof room.humidity === "string" ? room.humidity : undefined,
+      target_entity:
+        typeof room.target_entity === "string" ? room.target_entity : undefined,
       light: room.light as string | string[] | undefined,
       light_labels: Array.isArray(room.light_labels)
         ? (room.light_labels as string[])

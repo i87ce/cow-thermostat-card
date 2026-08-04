@@ -6,6 +6,7 @@ import { buttonReset } from "../../styles/button-reset.js";
 import {
   deriveThermostatView,
   bumpTarget,
+  applyTargetOverride,
   THERMOSTAT_ACCENT,
   THERMOSTAT_STATUS_LABEL,
   THERMOSTAT_SUB_LABEL,
@@ -378,18 +379,46 @@ export class CowXLClimateTab extends LitElement {
   }
 
   private async setTarget(t: number) {
-    if (!this.room?.climate || !this.hass) return;
+    if (!this.room || !this.hass) return;
+    if (this.room.target_entity) {
+      await this.hass.callService(
+        "input_number",
+        "set_value",
+        { value: t },
+        { entity_id: this.room.target_entity },
+      );
+      return;
+    }
+    if (!this.room.climate) return;
     await this.hass.callService("climate", "set_temperature", {
       entity_id: this.room.climate,
       temperature: t,
     });
   }
 
+  /** Room climate view with optional target_entity + sensor overrides. */
+  private roomClimateView(room: CowRoomConfig) {
+    const climate = this.hass?.states?.[room.climate ?? ""];
+    let view = applyTargetOverride(
+      deriveThermostatView(climate),
+      room.target_entity ? this.hass?.states?.[room.target_entity] : undefined,
+    );
+    if (room.temperature && this.hass?.states[room.temperature]) {
+      const n = Number(this.hass.states[room.temperature].state);
+      if (Number.isFinite(n)) view = { ...view, current: n };
+    }
+    if (room.humidity && this.hass?.states[room.humidity]) {
+      const n = Number(this.hass.states[room.humidity].state);
+      if (Number.isFinite(n)) view = { ...view, humidity: n };
+    }
+    return view;
+  }
+
   private openSetpointModal = (): void => {
     if (!this.room?.climate) return;
-    const view = deriveThermostatView(this.hass?.states?.[this.room.climate]);
+    const view = this.roomClimateView(this.room);
     const split = usesSplitClimate(this.systemClimate, view);
-    if (!split && view.variant === "off") return;
+    if (!split && !this.room.target_entity && view.variant === "off") return;
     this.setpointModalOpen = true;
     // Imperatively open inside the click handler so iOS Safari keeps
     // the user-gesture chain alive through the input.focus() call —
@@ -448,7 +477,7 @@ export class CowXLClimateTab extends LitElement {
       return this.renderSensorsOnly();
     }
     const climate = this.hass?.states?.[this.room.climate];
-    const roomView = deriveThermostatView(climate);
+    const roomView = this.roomClimateView(this.room);
     const split = usesSplitClimate(this.systemClimate, roomView);
     const sysClimate = this.hass?.states?.[this.systemClimate];
     const sysView = split ? deriveThermostatView(sysClimate) : roomView;

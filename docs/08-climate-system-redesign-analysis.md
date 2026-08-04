@@ -56,8 +56,12 @@ In **Heat** lavorano **due sorgenti**:
 
 ### 2.4 Serrande e stato “idle”
 
-- La serranda di una stanza **si chiude** quando la stanza raggiunge il
-  setpoint **±1 °C** (stato **idle / a comfort**).
+- In **Cool/Dry** la serranda **si chiude** quando la stanza raggiunge il
+  setpoint **esatto** (`T ≤ SP`); si **riapre** quando `T > SP + 0,5 °C`
+  (serranda chiusa). Con serranda aperta resta aperta finché `T > SP`.
+  *(Aggiornato 2026-08-02 — niente banda ±1 °C sul lato aria.)*
+- In **Heat** la banda `IDLE = ±1 °C` vale solo per pavimento / stato UI;
+  la spinta aria Mitsubishi usa `BOOST = 5 °C`.
 - Se **tutte** le stanze incluse sono in temperatura → **tutte le serrande
   chiuse**, MA **prima di chiudere l’ultima** il sistema **spegne il motore**
   (REGOLA 1: mai motore acceso a serrande tutte chiuse → si rompe).
@@ -95,7 +99,8 @@ chiaramente (vedi §4 e §9).
 3. **Sistema vs stanza** — modalità e ventola sono **solo globali**; setpoint e inclusione aria sono **solo per stanza**.
 4. **Pavimento solo in Heat** — segue setpoint stanza; la spinta aria entra solo oltre ±5 °C.
 5. **REGOLA 1** — motore acceso ⇒ almeno una serranda aperta; per spegnere “tutte chiuse” si spegne prima il motore.
-6. **Due tolleranze** — `IDLE = ±1 °C` (serranda), `BOOST = ±5 °C` (spinta Mitsubishi in heat).
+6. **Due soglie** — Cool/Dry: stop a `SP`, riarmo a `SP + 0,5 °C` (lato aria).
+   Heat: `IDLE = ±1 °C` (pavimento / comfort UI), `BOOST = ±5 °C` (spinta Mitsubishi).
 
 ---
 
@@ -201,19 +206,22 @@ Ogni proxy stanza con aria espone un attributo **`room_air_state`** (nome propos
 |---|---|---|---|---|
 | **Esclusa** | Utente ha messo Inclusa = No | Grigio | Chiusa | (indifferente per la stanza) |
 | **In attesa** | Inclusa, sistema Off | Grigio tenue | Chiusa | Off |
-| **A comfort** | Inclusa, \|T − SP\| ≤ 1 °C | Verde | Chiusa | Off se **tutte** a comfort |
+| **A comfort** | Inclusa, Cool/Dry: `T ≤ SP` · Heat: \|T − SP\| ≤ 1 °C | Verde | Chiusa | Off se **tutte** a comfort |
 | **Riscaldando** | Heat, gap > 5 °C (spinta aria) | Arancio | Aperta | Heat @ 30 °C |
 | **Riscaldando (pavimento)** | Heat, 1 < gap ≤ 5 °C | Arancio tenue | Chiusa | Off (solo pavimento) |
-| **Raffreddando** | Cool, T > SP + 1 | Blu | Aperta | Cool @ 16 °C |
-| **Deumidificando** | Dry, T > SP + 1 | Blu/viola | Aperta | Dry @ 16 °C |
+| **Raffreddando** | Cool, latch aria attivo (vedi §6.2) | Blu | Aperta | Cool @ 16 °C |
+| **Deumidificando** | Dry, latch aria attivo (vedi §6.2) | Blu/viola | Aperta | Dry @ 16 °C |
 | **Ventilazione** | Fan only, inclusa | Verde acqua | Aperta | Fan only |
 
 In **Fan only** le stanze **escluse** restano con serranda **chiusa**.
 
 **Regola d’oro UI:** se la stanza è **Esclusa**, l’hero mostra sempre **Esclusa** (grigio), **anche** se il sistema è Cool e altre stanze raffreddano. Mai “Cool” su una stanza esclusa.
 
-**Esempio sala 20,9 °C, SP 20, sistema Cool, Inclusa:**  
-→ stato **A comfort** (non “participating”, non “raffreddando”) → serranda chiusa.
+**Esempio sala 24,6 °C, SP 23,5, sistema Cool, Inclusa:**  
+→ stato **Raffreddando** finché `T > 23,5`; a `T ≤ 23,5` → **A comfort**, serranda chiusa.
+
+**Esempio sala 23,8 °C, SP 23,5, serranda chiusa:**  
+→ **A comfort** (sotto riarmo `SP + 0,5`); riapre solo se `T > 24,0`.
 
 ---
 
@@ -232,15 +240,16 @@ In **Fan only** le stanze **escluse** restano con serranda **chiusa**.
 
 Per ogni stanza **esclusa**: serranda chiusa, stato **Esclusa**.
 
-Per ogni stanza **inclusa**:
+Per ogni stanza **inclusa** (latch su stato fisico serranda, `REARM = 0,5 °C`):
 
-| Condizione | Serranda | Stato stanza |
-|---|---|---|
-| T > SP + 1 °C | Apri | Raffreddando (o Deumidificando se Dry) |
-| \|T − SP\| ≤ 1 °C | Chiudi | **A comfort** |
-| T < SP − 1 °C (raro in cool) | Chiudi | A comfort |
+| Serranda | Condizione | Azione | Stato stanza |
+|---|---|---|---|
+| **Chiusa** | `T > SP + 0,5 °C` | Apri | Raffreddando (o Deumidificando se Dry) |
+| **Chiusa** | `T ≤ SP + 0,5 °C` | Chiudi | **A comfort** |
+| **Aperta** | `T > SP` | Tieni aperta | Raffreddando / Deumidificando |
+| **Aperta** | `T ≤ SP` | Chiudi | **A comfort** |
 
-**Mitsubishi:** acceso in Cool (o Dry) @ 16 °C se **almeno una** stanza inclusa ha deficit; altrimenti Off o fan only secondo §6.4.
+**Mitsubishi:** acceso in Cool (o Dry) @ 16 °C se **almeno una** stanza inclusa ha deficit; altrimenti Off secondo §6.4.
 
 ### 6.3 Sistema = Fan only
 
@@ -402,11 +411,12 @@ Hardware invariato (mai in UI): `climate.koolnova_clima_clim1`,
 
 ### Cool
 
-- [ ] Sala SP 20, T 20,9, Inclusa → **A comfort**, serranda sala chiusa, hero verde (non “cooling”)  
+- [ ] Sala SP 23,5, T 23,8, serranda chiusa, Inclusa → **A comfort** (sotto riarmo SP+0,5)  
+- [ ] Sala SP 23,5, T 24,6, Inclusa → **Raffreddando**, serranda aperta  
 - [ ] Camera padronale **Esclusa**, sistema Cool, altre in deficit → serranda 1 **chiusa**, hero **Esclusa** grigio  
 - [ ] Una stanza T 28, Inclusa → **Raffreddando**, serranda aperta, motore cool  
-- [ ] Tutte incluse a comfort → **motore off, tutte serrande chiuse** (ultima chiusa dopo lo spegnimento), stato **A comfort**  
-- [ ] Stanza torna sopra SP+1 → esce da idle, riapre serranda, riaccende motore  
+- [ ] Tutte incluse a comfort (`T ≤ SP`) → **motore off, tutte serrande chiuse** (ultima chiusa dopo lo spegnimento), stato **A comfort**  
+- [ ] Stanza torna sopra SP+0,5 (serranda chiusa) → esce da idle, riapre serranda, riaccende motore  
 - [ ] Sistema Spento → tutto off, hero In attesa/Esclusa  
 
 ### Heat
@@ -435,9 +445,12 @@ Escludere una stanza spegne **sia l’aria sia il pavimento** di quella stanza.
 Esclusione = “questa stanza non fa clima”. Hero **Esclusa** (grigio), nessun
 pavimento attivo. *(Impatta §7.1: il pavimento segue l’inclusione.)*
 
-**D2. Soglie** ✅ *deciso*  
-`IDLE = ±1 °C` (serranda). `BOOST` in Heat: la spinta Mitsubishi entra quando
-`T < SP − 5` (più di 5 °C sotto il setpoint). Sotto quel gap → solo pavimento.
+**D2. Soglie** ✅ *deciso, aggiornato 2026-08-02*  
+- **Cool/Dry (aria):** stop al setpoint esatto (`T ≤ SP` con serranda aperta);
+  riarmo a `SP + 0,5 °C` (`REARM`) quando la serranda è chiusa. Niente banda ±1 °C.
+- **Heat:** `IDLE = ±1 °C` per pavimento e stato “a comfort” UI.
+- **Heat (spinta Mitsubishi):** `BOOST = 5 °C` — spinta solo se `T < SP − 5`.
+  Sotto quel gap → solo pavimento.
 
 **D3. Conferma cambio modo** ✅ *deciso*  
 Conferma **solo se il motore è già attivo in un modo diverso**. Se il sistema
@@ -448,8 +461,8 @@ A comfort totale → **motore off + serrande chiuse** (l’ultima dopo lo
 spegnimento). Nessun ricircolo automatico; la ventola parte solo con modo
 **Fan** esplicito.
 
-**D5. Dry** ✅ *confermato*  
-Stessa logica di Cool (deficit se `T > SP + 1`) per ora; soglia umidità in
+**D5. Dry** ✅ *confermato, allineato a Cool 2026-08-02*  
+Stessa logica latch di Cool (`REARM = 0,5 °C`, stop a `SP`); soglia umidità in
 futuro.
 
 **D6. Implementazione = Pyscript** ✅ *deciso*  
