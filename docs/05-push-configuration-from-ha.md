@@ -14,7 +14,9 @@ You have Wall Displays already known by HA's Shelly integration.
 > each Shelly's own `Shelly.GetConfig` `sys.device.name`). The displays
 > were physically reassigned since this table was first written — the
 > rows below now reflect reality. `172.16.2.10`–`.13` were probed
-> directly; `.14`/`.15` are from the HA registry only.
+> directly; `.15`/`.100` are from the HA registry. The XL lives on the
+> `172.16.1.0/24` VLAN (UniFi reservation), not the `172.16.2.x` subnet
+> used by the 4" SAWD1 units.
 
 | MAC | IP | Model | Room (live name) | Kiosk user |
 |---|---|---|---|---|
@@ -24,7 +26,7 @@ You have Wall Displays already known by HA's Shelly integration.
 | `000822F61B9C` | `172.16.2.13` | SAWD1 | Camera Padronale | `cp` |
 | `000822767310` | `172.16.2.15`? | SAWD1 | Ingresso PT / Scala | `sc` |
 | `000822CBE280` | (setup_retry) | SAWD1 | Bagno Padronale | `bp` |
-| `00A90B9D02FE` | `172.16.2.14` | **XL (10.1")** | Sala e Cucina | `sala` |
+| `00A90B9D02FE` | `172.16.1.50` | **XL (10.1")** | Sala e Cucina | `sala` |
 
 > The MAC↔room mapping in [`examples/ha-walldisplay-rest-commands.yaml`](../examples/ha-walldisplay-rest-commands.yaml)
 > is a placeholder — swap any two IPs in the YAML to physically reassign a
@@ -94,7 +96,10 @@ turn off screens during the night, blink one to physically identify it).
   (e.g. on some firmware versions: `Screen Lock`, `Disable gestures when
   locked`) may NOT be settable via RPC. We'll know after step C dumps the
   full schema.
-- The XL (`172.16.2.14`, area `living_room`) is intentionally NOT in the
-  provisioning script: it should host the `cow-room-dashboard-card` (10.1"
-  layout, design done in Figma, implementation pending).
+- The XL (`172.16.1.50`, MAC `00A90B9D02FE`, area `living_room`) hosts
+  `cow-room-dashboard-card` on dashboard `walldisplay-sala-cucina`. It is
+  on the `172.16.1.x` subnet — do not assume it shares the `172.16.2.x`
+  DHCP pool with the 4" displays. The legacy `ha-walldisplay-rest-commands.yaml`
+  provision script still omits the XL; point its HA URL manually or add a
+  dedicated `rest_command` once you need remote re-provisioning.
 - After firmware updates, RPC schemas may change. Re-run discover.

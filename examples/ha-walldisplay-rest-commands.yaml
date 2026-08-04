@@ -52,7 +52,7 @@ rest_command:
     method: GET
 
   walldisplay_living_xl_discover:
-    url: "http://172.16.2.14/rpc/Shelly.GetConfig"
+    url: "http://172.16.1.50/rpc/Shelly.GetConfig"
     method: GET
 
   # ---------- SET HA URL (best-guess RPC: Sys.SetConfig) ------------------
@@ -107,7 +107,7 @@ rest_command:
   # Uncomment when the cow-room-dashboard-card is implemented.
   #
   # walldisplay_living_xl_set_url:
-  #   url: "http://172.16.2.14/rpc/Sys.SetConfig"
+  #   url: "http://172.16.1.50/rpc/Sys.SetConfig"
   #   method: POST
   #   headers:
   #     content-type: "application/json"

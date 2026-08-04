@@ -202,7 +202,9 @@ curl -sS "http://172.16.2.10/rpc/Shelly.Reboot"
 
 `scripts/shelly-restart-app.mjs` soft-restarts every display in one
 shot (falls back to `Shelly.Reboot` if needed) — use it after a
-release that touches the wall-display UI. From HA, prefer
+release that touches the wall-display UI. The XL (Sala & Cucina) is
+on **`172.16.1.50`** (subnet `172.16.1.x`); the 4" SAWD1 units are on
+`172.16.2.10`–`.15` and `.100`. From HA, prefer
 `script.cow_walldisplay_restart_all_apps` (deploy with
 `node scripts/ha-push-walldisplay-restart.mjs --apply`).
 
