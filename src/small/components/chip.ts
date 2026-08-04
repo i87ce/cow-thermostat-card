@@ -19,35 +19,42 @@ export class CowChip extends LitElement {
   @property({ type: Boolean, reflect: true }) active = false;
   /** Optional override for active background. Defaults to --cow-accent. */
   @property({ type: String }) accent?: string;
-  /** Chip size: "default" (33px) or "large" (56.25px, for preset rows). */
+  /** Chip size: "default" (52px) or "large" (72px, for preset rows). */
   @property({ type: String, reflect: true }) size: "default" | "large" =
     "default";
 
   static override styles = [
     css`
+      /* Touch-target audit (v1.9): default chips grew 33 → 52 stage-px
+         and large 56.25 → 72 so they stay ≥ 35 real px even on the
+         480-px Wall Displays (stage scales ×0.667 there). Don't shrink
+         these to "fit more chips" — wrap to a second row instead. */
       :host {
         display: inline-flex;
         align-items: center;
         justify-content: center;
-        height: 33px;
-        padding: 0 11px;
-        border-radius: 10px;
+        height: 52px;
+        padding: 0 18px;
+        border-radius: 14px;
         background: var(--cow-surface-button-bg, #f0f0f5);
         color: var(--cow-text-button-muted, #5c5c6b);
         font-family: inherit;
         font-weight: 600;
-        font-size: 14px;
+        font-size: 19px;
         line-height: 1;
         white-space: nowrap;
         cursor: pointer;
         user-select: none;
         ${colorTransition}
       }
+      :host(:active) {
+        transform: scale(0.96);
+      }
       :host([size="large"]) {
-        height: 56.25px;
-        padding: 0 16px;
-        border-radius: 15px;
-        font-size: 20.625px;
+        height: 72px;
+        padding: 0 20px;
+        border-radius: 18px;
+        font-size: 25px;
         color: var(--cow-text-button-muted, #666673);
       }
       :host([active]) {

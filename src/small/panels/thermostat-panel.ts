@@ -36,10 +36,12 @@ import {
 } from "../state/split-climate.js";
 
 import "../components/action-button.js";
-import "../components/chip-row.js";
 import "../visuals/thermostat-icon.js";
 import "../../shared/setpoint-modal.js";
 import "../../shared/confirm-modal.js";
+import "../../shared/climate-modal.js";
+import type { ClimateModalSection } from "../../shared/climate-modal.js";
+import { climateIconSvg } from "../../shared/climate-icons.js";
 
 /**
  * Thermostat panel — pixel-exact reproduction of Figma frames
@@ -113,6 +115,7 @@ export class CowThermostatPanel extends LitElement {
 
   @state() private now = new Date();
   @state() private setpointModalOpen = false;
+  @state() private climateModalOpen = false;
   @state() private pendingSystemMode?: string;
   private timer?: number;
   private studioDoorTapCount = 0;
@@ -285,70 +288,72 @@ export class CowThermostatPanel extends LitElement {
       .arrow.down {
         top: 369.375px;
       }
-      .mode-label {
+      /* Single Mode/Fan summary button (v1.9): replaces the old inline
+         chip rows whose 33-px chips were ~3 mm on the Wall Display.
+         Opens cow-climate-modal, where every option is a giant target.
+         Sized like the blinds Open/Close buttons so the right column
+         keeps one consistent control vocabulary. */
+      .modefan {
         position: absolute;
         left: 397.5px;
-        top: 478.125px;
-        font-weight: 400;
-        font-size: 22.5px;
+        top: 505px;
+        width: 277.5px;
+        height: 108px;
+        border: 0;
+        margin: 0;
+        padding: 0 18px 0 24px;
+        box-sizing: border-box;
+        display: flex;
+        align-items: center;
+        gap: 16px;
+        text-align: left;
+        font-family: inherit;
+        cursor: pointer;
+        border-radius: 18.75px;
+        background: var(--cow-surface-button-bg, #f2f2f5);
+        color: var(--cow-text-button, #4d4d59);
+        -webkit-tap-highlight-color: transparent;
+        ${colorTransition}
+      }
+      .modefan:active {
+        transform: scale(0.98);
+      }
+      .modefan .mf-icon {
+        flex: 0 0 auto;
+        display: inline-flex;
+        color: var(--cow-accent-primary, #1f1f2e);
+        ${colorTransition}
+      }
+      .modefan .mf-lines {
+        flex: 1 1 auto;
+        min-width: 0;
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+      }
+      .modefan .mf-main {
+        font-weight: 700;
+        font-size: 27px;
+        line-height: 1;
+        color: var(--cow-text-primary, #2b2b38);
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+      .modefan .mf-sub {
+        font-weight: 500;
+        font-size: 19px;
+        line-height: 1;
         color: var(--cow-text-secondary, #8c8c99);
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
       }
-      .mode-row {
-        position: absolute;
-        left: 397.5px;
-        top: 515.625px;
-        right: 30px;
-      }
-      .fan-label {
-        position: absolute;
-        left: 397.5px;
-        top: 603.75px;
-        font-weight: 400;
-        font-size: 22.5px;
+      .modefan .mf-chevron {
+        flex: 0 0 auto;
+        display: inline-flex;
         color: var(--cow-text-secondary, #8c8c99);
-      }
-      .fan-row {
-        position: absolute;
-        left: 397.5px;
-        top: 637.5px;
-        right: 30px;
-      }
-
-      cow-chip-row {
-        --cow-accent: var(--cow-accent-primary);
-      }
-
-      .air-label {
-        position: absolute;
-        left: 397.5px;
-        top: 603.75px;
-        font-weight: 400;
-        font-size: 22.5px;
-        color: var(--cow-text-secondary, #8c8c99);
-      }
-      .air-row {
-        position: absolute;
-        left: 397.5px;
-        top: 637.5px;
-        right: 30px;
-      }
-      :host([data-split-climate]) .mode-label {
-        top: 450px;
-      }
-      :host([data-split-climate]) .mode-row {
-        top: 486px;
-      }
-      :host([data-split-climate]) .fan-label {
-        top: 548px;
-      }
-      :host([data-split-climate]) .fan-row {
-        top: 584px;
-      }
-      :host([data-split-climate]) .air-label {
-        top: 646px;
-      }
-      :host([data-split-climate]) .air-row {
-        top: 682px;
+        opacity: 0.7;
       }
     `,
   ];
@@ -464,6 +469,11 @@ export class CowThermostatPanel extends LitElement {
 
   private cancelSystemMode = (): void => {
     this.pendingSystemMode = undefined;
+    // The picker highlighted the tapped mode optimistically; the user
+    // backed out of the whole-house confirm, so snap it back.
+    this.renderRoot
+      .querySelector("cow-climate-modal")
+      ?.revert("mode");
   };
 
   private async setSystemFan(fan: string): Promise<void> {
@@ -529,6 +539,36 @@ export class CowThermostatPanel extends LitElement {
     this.setpointModalOpen = false;
     void this.setTarget(e.detail.value);
   };
+
+  private openClimateModal = (): void => {
+    this.climateModalOpen = true;
+    // Same gesture-preserving imperative open as the setpoint modal.
+    this.renderRoot.querySelector("cow-climate-modal")?.show();
+  };
+
+  private closeClimateModal = (): void => {
+    this.climateModalOpen = false;
+  };
+
+  private onClimateModalSelect = (
+    e: CustomEvent<{ section: string; id: string }>,
+  ): void => {
+    const { section, id } = e.detail;
+    const split = this.isSplitClimate();
+    if (section === "mode") {
+      if (split) this.onSystemModeChip(id);
+      else void this.setMode(id);
+    } else if (section === "fan") {
+      if (split) void this.setSystemFan(id);
+      else void this.setFan(id);
+    } else if (section === "air") {
+      void this.setMode(id);
+    }
+  };
+
+  private fanLabel(f: string): string {
+    return f === "auto" ? "Auto" : f.charAt(0).toUpperCase() + f.slice(1);
+  }
 
   private onStudioDoorTap = (): void => {
     if (!this.hiddenStudioDoor || !this.studioDoorEntity) return;
@@ -696,7 +736,7 @@ export class CowThermostatPanel extends LitElement {
 
     const modes = split
       ? SYSTEM_MODE_CHIP_ORDER.filter((m) => sys.hvacModes.includes(m)).map(
-          (m) => ({ id: m, label: climateModeChipLabel(m) }),
+          (m) => ({ id: m, label: climateModeChipLabel(m), icon: m }),
         )
       : roomV.hvacModes
           .filter(
@@ -709,24 +749,78 @@ export class CowThermostatPanel extends LitElement {
               m === "auto" ||
               m === "fan_only",
           )
-          .map((m) => ({ id: m, label: climateModeChipLabel(m) }));
+          .map((m) => ({ id: m, label: climateModeChipLabel(m), icon: m }));
 
     const fanItems = (split ? sys : roomV).fanModes.map((f) => ({
       id: f,
-      label: f === "auto" ? "Auto" : f.charAt(0).toUpperCase() + f.slice(1),
+      label: this.fanLabel(f),
     }));
 
     const floorOnly = split && isFloorOnlyRoom(this.climate);
+    const included = roomIncluded(this.climate);
     const airItems = floorOnly
       ? [
-          { id: "auto", label: "On" },
-          { id: "off", label: "Off" },
+          { id: "auto", label: "On", icon: "check" },
+          { id: "off", label: "Off", icon: "close" },
         ]
       : [
-          { id: "auto", label: "Inclusa" },
-          { id: "off", label: "Esclusa" },
+          { id: "auto", label: "Inclusa", icon: "check" },
+          { id: "off", label: "Esclusa", icon: "close" },
         ];
-    const airActiveId = roomIncluded(this.climate) ? "auto" : "off";
+    const airActiveId = included ? "auto" : "off";
+
+    // ── Mode/Fan summary button + full-screen picker sections ──────
+    const activeModeId = split
+      ? sys.mode
+      : roomV.mode === "heat_cool"
+        ? "heat_cool"
+        : roomV.mode;
+    const hasFan = !floorOnly && fanItems.length > 1;
+    const mfIcon = floorOnly ? "heat" : activeModeId;
+    const mfMain = floorOnly
+      ? `Pavimento · ${included ? "On" : "Off"}`
+      : split
+        ? `Casa · ${climateModeChipLabel(sys.mode)}`
+        : climateModeChipLabel(activeModeId);
+    const mfSubParts: string[] = [];
+    if (hasFan) {
+      mfSubParts.push(
+        `Ventola ${this.fanLabel(split ? sys.fan : roomV.fan)}`,
+      );
+    }
+    if (split && !floorOnly) {
+      mfSubParts.push(included ? "Inclusa" : "Esclusa");
+    }
+    const mfSub = mfSubParts.join(" · ");
+
+    const sections: ClimateModalSection[] = [];
+    if (!floorOnly) {
+      sections.push({
+        id: "mode",
+        label: split ? "Tutta la casa" : "Modalità",
+        items: modes,
+        activeId: activeModeId,
+        columns: 2,
+      });
+      if (hasFan) {
+        sections.push({
+          id: "fan",
+          label: "Ventola",
+          items: fanItems,
+          activeId: split ? sys.fan : roomV.fan,
+          columns: 3,
+        });
+      }
+    }
+    if (split) {
+      sections.push({
+        id: "air",
+        label: floorOnly ? "Riscaldamento pavimento" : "Questa stanza",
+        items: airItems,
+        activeId: airActiveId,
+        columns: 2,
+      });
+    }
 
     return html`
       <div class="left"></div>
@@ -773,56 +867,33 @@ export class CowThermostatPanel extends LitElement {
         ?disabled=${setpointDisabled}
         @click=${() => this.bump(-1)}
       ></cow-action-button>
-      ${floorOnly
-        ? ""
-        : html`
-      <div class="mode-label">${split ? "Tutta la casa" : "Mode"}</div>
-      <div class="mode-row">
-        <cow-chip-row
-          .items=${modes}
-          .activeId=${split ? sys.mode : roomV.mode === "heat_cool" ? "heat_cool" : roomV.mode}
-          .accent=${ACCENT[v.variant].primary}
-          @cow-chip-select=${(e: CustomEvent<{ id: string }>) =>
-            split
-              ? this.onSystemModeChip(e.detail.id)
-              : this.setMode(e.detail.id)}
-        ></cow-chip-row>
-      </div>`}
-      ${floorOnly
-        ? ""
-        : fanItems.length > 1
+      ${sections.length > 0
         ? html`
-            <div class="fan-label">Fan</div>
-            <div class="fan-row">
-              <cow-chip-row
-                .items=${fanItems}
-                .activeId=${split ? sys.fan : roomV.fan}
-                .accent=${ACCENT[v.variant].primary}
-                @cow-chip-select=${(e: CustomEvent<{ id: string }>) =>
-                  split
-                    ? this.setSystemFan(e.detail.id)
-                    : this.setFan(e.detail.id)}
-              ></cow-chip-row>
-            </div>
-          `
-        : ""}
-      ${split
-        ? html`
-            <div class="air-label">
-              ${floorOnly ? "Riscaldamento pavimento" : "Questa stanza"}
-            </div>
-            <div class="air-row">
-              <cow-chip-row
-                .items=${airItems}
-                .activeId=${airActiveId}
-                .accent=${ACCENT[v.variant].primary}
-                @cow-chip-select=${(e: CustomEvent<{ id: string }>) =>
-                  this.setMode(e.detail.id)}
-              ></cow-chip-row>
-            </div>
+            <button
+              class="modefan"
+              type="button"
+              aria-label="Modalità e ventola"
+              aria-haspopup="dialog"
+              @click=${this.openClimateModal}
+            >
+              <span class="mf-icon">${climateIconSvg(mfIcon, 44)}</span>
+              <span class="mf-lines">
+                <span class="mf-main">${mfMain}</span>
+                ${mfSub ? html`<span class="mf-sub">${mfSub}</span>` : ""}
+              </span>
+              <span class="mf-chevron">${climateIconSvg("chevron", 34)}</span>
+            </button>
           `
         : ""}
       ${this.renderAjaxOpenings()}
+      <cow-climate-modal
+        .open=${this.climateModalOpen}
+        .heading=${`Clima · ${this.roomName || "Stanza"}`}
+        .accent=${ACCENT[v.variant].primary}
+        .sections=${sections}
+        @cow-climate-select=${this.onClimateModalSelect}
+        @cow-climate-close=${this.closeClimateModal}
+      ></cow-climate-modal>
       <cow-setpoint-modal
         .open=${this.setpointModalOpen}
         .value=${roomV.target}

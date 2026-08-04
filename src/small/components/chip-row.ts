@@ -25,9 +25,11 @@ export class CowChipRow extends LitElement {
   /** Optional accent override for active chip background. */
   @property({ type: String }) accent?: string;
   /** Gap in pixels between chips. */
-  @property({ type: Number }) gap = 6;
+  @property({ type: Number }) gap = 8;
   /** Chip size propagated to each cow-chip child. */
   @property({ type: String }) size: "default" | "large" = "default";
+  /** When true, chips share the row width equally (preset rows). */
+  @property({ type: Boolean }) stretch = false;
 
   static override styles = css`
     :host {
@@ -37,6 +39,10 @@ export class CowChipRow extends LitElement {
       display: flex;
       flex-wrap: wrap;
       align-items: center;
+    }
+    .row.stretch > cow-chip {
+      flex: 1 1 0;
+      min-width: 0;
     }
   `;
 
@@ -53,7 +59,7 @@ export class CowChipRow extends LitElement {
 
   override render() {
     return html`
-      <div class="row" style=${`gap:${this.gap}px`}>
+      <div class="row ${this.stretch ? "stretch" : ""}" style=${`gap:${this.gap}px`}>
         ${this.items.map(
           (it) => html`
             <cow-chip

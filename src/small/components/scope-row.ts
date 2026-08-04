@@ -33,19 +33,19 @@ export class CowScopeRow extends LitElement {
       display: flex;
       align-items: baseline;
       justify-content: space-between;
-      margin-bottom: 11px;
+      margin-bottom: 12px;
       padding: 0 1px;
     }
     .section {
       font-family: inherit;
       font-weight: 400;
-      font-size: 14px;
+      font-size: 18px;
       color: var(--cow-text-secondary, #737380);
     }
     .scope {
       font-family: inherit;
       font-weight: 700;
-      font-size: 14px;
+      font-size: 18px;
       letter-spacing: 1.5px;
       text-transform: uppercase;
       color: var(--cow-accent, #1f1f2e);

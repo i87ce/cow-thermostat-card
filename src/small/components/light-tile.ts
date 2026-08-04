@@ -75,12 +75,16 @@ export class CowLightTile extends LitElement {
       .tile:active {
         transform: scale(0.985);
       }
+      /* Touch-target audit (v1.9): tiles grew 80 → 96 stage-px, so the
+         internals scaled up with them (dot 14→16, label 18→21,
+         state 15→17) to keep the tile readable at arm's length on the
+         480-px Wall Displays. */
       .indicator {
         position: absolute;
-        left: 16px;
-        top: 18px;
-        width: 14px;
-        height: 14px;
+        left: 18px;
+        top: 22px;
+        width: 16px;
+        height: 16px;
       }
       .dot {
         position: absolute;
@@ -97,8 +101,8 @@ export class CowLightTile extends LitElement {
         position: absolute;
         left: -4px;
         top: -4px;
-        width: 22px;
-        height: 22px;
+        width: 24px;
+        height: 24px;
         border-radius: 50%;
         border: 2px solid var(--cow-accent, #ffc72e);
         /* Without border-box, the 2px border would add to the 22px
@@ -110,11 +114,11 @@ export class CowLightTile extends LitElement {
       }
       .label {
         position: absolute;
-        left: 40px;
-        top: 16px;
+        left: 44px;
+        top: 19px;
         right: 12px;
         font-weight: 600;
-        font-size: 18px;
+        font-size: 21px;
         line-height: 1.1;
         color: var(--cow-tile-label, #2e2e38);
         overflow: hidden;
@@ -123,11 +127,11 @@ export class CowLightTile extends LitElement {
       }
       .state {
         position: absolute;
-        left: 40px;
-        top: 50px;
+        left: 44px;
+        top: 56px;
         right: 12px;
         font-weight: 400;
-        font-size: 15px;
+        font-size: 17px;
         line-height: 1.1;
         color: var(--cow-tile-state, #595966);
         overflow: hidden;

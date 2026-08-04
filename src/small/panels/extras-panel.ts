@@ -2,6 +2,7 @@ import { LitElement, html, css, svg } from "lit";
 import { customElement, property, state } from "lit/decorators.js";
 import type { HomeAssistant, HassEntity } from "../../types/hass.js";
 import type { DeviceEntry } from "../config.js";
+import { openingIconSvg } from "../../util/ajax-openings.js";
 import { panelStyles } from "../styles/shell.js";
 import { animKeyframes, animTokens, colorTransition } from "../styles/anim.js";
 import { formatTime } from "../../utils/format.js";
@@ -43,6 +44,15 @@ const TV_ICON = svg`<svg
     d="M21,17H3V5H21M21,3H3A2,2 0 0,0 1,5V17A2,2 0 0,0 3,19H8V21H16V19H21A2,2 0 0,0 23,17V5A2,2 0 0,0 21,3Z"
   />
 </svg>`;
+
+/** MDI "check" — door-open success feedback. */
+const CHECK_ICON = svg`<svg
+  viewBox="0 0 24 24"
+  width="26"
+  height="26"
+  fill="currentColor"
+  aria-hidden="true"
+><path d="M21,7L9,19L3.5,13.5L4.91,12.09L9,16.17L19.59,5.59L21,7Z" /></svg>`;
 
 /** States that count as "the TV is on" for a media_player. */
 function tvIsOn(ent: HassEntity | undefined): boolean {
@@ -212,23 +222,25 @@ export class CowExtrasPanel extends LitElement {
       .section {
         position: absolute;
         left: 397.5px;
-        top: 133px;
+        top: 130px;
         font-weight: 400;
-        font-size: 14px;
+        font-size: 18px;
         color: var(--cow-text-secondary, #737380);
       }
       .grid {
         position: absolute;
         left: 383px;
-        top: 162px;
+        top: 166px;
         width: 320px;
         display: grid;
         grid-template-columns: 154px 154px;
         column-gap: 12px;
-        row-gap: 10px;
+        row-gap: 12px;
       }
+      /* Touch-target audit (v1.9): tiles 80 → 96 stage-px, same as the
+         Lights grid. */
       .grid > cow-light-tile {
-        height: 80px;
+        height: 96px;
       }
 
       .door {
@@ -236,19 +248,28 @@ export class CowExtrasPanel extends LitElement {
         left: 383px;
         top: var(--cow-door-top, 470px);
         width: 320px;
-        height: 64px;
+        height: 72px;
         border: 0;
         margin: 0;
         padding: 0;
         font: inherit;
         font-family: inherit;
         font-weight: 700;
-        font-size: 19px;
-        border-radius: 18px;
+        font-size: 22px;
+        border-radius: 20px;
         background: var(--cow-master-active-bg, #2e2e38);
         color: #fff;
         cursor: pointer;
         ${colorTransition}
+      }
+      .door {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 10px;
+      }
+      .door svg {
+        flex: 0 0 auto;
       }
       .door:active {
         transform: scale(0.985);
@@ -288,10 +309,11 @@ export class CowExtrasPanel extends LitElement {
     this.style.setProperty("--cow-accent-light", a.light);
     this.style.setProperty("--cow-accent-active", a.active);
     this.style.setProperty("--cow-accent-surface", a.surface);
-    // Door button sits right below the tile grid (origin 162 must match
-    // the `.grid { top }` rule above — same convention as lights-panel).
+    // Door button sits right below the tile grid (origin 166 + tile 96
+    // + gap 12 must match the `.grid { ... }` rules above — same
+    // convention as lights-panel).
     const rows = Math.max(1, Math.ceil(this.devices.length / 2));
-    const gridBottom = 162 + rows * 80 + (rows - 1) * 10;
+    const gridBottom = 166 + rows * 96 + (rows - 1) * 12;
     this.style.setProperty("--cow-door-top", `${gridBottom + 24}px`);
   }
 
@@ -362,12 +384,14 @@ export class CowExtrasPanel extends LitElement {
     const on = this.onCount();
     const countDisplay = total === 0 ? "—" : on > 0 ? `${on}/${total}` : "OFF";
     const sub = on > 0 ? (on === 1 ? "accesa" : "accese") : "tutte spente";
-    const doorText =
+    const doorContent =
       this.doorFeedback === "done"
-        ? "✓ Aperta"
+        ? html`${CHECK_ICON}<span>Aperta</span>`
         : this.doorFeedback === "opening"
-          ? "Apertura…"
-          : `🚪 ${this.doorLabel || "Apri porta"}`;
+          ? html`<span>Apertura…</span>`
+          : html`${openingIconSvg("door", false, 26)}<span
+              >${this.doorLabel || "Apri porta"}</span
+            >`;
 
     return html`
       <div class="left" @click=${this.onLeftTap}></div>
@@ -409,7 +433,7 @@ export class CowExtrasPanel extends LitElement {
               ?disabled=${this.doorFeedback === "opening"}
               @click=${this.onDoorTap}
             >
-              ${doorText}
+              ${doorContent}
             </button>
           `
         : ""}

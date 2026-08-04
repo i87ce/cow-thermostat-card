@@ -4,6 +4,37 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and
 this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.10.0] — 2026-08-04
+
+### Added — full-screen Mode/Fan picker on the small card
+The inline Mode/Fan chip rows rendered at 33 stage-px — roughly 3 mm
+on a Shelly Wall Display, far below the 44 px touch minimum, and the
+number-one usability complaint on the climate view. The rows are
+replaced by ONE large summary button ("Heat · Ventola Auto") that
+opens a new full-screen `cow-climate-modal` where every option is a
+giant ≥64 real-px target with a proper SVG glyph (MDI power / fire /
+snowflake / droplet / fan). The picker applies selections immediately,
+highlights them optimistically until the HA state echoes back, and
+hosts all three split-climate sections (Tutta la casa / Ventola /
+Questa stanza) in one visit; the whole-house confirmation dialog
+stacks on top as before, and cancelling reverts the optimistic
+highlight.
+
+### Changed — touch-target audit across the small card (v1.9 → v1.10)
+Sizing pass driven by real-device screenshots at 480 px, where the
+720-px stage scales ×0.667:
+- **Chips**: default 33 → 52 stage-px (font 14 → 19), large
+  56.25 → 72 (font 20.6 → 25), plus a press-scale feedback state.
+- **Blinds presets** (0/50/100 %): stretched to share the full row
+  width as three equal 72-px buttons; scope row moved up clear of the
+  swiper dots and its labels grew 14 → 18 px.
+- **Lights/extras tiles**: 80 → 96 stage-px with the internals scaled
+  in step (label 18 → 21, state 15 → 17, dot 14 → 16); master button
+  56 → 64, door button 64 → 72.
+- **Extras door button** now uses the shared door SVG glyph instead of
+  the 🚪 emoji (icon-consistency: emoji rendering varies per platform
+  and can't follow theme colors).
+
 ## [1.9.0] — 2026-08-04
 
 ### Fixed — "IDLE" while actively cooling (Daikin / action-less climates)

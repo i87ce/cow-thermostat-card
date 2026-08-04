@@ -241,17 +241,20 @@ export class CowBlindsPanel extends LitElement {
         color: var(--cow-blinds-amber, #e6a626);
         animation: cow-pulse 1.6s ease-in-out infinite;
       }
+      /* Touch-target audit (v1.9): presets grew to 72-px stretched
+         chips and the scope chips to 52 px, so both rows moved up to
+         keep clear of the swiper dots at the bottom edge. */
       .preset-row {
         position: absolute;
         left: 397.5px;
-        top: 526px;
+        top: 508px;
         right: 30px;
       }
       .scope-wrap {
         position: absolute;
         left: 391px;
         right: 31px;
-        top: 620px;
+        top: 606px;
       }
     `,
   ];
@@ -406,6 +409,8 @@ export class CowBlindsPanel extends LitElement {
       <div class="preset-row">
         <cow-chip-row
           size="large"
+          stretch
+          .gap=${12}
           .items=${presets}
           .activeId=${presetActive}
           .accent=${ACCENT[v.variant].primary}

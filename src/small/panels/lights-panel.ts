@@ -297,17 +297,17 @@ export class CowLightsPanel extends LitElement {
         /* Pulled 12 px up from the previous 145px so the grid sits
            closer to the room-name block and there's less dead space
            visually concentrating the controls in the upper half. */
-        top: 133px;
+        top: 130px;
         font-weight: 400;
-        font-size: 14px;
+        font-size: 18px;
         color: var(--cow-text-secondary, #737380);
       }
       .scope-active {
         position: absolute;
         right: 17px;
-        top: 133px;
+        top: 130px;
         font-weight: 700;
-        font-size: 14px;
+        font-size: 18px;
         letter-spacing: 1.5px;
         text-transform: uppercase;
         color: var(--cow-accent, #1f1f2e);
@@ -320,15 +320,17 @@ export class CowLightsPanel extends LitElement {
         left: 383px;
         /* Moved up from 180 → 162 so the first tile row sits ~12 px
            below the "Apparecchi" header (was ~18 px gap, felt floaty). */
-        top: 162px;
+        top: 166px;
         width: 320px;
         display: grid;
         grid-template-columns: 154px 154px;
         column-gap: 12px;
-        row-gap: 10px;
+        row-gap: 12px;
       }
+      /* Touch-target audit (v1.9): tiles 80 → 96 stage-px so they stay
+         ≥ 64 real px on the 480-px Wall Displays. */
       .grid > cow-light-tile {
-        height: 80px;
+        height: 96px;
       }
 
       .master {
@@ -336,15 +338,15 @@ export class CowLightsPanel extends LitElement {
         left: 383px;
         top: var(--cow-master-top, 470px);
         width: 320px;
-        height: 56px;
+        height: 64px;
         border: 0;
         margin: 0;
         padding: 0;
         font: inherit;
         font-family: inherit;
         font-weight: 700;
-        font-size: 18px;
-        border-radius: 18px;
+        font-size: 21px;
+        border-radius: 20px;
         background: var(--cow-surface-button-bg, #f5f5f7);
         color: var(--cow-text-button-muted, #595966);
         cursor: pointer;
@@ -436,10 +438,11 @@ export class CowLightsPanel extends LitElement {
     this.style.setProperty("--cow-accent-active", a.active);
     this.style.setProperty("--cow-accent-surface", a.surface);
     // Compute master button top position so it always sits below the grid.
-    // Origin (162) must match the `.grid { top: ... }` CSS rule above.
+    // Origin (166) + tile height (96) + row gap (12) must match the
+    // `.grid { ... }` CSS rules above.
     const n = this.devices.length;
     const rows = Math.max(1, Math.ceil(n / 2));
-    const gridBottom = 162 + rows * 80 + (rows - 1) * 10;
+    const gridBottom = 166 + rows * 96 + (rows - 1) * 12;
     this.style.setProperty("--cow-master-top", `${gridBottom + 20}px`);
 
     // ── Optimistic dragPct cleanup ────────────────────────────────────
