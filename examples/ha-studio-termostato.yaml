@@ -22,6 +22,18 @@
 #   * Anti-cicli: il Daikin deve essere stabile da almeno 4 minuti prima
 #     di qualsiasi comando.
 #
+# Mezzi gradi (v1.9.0, 2026-08-04): il target visibile all'utente è
+# input_number.studio_clima_target (step 0.5) — la card lo mostra e lo
+# scrive direttamente (config `target_entity`). Il Daikin Onecta accetta
+# solo gradi interi (23.5 viene rifiutato/arrotondato dal cloud), quindi:
+#   * cow_studio_clima_sync_setpoint riflette helper → Daikin col grado
+#     "aggressivo": floor in cool (23.5 → 23), ceil in heat (23.5 → 24) —
+#     così l'unità non si autolimita prima che l'isteresi la fermi;
+#   * la memoria copia Daikin → helper SOLO se il nuovo setpoint non è
+#     il riflesso del target corrente (guardia anti-clobber: senza,
+#     il sync 23.5→23 farebbe rimbalzare l'helper a 23.0);
+#   * la riaccensione del termostato usa lo stesso floor/ceil.
+#
 # Helpers (creati in HA, elencati qui per riferimento):
 #   input_select.studio_clima_modo        # heat/cool/dry/fan_only/heat_cool
 #   input_number.studio_clima_target      # 16–30 °C, step 0.5
@@ -58,12 +70,20 @@ automation:
                 data: { option: "{{ trigger.to_state.state }}" }
               - service: input_boolean.turn_off
                 target: { entity_id: input_boolean.studio_clima_pausa_termostato }
-          # Cambio setpoint → memorizza (guardia sul none quando spento)
+          # Cambio setpoint → memorizza, MA solo se non è il riflesso
+          # floor/ceil del target helper (= scritto dal nostro sync)
           - conditions:
               - condition: template
                 value_template: >-
                   {{ trigger.attribute is defined and
-                     trigger.to_state.attributes.temperature is not none }}
+                     trigger.to_state.attributes.temperature is not none and
+                     (trigger.to_state.attributes.temperature | float) != (
+                       (states('input_number.studio_clima_target') | float(21)) | round(0, 'floor')
+                         if states('input_select.studio_clima_modo') == 'cool' else
+                       (states('input_number.studio_clima_target') | float(21)) | round(0, 'ceil')
+                         if states('input_select.studio_clima_modo') == 'heat' else
+                       (states('input_number.studio_clima_target') | float(21)) | round
+                     ) }}
             sequence:
               - service: input_number.set_value
                 target: { entity_id: input_number.studio_clima_target }
@@ -131,6 +151,39 @@ automation:
               - delay: { seconds: 3 }
               - service: climate.set_temperature
                 target: { entity_id: climate.condizionatore_studio }
-                data: { temperature: "{{ target }}" }
+                data:
+                  temperature: >-
+                    {{ (target | round(0, 'floor')) if modo == 'cool'
+                       else (target | round(0, 'ceil')) if modo == 'heat'
+                       else (target | round) }}
               - service: input_boolean.turn_off
                 target: { entity_id: input_boolean.studio_clima_pausa_termostato }
+
+  - id: cow_studio_clima_sync_setpoint
+    alias: "Studio clima — sync setpoint Daikin (gradi interi)"
+    description: >-
+      Quando l'helper target cambia (dalla card, step 0.5) e il Daikin è
+      acceso, riflette il setpoint arrotondato in modo aggressivo:
+      floor in cool, ceil in heat. A regolare la stanza è
+      cow_studio_termostato sul sensore Zigbee.
+    mode: restart
+    trigger:
+      - platform: state
+        entity_id: input_number.studio_clima_target
+    variables:
+      target: "{{ states('input_number.studio_clima_target') | float(21) }}"
+      ac: "{{ states('climate.condizionatore_studio') }}"
+      expected: >-
+        {{ (target | round(0, 'floor')) if ac == 'cool'
+           else (target | round(0, 'ceil')) if ac == 'heat'
+           else (target | round) }}
+    condition:
+      - condition: template
+        value_template: "{{ ac in ['heat','cool'] }}"
+      - condition: template
+        value_template: >-
+          {{ (state_attr('climate.condizionatore_studio','temperature') | float(-99)) != (expected | float) }}
+    action:
+      - service: climate.set_temperature
+        target: { entity_id: climate.condizionatore_studio }
+        data: { temperature: "{{ expected }}" }

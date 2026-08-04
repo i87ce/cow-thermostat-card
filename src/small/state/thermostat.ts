@@ -88,6 +88,40 @@ export interface ThermostatView {
 
 const ROUND = (v: number, step: number) => Math.round(v / step) * step;
 
+/**
+ * Variant inference for climates that don't report `hvac_action`
+ * (Daikin Onecta, several MQTT bridges): fall back to mode +
+ * temperature comparison. A unit in `cool` with the room above target
+ * IS cooling — reporting "idle" there was plain wrong (the old code
+ * collapsed every action-less active state to idle).
+ */
+function inferVariantFromTemps(
+  state: string,
+  attrs: HassClimateAttributes,
+): ThermostatVariant {
+  if (state === "dry") return "cooling";
+  if (state === "fan_only") return "idle";
+  const cur =
+    typeof attrs.current_temperature === "number"
+      ? attrs.current_temperature
+      : null;
+  const tgt = typeof attrs.temperature === "number" ? attrs.temperature : null;
+  if (state === "heat") {
+    if (cur == null || tgt == null) return "heating";
+    return cur < tgt ? "heating" : "idle";
+  }
+  if (state === "cool") {
+    if (cur == null || tgt == null) return "cooling";
+    return cur > tgt ? "cooling" : "idle";
+  }
+  // auto / heat_cool — single-target only; dual-setpoint stays idle.
+  if (cur != null && tgt != null) {
+    if (cur > tgt) return "cooling";
+    if (cur < tgt) return "heating";
+  }
+  return "idle";
+}
+
 export function deriveThermostatView(
   climate: HassEntity | undefined,
 ): ThermostatView {
@@ -120,6 +154,7 @@ export function deriveThermostatView(
   else if (action === "drying") variant = "cooling";
   else if (action === "idle" || action === "fan") variant = "idle";
   else if (state === "off") variant = "off";
+  else if (!action) variant = inferVariantFromTemps(state, attrs);
   else variant = "idle";
 
   const mode = ((): ThermostatView["mode"] => {
@@ -154,6 +189,35 @@ export function deriveThermostatView(
       typeof attrs.current_humidity === "number"
         ? attrs.current_humidity
         : null,
+  };
+}
+
+/**
+ * Overlay a `target_entity` (input_number) onto a derived view: the
+ * helper becomes the user-facing setpoint, with its own step/min/max.
+ * Used when the physical unit only accepts coarse setpoints (Daikin
+ * Onecta = whole degrees) but the real regulation runs in HA on a
+ * finer scale — the card shows/edits the helper and an automation
+ * keeps the unit's own setpoint in sync.
+ */
+export function applyTargetOverride(
+  view: ThermostatView,
+  overrideEnt: HassEntity | undefined,
+): ThermostatView {
+  if (!overrideEnt) return view;
+  const value = Number(overrideEnt.state);
+  if (!Number.isFinite(value)) return view;
+  const a = overrideEnt.attributes as {
+    step?: number;
+    min?: number;
+    max?: number;
+  };
+  return {
+    ...view,
+    target: value,
+    step: typeof a.step === "number" ? a.step : view.step,
+    minTemp: typeof a.min === "number" ? a.min : view.minTemp,
+    maxTemp: typeof a.max === "number" ? a.max : view.maxTemp,
   };
 }
 

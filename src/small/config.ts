@@ -47,6 +47,14 @@ export interface CowConfig {
   outdoor_temp?: string;
   local_temp?: string;
   local_humidity?: string;
+  /**
+   * ``input_number.*`` that holds the user-facing setpoint when the
+   * physical unit only accepts coarse steps (Daikin Onecta = whole
+   * degrees). The card displays/edits this helper (its own step/min/
+   * max apply — e.g. 0.5°); an HA automation mirrors it onto the real
+   * climate entity. Mode/fan chips still act on ``climate``.
+   */
+  target_entity?: string;
   initial_view: InitialView;
   /**
    * HA areas this card "owns" — drives Ajax openings discovery.
@@ -100,6 +108,7 @@ const DOMAIN_COVER = "cover.";
 const DOMAIN_MEDIA_PLAYER = "media_player.";
 const DOMAIN_CLIMATE = "climate.";
 const DOMAIN_SENSOR = "sensor.";
+const DOMAIN_INPUT_NUMBER = "input_number.";
 
 /**
  * Strip common entity-id noise (`led_`, `luce_`, room slug) and
@@ -372,6 +381,7 @@ export function validateConfig(input: unknown): CowConfig {
     outdoor_temp: optionalEntity(cfg, "outdoor_temp", DOMAIN_SENSOR),
     local_temp: optionalEntity(cfg, "local_temp", DOMAIN_SENSOR),
     local_humidity: optionalEntity(cfg, "local_humidity", DOMAIN_SENSOR),
+    target_entity: optionalEntity(cfg, "target_entity", DOMAIN_INPUT_NUMBER),
     initial_view: initial,
     areas: stringList(cfg.areas, "areas"),
     opening_default_kind: openingDefaults,

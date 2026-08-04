@@ -69,6 +69,7 @@ import {
 } from "./util/ajax-openings.js";
 import { findRoomOpenings } from "./small/openings.js";
 import {
+  applyTargetOverride,
   bumpTarget,
   deriveThermostatView,
   THERMOSTAT_ACCENT,
@@ -117,6 +118,13 @@ export interface CowMobileRoom {
    * rows in the drawer (same semantics as the wall-display extras tab).
    */
   tvs?: Array<string | CowMobileDeviceEntry>;
+  /**
+   * ``input_number.*`` holding the user-facing setpoint for rooms whose
+   * unit only accepts coarse steps (Daikin Onecta = whole degrees). The
+   * drawer/setpoint modal read+write this helper with its own 0.5° step;
+   * an HA automation mirrors it onto the climate entity.
+   */
+  target_entity?: string;
   /**
    * HA areas this room maps to (display names OR area_ids — both
    * resolved by the openings discovery util). When set, the openings
@@ -228,6 +236,7 @@ interface NormalizedRoom {
   lights: CowMobileDeviceEntry[];
   covers: CowMobileDeviceEntry[];
   tvs: CowMobileDeviceEntry[];
+  targetEntity?: string;
   areas: string[];
   openingsEnabled: boolean;
   openingEntities: string[];
@@ -254,6 +263,10 @@ function normaliseRoom(r: CowMobileRoom): NormalizedRoom {
     lights: normaliseDevices(r.lights),
     covers: normaliseDevices(r.covers),
     tvs: normaliseDevices(r.tvs),
+    targetEntity:
+      typeof r.target_entity === "string" && r.target_entity.length > 0
+        ? r.target_entity
+        : undefined,
     areas: Array.isArray(r.areas)
       ? r.areas.filter((a): a is string => typeof a === "string" && a.length > 0)
       : [],
@@ -454,7 +467,10 @@ export class CowMobileDashboardCard
     if (!room.climate || !this.hass) return null;
     const ent = this.hass.states[room.climate];
     if (!ent) return null;
-    const roomView = deriveThermostatView(ent);
+    const roomView = applyTargetOverride(
+      deriveThermostatView(ent),
+      this.getEnt(room.targetEntity),
+    );
     const split = usesSplitClimate(this.systemClimateEntity(), roomView);
     const view = split
       ? deriveSplitRoomDisplayView(ent, this.getEnt(this.systemClimateEntity()))
@@ -690,7 +706,22 @@ export class CowMobileDashboardCard
   private cancelAlarm = (): void => {
     this.pendingAlarm = null;
   };
+  /** Room's target_entity override (input_number) for a climate id. */
+  private targetOverrideFor(climateEntity: string): string | undefined {
+    return this.rooms.find((r) => r.climate === climateEntity)?.targetEntity;
+  }
+
   private setClimateTarget(entity: string, temperature: number): void {
+    const override = this.targetOverrideFor(entity);
+    if (override) {
+      void this.hass?.callService(
+        "input_number",
+        "set_value",
+        { value: temperature },
+        { entity_id: override },
+      );
+      return;
+    }
     void this.hass?.callService(
       "climate",
       "set_temperature",
@@ -716,9 +747,15 @@ export class CowMobileDashboardCard
    */
   private openSetpointModal = (entity: string): void => {
     if (!this.hass) return;
-    const view = deriveThermostatView(this.hass.states[entity]);
+    const override = this.targetOverrideFor(entity);
+    const view = applyTargetOverride(
+      deriveThermostatView(this.hass.states[entity]),
+      this.getEnt(override),
+    );
     const split = usesSplitClimate(this.systemClimateEntity(), view);
-    if (!split && view.variant === "off") return;
+    // With a target_entity the setpoint stays editable even while the
+    // unit is off — the thermostat automation re-arms it on demand.
+    if (!split && !override && view.variant === "off") return;
     this.setpointModalEntity = entity;
     // Imperatively wire the modal RIGHT NOW so the iOS Safari
     // user-gesture chain stays intact through input.focus(). We
@@ -1729,7 +1766,10 @@ export class CowMobileDashboardCard
   private renderSetpointModal() {
     const entityId = this.setpointModalEntity;
     const ent = entityId ? this.hass?.states?.[entityId] : undefined;
-    const view = deriveThermostatView(ent);
+    const view = applyTargetOverride(
+      deriveThermostatView(ent),
+      entityId ? this.getEnt(this.targetOverrideFor(entityId)) : undefined,
+    );
     const accent = THERMOSTAT_ACCENT[view.variant];
     // Room name for the modal heading — find the room that owns this
     // climate entity, falling back to a generic title when we can't
@@ -2103,7 +2143,10 @@ export class CowMobileDashboardCard
     const entity = room.climate;
     const ent = this.getEnt(entity);
     if (!ent) return nothing;
-    const roomView = deriveThermostatView(ent);
+    const roomView = applyTargetOverride(
+      deriveThermostatView(ent),
+      this.getEnt(room.targetEntity),
+    );
     const split = usesSplitClimate(this.systemClimateEntity(), roomView);
     const sysId = this.systemClimateEntity();
     const sysEnt = split ? this.getEnt(sysId) : undefined;

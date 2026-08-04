@@ -35,7 +35,7 @@ type Kind = "thermostat" | "lights" | "blinds" | "extras";
 /** Mirrors `tvIsOn` in extras-panel — media_player "on-ish" states. */
 const TV_OFF_STATES = new Set(["off", "unavailable", "unknown", "standby"]);
 
-const VERSION = "1.8.0";
+const VERSION = "1.9.0";
 
 const ACCENT_DOT: Record<Kind, (cfg: CowConfig, hass?: HomeAssistant) => string> =
   {
@@ -261,6 +261,7 @@ export class CowThermostatCard extends LitElement implements LovelaceCard {
                     .outdoorEntity=${cfg.outdoor_temp ?? ""}
                     .humidityEntity=${cfg.local_humidity ?? ""}
                     .localTempEntity=${cfg.local_temp ?? ""}
+                    .targetEntity=${cfg.target_entity ?? ""}
                     .areas=${cfg.areas}
                     .openingDefaultKind=${cfg.opening_default_kind}
                     .openingDoors=${cfg.opening_doors}

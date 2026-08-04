@@ -10,6 +10,14 @@
 # Daikin. `local_temp` richiede card >= v1.6.0 — su versioni precedenti
 # il grande numero a sinistra mostra la current_temperature del Daikin.
 #
+# Setpoint a mezzi gradi (`target_entity`, card >= v1.9.0): il Daikin
+# Onecta accetta solo gradi interi, quindi il target utente vive in
+# input_number.studio_clima_target (step 0.5). La card mostra/scrive
+# l'helper; l'automazione cow_studio_clima_sync_setpoint riflette il
+# grado intero sul Daikin (floor in cool, ceil in heat) e
+# cow_studio_termostato regola col sensore Zigbee — vedi
+# examples/ha-studio-termostato.yaml.
+#
 # Aperture Ajax: auto-discovery dall'area HA "Studio" (contatto porta
 # "Studio Ale" + extra contact).
 #
@@ -37,6 +45,7 @@ views:
         climate: climate.condizionatore_studio
         local_temp: sensor.termostato_studio_ale_temperature
         local_humidity: sensor.termostato_studio_ale_humidity
+        target_entity: input_number.studio_clima_target
         lights:
           - { entity: light.luce_calda_studio, label: Calda }
           - { entity: light.luce_fredda_studio, label: Fredda }

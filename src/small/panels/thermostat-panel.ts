@@ -2,6 +2,7 @@ import { LitElement, html, css, svg } from "lit";
 import { customElement, property, state } from "lit/decorators.js";
 import type { HomeAssistant, HassEntity } from "../../types/hass.js";
 import {
+  applyTargetOverride,
   bumpTarget,
   deriveThermostatView,
   THERMOSTAT_ACCENT,
@@ -89,6 +90,13 @@ export class CowThermostatPanel extends LitElement {
    * the AC's internal probe (e.g. Studio: Daikin vs `termostato_studio_ale`).
    */
   @property({ type: String }) localTempEntity = "";
+  /**
+   * ``input_number.*`` that owns the user-facing setpoint (see
+   * ``CowConfig.target_entity``). When set, the big setpoint + arrows
+   * + modal read/write this helper (with its own 0.5° step) instead of
+   * the climate entity — an HA automation mirrors it onto the unit.
+   */
+  @property({ type: String }) targetEntity = "";
 
   /* ─── Ajax openings (forwarded from card config) ──────────────── */
   @property({ type: Array }) areas: string[] = [];
@@ -367,7 +375,10 @@ export class CowThermostatPanel extends LitElement {
   }
 
   private roomView(): ThermostatView {
-    return deriveThermostatView(this.climate);
+    return applyTargetOverride(
+      deriveThermostatView(this.climate),
+      this.targetEntity ? this.hass?.states[this.targetEntity] : undefined,
+    );
   }
 
   private displayView(): ThermostatView {
@@ -410,7 +421,17 @@ export class CowThermostatPanel extends LitElement {
   }
 
   private async setTarget(target: number): Promise<void> {
-    if (!this.hass || !this.entity) return;
+    if (!this.hass) return;
+    if (this.targetEntity) {
+      await this.hass.callService(
+        "input_number",
+        "set_value",
+        { value: target },
+        { entity_id: this.targetEntity },
+      );
+      return;
+    }
+    if (!this.entity) return;
     await this.hass.callService(
       "climate",
       "set_temperature",
@@ -483,7 +504,10 @@ export class CowThermostatPanel extends LitElement {
 
   private openSetpointModal = (): void => {
     const split = this.isSplitClimate();
-    if (!split && this.displayView().variant === "off") return;
+    // With a target_entity the setpoint stays editable even while the
+    // unit is off — the thermostat automation re-arms it on demand.
+    if (!split && !this.targetEntity && this.displayView().variant === "off")
+      return;
     this.setpointModalOpen = true;
     // Imperatively open synchronously inside the click handler — the
     // reactive `open` prop also opens the dialog, but on iOS Safari

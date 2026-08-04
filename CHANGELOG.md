@@ -4,6 +4,30 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and
 this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.9.0] — 2026-08-04
+
+### Fixed — "IDLE" while actively cooling (Daikin / action-less climates)
+- `deriveThermostatView` collapsed every active state without
+  `hvac_action` to **idle** — a Daikin (Onecta) in `cool` with the room
+  above target showed the green IDLE hero. The fallback now infers the
+  variant from mode + temperatures: `cool` with current > target →
+  **cooling**, `heat` with current < target → **heating**, `dry` →
+  cooling, `fan_only` → idle. Split rooms (Koolnova `air_state`) are
+  untouched — they never hit this fallback.
+
+### Added — half-degree setpoints via `target_entity`
+- New `target_entity` (small card) / `rooms[].target_entity` (mobile)
+  config: an `input_number` that owns the user-facing setpoint with its
+  own step/min/max (0.5° for the studio). The card displays and writes
+  the helper; the setpoint stays editable while the unit is off (the
+  thermostat automation re-arms on demand).
+- Studio HA automations updated: new `cow_studio_clima_sync_setpoint`
+  mirrors the helper onto the whole-degree-only Daikin (floor in cool,
+  ceil in heat); `cow_studio_clima_memoria` gained an anti-clobber
+  guard so the internal sync never bounces 23.5 back to 23.0; the
+  thermostat re-arm uses the same mirror. Reference YAML in
+  `examples/ha-studio-termostato.yaml`.
+
 ## [1.8.0] — 2026-08-03
 
 ### Added — alarm quick-action panel on the mobile dashboard
