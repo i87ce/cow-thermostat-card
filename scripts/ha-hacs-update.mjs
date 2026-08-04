@@ -39,12 +39,24 @@ ws.on("error", (e) => { console.error("WS ERROR", e.message); process.exit(1); }
 async function run() {
   // List all HACS repositories via the standard HACS WS API
   const repos = await send("hacs/repositories/list");
-  const match = repos.find((r) => r.full_name === REPO_NAME);
+  let match = repos.find((r) => r.full_name === REPO_NAME);
   if (!match) {
     console.error(`Repo "${REPO_NAME}" not found in HACS. First few entries:`);
     console.log(repos.slice(0, 5).map(r => r.full_name).join("\n"));
     process.exit(1);
   }
+
+  // HACS caches release metadata (~daily refresh) — a release tagged a
+  // minute ago won't show up as available_version until we force a
+  // per-repo refresh.
+  try {
+    await send("hacs/repository/refresh", { repository: match.id });
+    const refreshed = await send("hacs/repositories/list");
+    match = refreshed.find((r) => r.id === match.id) ?? match;
+  } catch (e) {
+    console.log(`(refresh failed, continuing with cached data: ${e.message})`);
+  }
+
   console.log(`Found: ${match.full_name}`);
   console.log(`  Installed version: ${match.installed_version ?? match.installed}`);
   console.log(`  Available version: ${match.available_version}`);
