@@ -1,4 +1,4 @@
-import { LitElement, html, css, svg } from "lit";
+import { LitElement, html, css, svg, type PropertyValues } from "lit";
 import { customElement, property, state } from "lit/decorators.js";
 import type { HomeAssistant, HassEntity } from "../../types/hass.js";
 import {
@@ -14,10 +14,12 @@ import { panelStyles } from "../styles/shell.js";
 import { animKeyframes, animTokens, colorTransition } from "../styles/anim.js";
 import { formatTime } from "../../utils/format.js";
 import {
-  findRoomOpenings,
   openingsStripStyles,
   renderOpeningsStrip,
 } from "../openings.js";
+import { findRoomOpeningsCached } from "../../utils/openings-cache.js";
+import { hassEntitiesChanged, smallThermostatWatchIds } from "../../utils/hass-watch.js";
+import { subscribeSharedClock } from "../../utils/shared-clock.js";
 import type { OpeningKind } from "../config.js";
 import { openingIconSvg } from "../../util/ajax-openings.js";
 import {
@@ -117,7 +119,8 @@ export class CowThermostatPanel extends LitElement {
   @state() private setpointModalOpen = false;
   @state() private climateModalOpen = false;
   @state() private pendingSystemMode?: string;
-  private timer?: number;
+  @state() private pendingTarget?: number;
+  private unsubClock?: () => void;
   private studioDoorTapCount = 0;
   private studioDoorTapTimer?: number;
   @state() private studioDoorFeedback?: StudioDoorFeedback;
@@ -360,13 +363,46 @@ export class CowThermostatPanel extends LitElement {
 
   override connectedCallback(): void {
     super.connectedCallback();
-    this.timer = window.setInterval(() => (this.now = new Date()), 30_000);
+    this.unsubClock = subscribeSharedClock(() => {
+      this.now = new Date();
+    });
   }
   override disconnectedCallback(): void {
     super.disconnectedCallback();
-    if (this.timer) window.clearInterval(this.timer);
+    this.unsubClock?.();
     if (this.studioDoorTapTimer) window.clearTimeout(this.studioDoorTapTimer);
     if (this.studioDoorUnlockTimer) window.clearTimeout(this.studioDoorUnlockTimer);
+  }
+
+  override shouldUpdate(changed: PropertyValues): boolean {
+    if (
+      changed.has("entity") ||
+      changed.has("systemClimate") ||
+      changed.has("roomName") ||
+      changed.has("targetEntity") ||
+      changed.has("outdoorEntity") ||
+      changed.has("humidityEntity") ||
+      changed.has("localTempEntity") ||
+      changed.has("openingEntities")
+    ) {
+      return true;
+    }
+    if (changed.has("hass")) {
+      return hassEntitiesChanged(
+        changed.get("hass") as HomeAssistant | undefined,
+        this.hass,
+        smallThermostatWatchIds({
+          entity: this.entity,
+          systemClimate: this.systemClimate,
+          targetEntity: this.targetEntity,
+          outdoorEntity: this.outdoorEntity,
+          humidityEntity: this.humidityEntity,
+          localTempEntity: this.localTempEntity,
+          openingEntities: this.openingEntities,
+        }),
+      );
+    }
+    return true;
   }
 
   private get climate(): HassEntity | undefined {
@@ -380,10 +416,14 @@ export class CowThermostatPanel extends LitElement {
   }
 
   private roomView(): ThermostatView {
-    return applyTargetOverride(
+    let view = applyTargetOverride(
       deriveThermostatView(this.climate),
       this.targetEntity ? this.hass?.states[this.targetEntity] : undefined,
     );
+    if (this.pendingTarget != null) {
+      view = { ...view, target: this.pendingTarget };
+    }
+    return view;
   }
 
   private displayView(): ThermostatView {
@@ -409,10 +449,19 @@ export class CowThermostatPanel extends LitElement {
     this.style.setProperty("--cow-accent-surface", a.surface);
     this.style.setProperty("--cow-on-accent", a.textOnAccent);
     this.toggleAttribute("data-split-climate", this.isSplitClimate());
+    if (this.pendingTarget != null) {
+      const actual = applyTargetOverride(
+        deriveThermostatView(this.climate),
+        this.targetEntity ? this.hass?.states[this.targetEntity] : undefined,
+      ).target;
+      if (actual != null && Math.abs(actual - this.pendingTarget) < 0.01) {
+        this.pendingTarget = undefined;
+      }
+    }
   }
 
   private openings() {
-    return findRoomOpenings(this.hass, {
+    return findRoomOpeningsCached(this.hass, `small:${this.roomName}`, {
       areas: this.areas,
       fallbackArea: this.roomName,
       defaultKind: this.openingDefaultKind,
@@ -427,6 +476,7 @@ export class CowThermostatPanel extends LitElement {
 
   private async setTarget(target: number): Promise<void> {
     if (!this.hass) return;
+    this.pendingTarget = target;
     if (this.targetEntity) {
       await this.hass.callService(
         "input_number",

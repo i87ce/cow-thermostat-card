@@ -1,9 +1,10 @@
-import { LitElement, html, css, nothing } from "lit";
-import { customElement, property } from "lit/decorators.js";
+import { LitElement, html, css, nothing, type PropertyValues } from "lit";
+import { customElement, property, state } from "lit/decorators.js";
 import type { HomeAssistant } from "../../types/hass.js";
 import type { CowRoomConfig } from "../../config-xl.js";
 import { buttonReset } from "../../styles/button-reset.js";
 import { deriveBlindsView } from "../../small/state/blinds.js";
+import { hassEntitiesChanged, xlRoomEntityIds } from "../../utils/hass-watch.js";
 import "../../small/visuals/blind-visual.js";
 
 /**
@@ -16,6 +17,41 @@ import "../../small/visuals/blind-visual.js";
 export class CowXLBlindsTab extends LitElement {
   @property({ attribute: false }) hass?: HomeAssistant;
   @property({ attribute: false }) room?: CowRoomConfig;
+
+  @state() private pendingMove: Record<string, "opening" | "closing"> = {};
+  private watchIds: string[] = [];
+
+  override shouldUpdate(changed: PropertyValues): boolean {
+    if (changed.has("room")) {
+      this.watchIds = xlRoomEntityIds(this.room);
+      return true;
+    }
+    if (changed.has("hass")) {
+      return hassEntitiesChanged(
+        changed.get("hass") as HomeAssistant | undefined,
+        this.hass,
+        this.watchIds.length ? this.watchIds : xlRoomEntityIds(this.room),
+      );
+    }
+    return true;
+  }
+
+  override willUpdate(): void {
+    const next = { ...this.pendingMove };
+    let changed = false;
+    for (const [id, want] of Object.entries(this.pendingMove)) {
+      const raw = this.hass?.states?.[id]?.state ?? "";
+      if (
+        (want === "opening" && raw === "open") ||
+        (want === "closing" && raw === "closed") ||
+        raw === "stopped"
+      ) {
+        delete next[id];
+        changed = true;
+      }
+    }
+    if (changed) this.pendingMove = next;
+  }
 
   static override styles = [
     buttonReset,
@@ -199,24 +235,34 @@ export class CowXLBlindsTab extends LitElement {
   }
 
   private async open(id: string) {
+    this.pendingMove = { ...this.pendingMove, [id]: "opening" };
     await this.hass?.callService("cover", "open_cover", { entity_id: id });
   }
   private async close(id: string) {
+    this.pendingMove = { ...this.pendingMove, [id]: "closing" };
     await this.hass?.callService("cover", "close_cover", { entity_id: id });
   }
   private async stop(id: string) {
+    const { [id]: _drop, ...rest } = this.pendingMove;
+    this.pendingMove = rest;
     await this.hass?.callService("cover", "stop_cover", { entity_id: id });
   }
   private async masterOpenAll() {
     if (!this.hass) return;
     const ids = this.getCoverIds();
     if (ids.length === 0) return;
+    const pendingMove = { ...this.pendingMove };
+    for (const id of ids) pendingMove[id] = "opening";
+    this.pendingMove = pendingMove;
     await this.hass.callService("cover", "open_cover", { entity_id: ids });
   }
   private async masterCloseAll() {
     if (!this.hass) return;
     const ids = this.getCoverIds();
     if (ids.length === 0) return;
+    const pendingMove = { ...this.pendingMove };
+    for (const id of ids) pendingMove[id] = "closing";
+    this.pendingMove = pendingMove;
     await this.hass.callService("cover", "close_cover", { entity_id: ids });
   }
 
@@ -231,27 +277,32 @@ export class CowXLBlindsTab extends LitElement {
   private renderBlindCard(id: string, label: string) {
     const entity = this.hass?.states?.[id];
     const view = deriveBlindsView(entity);
+    const pending = this.pendingMove[id];
+    const raw = pending ?? view.raw;
+    const variant = pending ? "moving" : view.variant;
+    const position =
+      pending === "opening" ? 100 : pending === "closing" ? 0 : view.position;
     return html`
       <div class="blind-card">
         <div class="visual-wrap">
           <cow-blind-visual
-            .variant=${view.variant}
-            .position=${view.position}
+            .variant=${variant}
+            .position=${position}
           ></cow-blind-visual>
         </div>
         <div class="info">
           <div class="b-head">
             <div class="b-label">${label}</div>
-            <div class="b-value">${view.position}%</div>
+            <div class="b-value">${position}%</div>
           </div>
           <div class="b-status">
-            ${this.statusLabel(view.position, view.raw)}
+            ${this.statusLabel(position, raw)}
           </div>
           <div></div>
           <div class="b-buttons">
             <button
               class="b-btn"
-              ?data-active=${view.raw === "opening" || view.position === 100}
+              ?data-active=${raw === "opening" || position === 100}
               @click=${() => this.open(id)}
               aria-label="Apri ${label}"
             >
@@ -259,7 +310,7 @@ export class CowXLBlindsTab extends LitElement {
             </button>
             <button
               class="b-btn b-btn-stop"
-              ?data-active=${view.raw === "opening" || view.raw === "closing"}
+              ?data-active=${raw === "opening" || raw === "closing"}
               @click=${() => this.stop(id)}
               aria-label="Ferma ${label}"
             >
@@ -267,7 +318,7 @@ export class CowXLBlindsTab extends LitElement {
             </button>
             <button
               class="b-btn"
-              ?data-active=${view.raw === "closing" || view.position === 0}
+              ?data-active=${raw === "closing" || position === 0}
               @click=${() => this.close(id)}
               aria-label="Chiudi ${label}"
             >

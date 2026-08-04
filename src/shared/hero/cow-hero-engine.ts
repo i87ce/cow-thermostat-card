@@ -53,7 +53,7 @@ import { heroEngineStyles } from "./styles.js";
 
 // Pre-compute the star field once per module load — same seed gives the
 // same constellation everywhere, which is what we want.
-const STARS = generateStars(60);
+const STARS = generateStars(30);
 
 @customElement("cow-hero-engine")
 export class CowHeroEngine extends LitElement {
@@ -81,6 +81,8 @@ export class CowHeroEngine extends LitElement {
    * sensor, special-night toggle, …). Default false.
    */
   @property({ type: Boolean }) aurora = false;
+  /** When true, pause infinite backdrop animations (drawer open). */
+  @property({ type: Boolean, reflect: true }) paused = false;
 
   @state() private now = new Date();
   private timer?: number;
@@ -105,6 +107,9 @@ export class CowHeroEngine extends LitElement {
          absolute coordinates against the engine's :host as needed. */
       ::slotted(*) {
         z-index: 3;
+      }
+      :host([paused]) * {
+        animation-play-state: paused !important;
       }
     `,
   ];

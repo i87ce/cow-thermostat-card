@@ -36,6 +36,12 @@ export class CowXLScenes extends LitElement {
         font-weight: 600;
         font-size: 1rem;
         color: var(--cow-text-primary);
+        cursor: pointer;
+        touch-action: manipulation;
+        transition: transform 120ms ease;
+      }
+      .scene:active {
+        transform: scale(0.97);
       }
       .dot {
         width: 0.625rem;

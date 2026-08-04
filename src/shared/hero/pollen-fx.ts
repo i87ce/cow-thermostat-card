@@ -32,7 +32,7 @@ export function pollenFx(
   if (level <= 0) return nothing;
   const clamped = Math.max(1, Math.min(4, Math.round(level)));
   // Particle count tuned so even level 4 stays under ~70 nodes (cheap).
-  const count = clamped === 1 ? 14 : clamped === 2 ? 28 : clamped === 3 ? 46 : 68;
+  const count = clamped === 1 ? 8 : clamped === 2 ? 14 : clamped === 3 ? 24 : 34;
   // Base opacity per level — visible at "bassa", hazy at "molto alta".
   const baseOpacity =
     clamped === 1 ? 0.45 : clamped === 2 ? 0.6 : clamped === 3 ? 0.75 : 0.9;

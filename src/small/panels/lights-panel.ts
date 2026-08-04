@@ -1,4 +1,4 @@
-import { LitElement, html, css } from "lit";
+import { LitElement, html, css, type PropertyValues } from "lit";
 import { customElement, property, state } from "lit/decorators.js";
 import type { HomeAssistant, HassEntity } from "../../types/hass.js";
 import {
@@ -13,6 +13,8 @@ import type { DeviceEntry, OpeningKind } from "../config.js";
 import { panelStyles } from "../styles/shell.js";
 import { animKeyframes, animTokens, colorTransition } from "../styles/anim.js";
 import { formatTime } from "../../utils/format.js";
+import { hassEntitiesChanged, smallLightsWatchIds } from "../../utils/hass-watch.js";
+import { subscribeSharedClock } from "../../utils/shared-clock.js";
 
 import "../components/light-tile.js";
 import "../visuals/bulb-visual.js";
@@ -112,6 +114,8 @@ export class CowLightsPanel extends LitElement {
   @property({ type: Boolean }) openingsEnabled = true;
   /** "all" | entity_id of a single light */
   @state() private scope: string = "all";
+  /** Optimistic on/off per entity until HA echoes. */
+  @state() private pendingOn: Record<string, boolean> = {};
   @state() private now = new Date();
   /** Optimistic value while dragging the left-panel surface. */
   @state() private dragPct: number | null = null;
@@ -122,7 +126,7 @@ export class CowLightsPanel extends LitElement {
    * being captured even when their finger covers the dot itself.
    */
   @state() private dragTouchY: number | null = null;
-  private timer?: number;
+  private unsubClock?: () => void;
 
   private dragStartY: number | null = null;
   private dragStartPct = 0;
@@ -237,25 +241,26 @@ export class CowLightsPanel extends LitElement {
       .fingertip {
         position: absolute;
         left: 150px;
+        top: 0;
         width: 60px;
         height: 60px;
         border-radius: 50%;
         background: rgba(255, 255, 255, 0.35);
         pointer-events: none;
-        /* Smoothly trail the finger as it moves; 80ms is short enough
-           to feel responsive but long enough to avoid jitter from
-           noisy pointer events on cheap touch panels. */
-        transition: top 80ms linear, opacity var(--cow-dur-base) var(--cow-ease-out);
+        will-change: transform;
+        transition: transform 80ms linear, opacity var(--cow-dur-base) var(--cow-ease-out);
       }
       .fingertip-arrow {
         position: absolute;
         left: 220px;
+        top: 0;
         font-weight: 400;
         font-size: 28px;
         line-height: 1;
         color: rgba(255, 255, 255, 0.6);
         pointer-events: none;
-        transition: top 80ms linear, opacity var(--cow-dur-base) var(--cow-ease-out);
+        will-change: transform;
+        transition: transform 80ms linear, opacity var(--cow-dur-base) var(--cow-ease-out);
       }
 
       .room {
@@ -364,11 +369,25 @@ export class CowLightsPanel extends LitElement {
 
   override connectedCallback(): void {
     super.connectedCallback();
-    this.timer = window.setInterval(() => (this.now = new Date()), 30_000);
+    this.unsubClock = subscribeSharedClock(() => {
+      this.now = new Date();
+    });
   }
   override disconnectedCallback(): void {
     super.disconnectedCallback();
-    if (this.timer) window.clearInterval(this.timer);
+    this.unsubClock?.();
+  }
+
+  override shouldUpdate(changed: PropertyValues): boolean {
+    if (changed.has("devices") || changed.has("roomName")) return true;
+    if (changed.has("hass")) {
+      return hassEntitiesChanged(
+        changed.get("hass") as HomeAssistant | undefined,
+        this.hass,
+        smallLightsWatchIds(this.devices),
+      );
+    }
+    return true;
   }
 
   private getEntity(id?: string): HassEntity | undefined {
@@ -386,16 +405,24 @@ export class CowLightsPanel extends LitElement {
     return this.targets().filter((id) => isDimmable(this.getEntity(id)));
   }
 
+  private entityForView(id: string): HassEntity | undefined {
+    const ent = this.getEntity(id);
+    const want = this.pendingOn[id];
+    if (want == null || !ent) return ent;
+    if ((ent.state === "on") === want) return ent;
+    return { ...ent, state: want ? "on" : "off" };
+  }
+
   private view(): LightsView {
     if (this.devices.length === 0) {
       return { variant: "off", brightnessPct: 0, raw: "unavailable", dimmable: false };
     }
     if (this.scope === "all") {
       return aggregateLightsView(
-        this.devices.map((d) => this.getEntity(d.entity)),
+        this.devices.map((d) => this.entityForView(d.entity)),
       );
     }
-    return deriveLightsView(this.getEntity(this.scope));
+    return deriveLightsView(this.entityForView(this.scope));
   }
 
   /** Number of dimmable entities in the full group (used in device-sub). */
@@ -460,6 +487,16 @@ export class CowLightsPanel extends LitElement {
     if (this.dragPct != null && Math.abs(v.brightnessPct - this.dragPct) <= 1) {
       this.dragPct = null;
     }
+    const nextOn = { ...this.pendingOn };
+    let onChanged = false;
+    for (const [id, want] of Object.entries(this.pendingOn)) {
+      const ent = this.getEntity(id);
+      if (!ent || (ent.state === "on") === want) {
+        delete nextOn[id];
+        onChanged = true;
+      }
+    }
+    if (onChanged) this.pendingOn = nextOn;
   }
 
   private async setBrightness(pct: number): Promise<void> {
@@ -494,6 +531,9 @@ export class CowLightsPanel extends LitElement {
     if (t.length === 0) return;
     const v = this.view();
     const turnOn = v.variant === "off";
+    const pendingOn = { ...this.pendingOn };
+    for (const id of t) pendingOn[id] = turnOn;
+    this.pendingOn = pendingOn;
     await this.hass.callService(
       "light",
       turnOn ? "turn_on" : "turn_off",
@@ -666,11 +706,11 @@ export class CowLightsPanel extends LitElement {
         ? html`
             <div
               class="fingertip"
-              style="top: ${this.dragTouchY - 30}px"
+              style="transform: translateY(${this.dragTouchY - 30}px)"
             ></div>
             <div
               class="fingertip-arrow"
-              style="top: ${this.dragTouchY - 17}px"
+              style="transform: translateY(${this.dragTouchY - 17}px)"
             >
               ↕
             </div>

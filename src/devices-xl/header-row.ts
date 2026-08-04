@@ -1,12 +1,13 @@
-import { LitElement, html, css, nothing, type TemplateResult } from "lit";
+import { LitElement, html, css, nothing, type PropertyValues } from "lit";
 import { customElement, property } from "lit/decorators.js";
 import type { HomeAssistant } from "../types/hass.js";
 import type { CowRoomConfig } from "../config-xl.js";
 import {
   countActiveByCategory,
   countOpenContacts,
-  findRoomOpeningsXL,
 } from "../config-xl.js";
+import { findRoomOpeningsCached } from "../utils/openings-cache.js";
+import { hassEntitiesChanged, xlHeaderEntityIds } from "../utils/hass-watch.js";
 
 import "../small/components/info-badge.js";
 
@@ -33,18 +34,38 @@ export class CowXLHeader extends LitElement {
    * back to this `weather.*` entity's temperature + humidity.
    */
   @property({ type: String }) weatherEntity?: string;
-  /**
-   * Backwards-compatible: a media_player entity_id to render a quick
-   * "now playing" pill. As of v0.8.0 the parent typically passes
-   * `musicPillSlot` instead so the music block owns its rendering.
-   */
-  @property({ type: String }) mediaPlayer?: string;
-  /**
-   * Music pill to render in the top-right header alongside the weather
-   * pill. The parent (cow-room-dashboard-card) decides what to show
-   * here (idle pill, hidden during ribbon/cinema mode, etc.).
-   */
-  @property({ attribute: false }) musicPillSlot?: TemplateResult;
+
+  private watchIds: string[] = [];
+  private openingsCacheKey(room: CowRoomConfig): string {
+    return `xl:${room.name}`;
+  }
+  private roomOpenings(room: CowRoomConfig) {
+    return findRoomOpeningsCached(this.hass, this.openingsCacheKey(room), {
+      areas: room.areas && room.areas.length > 0 ? room.areas : [room.name],
+      defaultKind: room.opening_default_kind,
+      doors: room.opening_doors,
+      windows: room.opening_windows,
+      garages: room.opening_garages,
+      enabled: room.openings_enabled,
+      entities: room.opening_entities,
+      excludeDevices: room.opening_exclude_devices,
+    });
+  }
+
+  override shouldUpdate(changed: PropertyValues): boolean {
+    if (changed.has("rooms") || changed.has("activeIndex") || changed.has("weatherEntity")) {
+      this.watchIds = xlHeaderEntityIds(this.rooms, this.weatherEntity);
+      return true;
+    }
+    if (changed.has("hass")) {
+      return hassEntitiesChanged(
+        changed.get("hass") as HomeAssistant | undefined,
+        this.hass,
+        this.watchIds.length ? this.watchIds : xlHeaderEntityIds(this.rooms, this.weatherEntity),
+      );
+    }
+    return true;
+  }
 
   static override styles = css`
     :host {
@@ -195,6 +216,9 @@ export class CowXLHeader extends LitElement {
     .chip:hover {
       box-shadow: 0 0.125rem 0.5rem rgba(31, 31, 46, 0.06);
     }
+    .chip:active {
+      transform: scale(0.97);
+    }
     .chip[data-active] {
       background: var(--cow-text-primary);
       border-color: var(--cow-text-primary);
@@ -269,16 +293,6 @@ export class CowXLHeader extends LitElement {
       background: var(--cow-surface-border);
     }
   `;
-
-  private getMediaText(): string | null {
-    if (!this.mediaPlayer || !this.hass) return null;
-    const e = this.hass.states[this.mediaPlayer];
-    if (!e) return null;
-    const title = (e.attributes as Record<string, unknown>).media_title as
-      | string
-      | undefined;
-    return title || (typeof e.state === "string" ? e.state : null);
-  }
 
   /**
    * Build the right-side info pill. Priority order:
@@ -393,7 +407,6 @@ export class CowXLHeader extends LitElement {
   override render() {
     const states = this.hass?.states ?? {};
     const info = this.getInfoPill();
-    const media = this.getMediaText();
     const groups = this.buildGroups();
     // Split into 2 rows (first half + remainder). With 4 groups this is a
     // clean 2+2; with 3 it becomes 2+1; with 5 it becomes 3+2.
@@ -410,7 +423,7 @@ export class CowXLHeader extends LitElement {
           ${g.items.map(({ room, index }) => {
             const counts = countActiveByCategory(room, states);
             const openContacts = countOpenContacts(
-              findRoomOpeningsXL(this.hass, room),
+              this.roomOpenings(room),
             );
             const total =
               counts.lights + counts.covers + counts.climate + openContacts;
@@ -480,15 +493,6 @@ export class CowXLHeader extends LitElement {
       <div class="label">STANZE</div>
       <div class="pills">
         ${infoPill}
-        ${this.musicPillSlot
-          ? this.musicPillSlot
-          : media
-            ? html`<div class="pill">
-                <span>♪</span>
-                <span>${media}</span>
-                <button class="play" aria-label="Play/pause">II</button>
-              </div>`
-            : nothing}
       </div>
       <div class="groups">
         ${rows.map(

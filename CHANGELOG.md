@@ -4,6 +4,47 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and
 this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.11.0] — 2026-08-04
+
+### Removed — music surface from the XL dashboard
+The Shelly Wall Display XL no longer ships a music ribbon, cinema
+overlay, drawer, pill, or Music Assistant client (~1 600 lines).
+Legacy `media_player` / `music_assistant_id` keys in Lovelace YAML are
+ignored (not rejected) so existing dashboards keep loading.
+
+### Changed — XL performance: optimistic UI, fewer re-renders, lighter hero
+- **Optimistic feedback** on lights, blinds, and climate (drawer tabs +
+  clima-casa bar): taps update the UI immediately and reconcile when HA
+  echoes the new state.
+- **`shouldUpdate` guards** on header, hero, clima bar, drawer, and tab
+  panels — only re-render when entity objects the component actually
+  uses change identity.
+- **Openings discovery cache** keyed on `hass.entities` identity (header,
+  drawer, small thermostat panel).
+- **Hero animation budget**: ~50 % fewer rain/stars/pollen particles;
+  backdrop pauses when the room drawer covers the hero.
+- **Scene shortcuts** get press-scale feedback (`touch-action: manipulation`).
+
+### Changed — small card (7× Shelly Wall Display) performance
+- **`shouldUpdate`** on all four swiper panels (climate / lights / blinds /
+  extras).
+- **Optimistic UI** for light toggle, blind open/close, TV toggle, and
+  setpoint arrows.
+- **Swiper drag** writes `--tx` directly on the track (no `requestUpdate`
+  per `pointermove`); active dot animates `transform` instead of `width`.
+- **Bulb glow** animation runs only when the light is on.
+- **Shared 30 s clock** for panel time labels (one interval instead of four).
+- **Fingertip drag indicator** uses `transform` instead of `top`.
+
+### Changed — mobile dashboard optimistic UI
+Lights, covers, climate mode/fan/setpoint, global sistema chips, and
+alarm buttons highlight immediately on tap; state reconciles on the HA
+echo.
+
+### Added — perf budget script
+`node scripts/perf-budget.mjs` reports bundle size and `shouldUpdate`
+guard count; use `--save` / `--compare` for before/after snapshots.
+
 ## [1.10.0] — 2026-08-04
 
 ### Added — full-screen Mode/Fan picker on the small card

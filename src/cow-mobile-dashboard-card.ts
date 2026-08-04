@@ -352,6 +352,18 @@ export class CowMobileDashboardCard
   @state() private pendingSystemMode?: string;
   /** Alarm action waiting for user confirmation (null = modal closed). */
   @state() private pendingAlarm: CowMobileAlarmControl | null = null;
+  /** Optimistic light on/off until HA echoes. */
+  @state() private optLight: Record<string, boolean> = {};
+  /** Optimistic TV on/off until HA echoes. */
+  @state() private optTv: Record<string, boolean> = {};
+  /** Optimistic cover state: opening | closing. */
+  @state() private optCover: Record<string, string> = {};
+  /** Optimistic climate mode/fan/target per entity id. */
+  @state() private optClimateMode: Record<string, string> = {};
+  @state() private optClimateFan: Record<string, string> = {};
+  @state() private optClimateTarget: Record<string, number> = {};
+  /** Optimistic global system mode (clima casa bar). */
+  @state() private optSystemMode?: string;
   private pendingSystemEntity?: string;
   /**
    * Live reference to the `<dialog>` element used as the modal drawer.
@@ -384,6 +396,79 @@ export class CowMobileDashboardCard
       if (d) {
         if (this.drawerRoom != null && !d.open) d.showModal();
         if (this.drawerRoom == null && d.open) d.close();
+      }
+    }
+    if (changed.has("hass") && this.hass) {
+      const st = this.hass.states;
+      const nextLight = { ...this.optLight };
+      let lightChanged = false;
+      for (const [id, want] of Object.entries(this.optLight)) {
+        if ((st[id]?.state === "on") === want) {
+          delete nextLight[id];
+          lightChanged = true;
+        }
+      }
+      if (lightChanged) this.optLight = nextLight;
+
+      const nextTv = { ...this.optTv };
+      let tvChanged = false;
+      for (const [id, want] of Object.entries(this.optTv)) {
+        const on = tvIsOn(st[id]);
+        if (on === want) {
+          delete nextTv[id];
+          tvChanged = true;
+        }
+      }
+      if (tvChanged) this.optTv = nextTv;
+
+      const nextCover = { ...this.optCover };
+      let coverChanged = false;
+      for (const [id] of Object.entries(this.optCover)) {
+        const s = st[id]?.state;
+        if (s === "open" || s === "closed") {
+          delete nextCover[id];
+          coverChanged = true;
+        }
+      }
+      if (coverChanged) this.optCover = nextCover;
+
+      const nextMode = { ...this.optClimateMode };
+      let modeChanged = false;
+      for (const [id, want] of Object.entries(this.optClimateMode)) {
+        if (st[id]?.state === want) {
+          delete nextMode[id];
+          modeChanged = true;
+        }
+      }
+      if (modeChanged) this.optClimateMode = nextMode;
+
+      const nextFan = { ...this.optClimateFan };
+      let fanChanged = false;
+      for (const [id, want] of Object.entries(this.optClimateFan)) {
+        if (st[id]?.attributes?.fan_mode === want) {
+          delete nextFan[id];
+          fanChanged = true;
+        }
+      }
+      if (fanChanged) this.optClimateFan = nextFan;
+
+      const nextTarget = { ...this.optClimateTarget };
+      let targetChanged = false;
+      for (const [id, want] of Object.entries(this.optClimateTarget)) {
+        const room = this.rooms.find((r) => r.climate === id);
+        const tgt = room?.targetEntity
+          ? Number(st[room.targetEntity]?.state)
+          : st[id]?.attributes?.temperature;
+        if (typeof tgt === "number" && Math.abs(tgt - want) < 0.01) {
+          delete nextTarget[id];
+          targetChanged = true;
+        }
+      }
+      if (targetChanged) this.optClimateTarget = nextTarget;
+
+      const sysId = this.systemClimateEntity();
+      if (this.optSystemMode != null && st[sysId]?.state === this.optSystemMode) {
+        this.optSystemMode = undefined;
       }
     }
   }
@@ -494,6 +579,7 @@ export class CowMobileDashboardCard
   // ── Service calls ────────────────────────────────────────────────
 
   private callLight(entity: string, on: boolean): void {
+    this.optLight = { ...this.optLight, [entity]: on };
     void this.hass?.callService(
       "light",
       on ? "turn_on" : "turn_off",
@@ -506,6 +592,7 @@ export class CowMobileDashboardCard
       this.callLight(entity, false);
       return;
     }
+    this.optLight = { ...this.optLight, [entity]: true };
     void this.hass?.callService(
       "light",
       "turn_on",
@@ -514,6 +601,7 @@ export class CowMobileDashboardCard
     );
   }
   private callTv(entity: string, on: boolean): void {
+    this.optTv = { ...this.optTv, [entity]: on };
     void this.hass?.callService(
       "media_player",
       on ? "turn_on" : "turn_off",
@@ -528,6 +616,14 @@ export class CowMobileDashboardCard
         : action === "close"
           ? "close_cover"
           : "stop_cover";
+    if (action === "open") {
+      this.optCover = { ...this.optCover, [entity]: "opening" };
+    } else if (action === "close") {
+      this.optCover = { ...this.optCover, [entity]: "closing" };
+    } else {
+      const { [entity]: _d, ...rest } = this.optCover;
+      this.optCover = rest;
+    }
     void this.hass?.callService("cover", svc, {}, { entity_id: entity });
   }
   private allLights(on: boolean): void {
@@ -558,6 +654,7 @@ export class CowMobileDashboardCard
 
   private setSystemMode(mode: string): void {
     const id = this.systemClimateEntity();
+    this.optSystemMode = mode;
     void this.hass?.callService(
       "climate",
       "set_hvac_mode",
@@ -575,7 +672,7 @@ export class CowMobileDashboardCard
     const id = this.systemClimateEntity();
     const ent = this.getEnt(id);
     if (!ent) return nothing;
-    const mode = ent.state;
+    const mode = this.optSystemMode ?? ent.state;
     const on = mode !== "off";
     const cur = Number(ent.attributes?.current_temperature);
     const action = ent.attributes?.hvac_action;
@@ -604,7 +701,7 @@ export class CowMobileDashboardCard
         ${modes.map(
           (m) => html`<button
             data-accent-soft
-            ?disabled=${mode === m}
+            ?data-active=${mode === m}
             @click=${() => this.setSystemMode(m)}
           >
             ${m === "fan_only" ? "Fan" : m === "off" ? "Off" : m.charAt(0).toUpperCase() + m.slice(1)}
@@ -644,6 +741,7 @@ export class CowMobileDashboardCard
   // climate.casa_<room> proxy directly from the phone, just like the
   // wall display.
   private setClimateMode(entity: string, mode: string): void {
+    this.optClimateMode = { ...this.optClimateMode, [entity]: mode };
     void this.hass?.callService(
       "climate",
       "set_hvac_mode",
@@ -666,6 +764,7 @@ export class CowMobileDashboardCard
 
   private applyGlobalMode(entity: string, mode: string): void {
     if (!this.hass) return;
+    this.optClimateMode = { ...this.optClimateMode, [entity]: mode };
     void applyGlobalMode(this.hass, entity, mode);
   }
 
@@ -712,6 +811,7 @@ export class CowMobileDashboardCard
   }
 
   private setClimateTarget(entity: string, temperature: number): void {
+    this.optClimateTarget = { ...this.optClimateTarget, [entity]: temperature };
     const override = this.targetOverrideFor(entity);
     if (override) {
       void this.hass?.callService(
@@ -730,6 +830,7 @@ export class CowMobileDashboardCard
     );
   }
   private setClimateFan(entity: string, fan_mode: string): void {
+    this.optClimateFan = { ...this.optClimateFan, [entity]: fan_mode };
     void this.hass?.callService(
       "climate",
       "set_fan_mode",
@@ -1583,6 +1684,10 @@ export class CowMobileDashboardCard
       .alarm-btn:active:not(:disabled) {
         transform: scale(0.98);
       }
+      .alarm-btn[data-pending] {
+        transform: scale(0.96);
+        opacity: 0.85;
+      }
       .alarm-btn:disabled {
         opacity: 0.35;
         cursor: not-allowed;
@@ -1710,6 +1815,7 @@ export class CowMobileDashboardCard
         class="alarm-btn"
         data-tone=${tone}
         ?data-active=${active}
+        ?data-pending=${this.pendingAlarm === c}
         ?disabled=${!ent || ent.state === "unavailable"}
         @click=${() => (this.pendingAlarm = c)}
       >
@@ -2147,21 +2253,38 @@ export class CowMobileDashboardCard
       deriveThermostatView(ent),
       this.getEnt(room.targetEntity),
     );
+    const displayRoomView =
+      this.optClimateTarget[entity] != null
+        ? { ...roomView, target: this.optClimateTarget[entity] }
+        : roomView;
     const split = usesSplitClimate(this.systemClimateEntity(), roomView);
     const sysId = this.systemClimateEntity();
     const sysEnt = split ? this.getEnt(sysId) : undefined;
-    const sysView = split ? deriveThermostatView(sysEnt) : roomView;
-    const view = split
+    let sysView = split ? deriveThermostatView(sysEnt) : roomView;
+    if (split && (this.optClimateMode[sysId] != null || this.optClimateFan[sysId] != null)) {
+      sysView = {
+        ...sysView,
+        mode: (this.optClimateMode[sysId] ?? sysView.mode) as typeof sysView.mode,
+        fan: this.optClimateFan[sysId] ?? sysView.fan,
+      };
+    }
+    let view = split
       ? deriveSplitRoomDisplayView(ent, sysEnt)
       : roomView;
+    if (!split && this.optClimateMode[entity] != null) {
+      view = { ...view, mode: this.optClimateMode[entity] as typeof view.mode };
+    }
+    if (!split && this.optClimateFan[entity] != null) {
+      view = { ...view, fan: this.optClimateFan[entity] };
+    }
     const accent = THERMOSTAT_ACCENT[view.variant];
     const fmt = (n: number, unit: string) =>
       `${n.toFixed(1).replace(/\.0$/, "")}${unit}`;
-    const cur = roomView.current != null ? fmt(roomView.current, "°") : "—";
-    const tgt = roomView.target != null ? fmt(roomView.target, "°") : "—";
+    const cur = displayRoomView.current != null ? fmt(displayRoomView.current, "°") : "—";
+    const tgt = displayRoomView.target != null ? fmt(displayRoomView.target, "°") : "—";
     const arrowsDisabled = false;
-    const upT = bumpTarget(roomView, 1);
-    const downT = bumpTarget(roomView, -1);
+    const upT = bumpTarget(displayRoomView, 1);
+    const downT = bumpTarget(displayRoomView, -1);
     const statusLabel = split
       ? splitRoomStatusLabel(ent)
       : THERMOSTAT_STATUS_LABEL[view.variant];
@@ -2184,7 +2307,7 @@ export class CowMobileDashboardCard
           <div class="qc-climate-cur">
             ${cur}
             ${roomView.humidity != null
-              ? html`<span class="hum">💧 ${Math.round(roomView.humidity)}%</span>`
+              ? html`<span class="hum">💧 ${Math.round(displayRoomView.humidity ?? roomView.humidity)}%</span>`
               : nothing}
           </div>
           <div class="qc-climate-set">
@@ -2347,7 +2470,7 @@ export class CowMobileDashboardCard
   private renderLightRow(d: CowMobileDeviceEntry) {
     const ent = this.getEnt(d.entity);
     const label = d.label ?? ent?.attributes?.friendly_name ?? d.entity;
-    const on = isOn(ent);
+    const on = this.optLight[d.entity] ?? isOn(ent);
     const dimmable = isDimmable(ent);
     const pct = brightnessPct(ent);
     return html`
@@ -2390,7 +2513,7 @@ export class CowMobileDashboardCard
   private renderTvRow(d: CowMobileDeviceEntry) {
     const ent = this.getEnt(d.entity);
     const label = d.label ?? ent?.attributes?.friendly_name ?? d.entity;
-    const on = tvIsOn(ent);
+    const on = this.optTv[d.entity] ?? tvIsOn(ent);
     const unavailable = !ent || ent.state === "unavailable";
     return html`
       <div class="qc-row">
@@ -2424,8 +2547,14 @@ export class CowMobileDashboardCard
   private renderCoverRow(d: CowMobileDeviceEntry) {
     const ent = this.getEnt(d.entity);
     const label = d.label ?? ent?.attributes?.friendly_name ?? d.entity;
-    const pos = coverPos(ent);
-    const state = ent?.state ?? "unknown";
+    const pending = this.optCover[d.entity];
+    const state = pending ?? ent?.state ?? "unknown";
+    const pos =
+      pending === "opening"
+        ? 100
+        : pending === "closing"
+          ? 0
+          : coverPos(ent);
     const sub =
       state === "opening"
         ? "Si sta aprendo…"

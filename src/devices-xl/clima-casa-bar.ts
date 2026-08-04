@@ -1,4 +1,4 @@
-import { LitElement, html, css, nothing } from "lit";
+import { LitElement, html, css, nothing, type PropertyValues } from "lit";
 import { customElement, property, state } from "lit/decorators.js";
 import { buttonReset } from "../styles/button-reset.js";
 import type { HomeAssistant } from "../types/hass.js";
@@ -10,6 +10,7 @@ import {
   needsModeChangeConfirm,
   SYSTEM_MODE_CHIP_ORDER,
 } from "../small/state/split-climate.js";
+import { climaBarWatchIds, hassEntitiesChanged } from "../utils/hass-watch.js";
 import "../shared/setpoint-modal.js";
 import "../shared/confirm-modal.js";
 
@@ -34,6 +35,9 @@ export class CowXLClimaCasa extends LitElement {
 
   @state() private setpointModalOpen = false;
   @state() private pendingSystemMode?: string;
+  @state() private pendingMode?: string;
+  @state() private pendingFan?: string;
+  private cachedAirZones: string[] | null = null;
 
   static override styles = [
     buttonReset,
@@ -98,6 +102,13 @@ export class CowXLClimaCasa extends LitElement {
         font-size: 0.8125rem;
         color: var(--cow-text-secondary);
         cursor: pointer;
+        transition:
+          background-color 160ms ease,
+          color 160ms ease,
+          transform 120ms ease;
+      }
+      .chip:active {
+        transform: scale(0.96);
       }
       .bar[data-on] .chip {
         border-color: rgba(255, 255, 255, 0.35);
@@ -145,21 +156,55 @@ export class CowXLClimaCasa extends LitElement {
     return this.systemClimate || DEFAULT_SYSTEM;
   }
 
+  override shouldUpdate(changed: PropertyValues): boolean {
+    if (changed.has("systemClimate")) {
+      this.cachedAirZones = null;
+      return true;
+    }
+    if (changed.has("hass")) {
+      const ids = climaBarWatchIds(this.hass, this.entityId());
+      return hassEntitiesChanged(
+        changed.get("hass") as HomeAssistant | undefined,
+        this.hass,
+        ids,
+      );
+    }
+    return true;
+  }
+
+  override willUpdate(): void {
+    const id = this.entityId();
+    const ent = this.hass?.states?.[id];
+    if (ent) {
+      const mode = ent.state ?? "off";
+      const fan = ent.attributes?.fan_mode as string | undefined;
+      if (this.pendingMode != null && this.pendingMode === mode) {
+        this.pendingMode = undefined;
+      }
+      if (this.pendingFan != null && this.pendingFan === fan) {
+        this.pendingFan = undefined;
+      }
+    }
+  }
+
   /** Air zones = casa_* proxies with modes [off,auto] and not floor-only. */
   private airZones(): string[] {
     const st = this.hass?.states ?? {};
-    return Object.keys(st).filter((id) => {
-      if (!id.startsWith("climate.casa_")) return false;
-      if (id === this.entityId()) return false;
-      const e = st[id];
-      const modes = e.attributes?.hvac_modes as string[] | undefined;
-      const isAir =
-        !!modes &&
-        modes.includes("off") &&
-        modes.includes("auto") &&
-        !modes.some((m) => ["heat", "cool", "dry", "fan_only"].includes(m));
-      return isAir && e.attributes?.floor_only !== true;
-    });
+    if (!this.cachedAirZones) {
+      this.cachedAirZones = Object.keys(st).filter((id) => {
+        if (!id.startsWith("climate.casa_")) return false;
+        if (id === this.entityId()) return false;
+        const e = st[id];
+        const modes = e.attributes?.hvac_modes as string[] | undefined;
+        const isAir =
+          !!modes &&
+          modes.includes("off") &&
+          modes.includes("auto") &&
+          !modes.some((m) => ["heat", "cool", "dry", "fan_only"].includes(m));
+        return isAir && e.attributes?.floor_only !== true;
+      });
+    }
+    return this.cachedAirZones;
   }
 
   private setpoints(): number[] {
@@ -193,6 +238,7 @@ export class CowXLClimaCasa extends LitElement {
     if (needsModeChangeConfirm(current, mode, excluded)) {
       this.pendingSystemMode = mode;
     } else {
+      this.pendingMode = mode;
       this.applyMode(mode);
     }
   }
@@ -200,7 +246,10 @@ export class CowXLClimaCasa extends LitElement {
   private confirmMode = (): void => {
     const mode = this.pendingSystemMode;
     this.pendingSystemMode = undefined;
-    if (mode) this.applyMode(mode);
+    if (mode) {
+      this.pendingMode = mode;
+      this.applyMode(mode);
+    }
   };
 
   private cancelMode = (): void => {
@@ -208,6 +257,7 @@ export class CowXLClimaCasa extends LitElement {
   };
 
   private setFan(fan: string): void {
+    this.pendingFan = fan;
     void this.hass?.callService(
       "climate",
       "set_fan_mode",
@@ -240,13 +290,13 @@ export class CowXLClimaCasa extends LitElement {
     const ent = this.hass?.states?.[id];
     if (!ent) return nothing;
 
-    const mode = ent.state ?? "off";
+    const mode = this.pendingMode ?? ent.state ?? "off";
     const on = mode !== "off";
     const modes = SYSTEM_MODE_CHIP_ORDER.filter((m) =>
       (ent.attributes?.hvac_modes as string[] | undefined)?.includes(m),
     );
     const fanModes = (ent.attributes?.fan_modes as string[] | undefined) ?? [];
-    const fan = ent.attributes?.fan_mode as string | undefined;
+    const fan = this.pendingFan ?? (ent.attributes?.fan_mode as string | undefined);
     const common = this.commonSetpoint();
     const setpointLabel =
       common != null ? `${common.toFixed(1).replace(/\.0$/, "")}°C` : "—°C";

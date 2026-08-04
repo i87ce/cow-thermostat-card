@@ -1,4 +1,4 @@
-import { LitElement, html, css, svg } from "lit";
+import { LitElement, html, css, svg, type PropertyValues } from "lit";
 import { customElement, property, state } from "lit/decorators.js";
 import type { HomeAssistant, HassEntity } from "../../types/hass.js";
 import {
@@ -11,6 +11,8 @@ import type { DeviceEntry, OpeningKind } from "../config.js";
 import { panelStyles } from "../styles/shell.js";
 import { animKeyframes, animTokens, colorTransition } from "../styles/anim.js";
 import { formatTime } from "../../utils/format.js";
+import { hassEntitiesChanged, smallBlindsWatchIds } from "../../utils/hass-watch.js";
+import { subscribeSharedClock } from "../../utils/shared-clock.js";
 
 import "../components/action-button.js";
 import "../components/scope-row.js";
@@ -110,7 +112,8 @@ export class CowBlindsPanel extends LitElement {
 
   @state() private scope: string = "all";
   @state() private now = new Date();
-  private timer?: number;
+  @state() private pendingMove: Record<string, "opening" | "closing"> = {};
+  private unsubClock?: () => void;
 
   static override styles = [
     animTokens,
@@ -261,11 +264,25 @@ export class CowBlindsPanel extends LitElement {
 
   override connectedCallback(): void {
     super.connectedCallback();
-    this.timer = window.setInterval(() => (this.now = new Date()), 30_000);
+    this.unsubClock = subscribeSharedClock(() => {
+      this.now = new Date();
+    });
   }
   override disconnectedCallback(): void {
     super.disconnectedCallback();
-    if (this.timer) window.clearInterval(this.timer);
+    this.unsubClock?.();
+  }
+
+  override shouldUpdate(changed: PropertyValues): boolean {
+    if (changed.has("devices") || changed.has("roomName")) return true;
+    if (changed.has("hass")) {
+      return hassEntitiesChanged(
+        changed.get("hass") as HomeAssistant | undefined,
+        this.hass,
+        smallBlindsWatchIds(this.devices),
+      );
+    }
+    return true;
   }
 
   private getEntity(id?: string): HassEntity | undefined {
@@ -278,19 +295,36 @@ export class CowBlindsPanel extends LitElement {
     return [this.scope];
   }
 
+  private entityForView(id: string): HassEntity | undefined {
+    const ent = this.getEntity(id);
+    const pending = this.pendingMove[id];
+    if (!ent || !pending) return ent;
+    return { ...ent, state: pending };
+  }
+
   private view(): BlindsView {
     if (this.devices.length === 0) {
       return { variant: "closed", position: 0, raw: "unavailable" };
     }
     if (this.scope === "all") {
       return aggregateBlindsView(
-        this.devices.map((d) => this.getEntity(d.entity)),
+        this.devices.map((d) => this.entityForView(d.entity)),
       );
     }
-    return deriveBlindsView(this.getEntity(this.scope));
+    return deriveBlindsView(this.entityForView(this.scope));
   }
 
   override willUpdate(): void {
+    const next = { ...this.pendingMove };
+    let changed = false;
+    for (const [id] of Object.entries(this.pendingMove)) {
+      const st = this.getEntity(id)?.state;
+      if (!st || st === "open" || st === "closed") {
+        delete next[id];
+        changed = true;
+      }
+    }
+    if (changed) this.pendingMove = next;
     const v = this.view();
     const a = ACCENT[v.variant];
     this.style.setProperty("--cow-accent", a.primary);
@@ -300,10 +334,18 @@ export class CowBlindsPanel extends LitElement {
     this.toggleAttribute("data-multi-cover", this.devices.length > 1);
   }
 
+  private markMove(dir: "opening" | "closing"): void {
+    const next = { ...this.pendingMove };
+    for (const id of this.targets()) next[id] = dir;
+    this.pendingMove = next;
+  }
+
   private async open(): Promise<void> {
+    this.markMove("opening");
     await this.svc("open_cover");
   }
   private async close(): Promise<void> {
+    this.markMove("closing");
     await this.svc("close_cover");
   }
   private async stop(): Promise<void> {

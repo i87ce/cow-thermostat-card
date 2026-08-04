@@ -1,9 +1,10 @@
-import { LitElement, html, css, nothing } from "lit";
+import { LitElement, html, css, nothing, type PropertyValues } from "lit";
 import { customElement, property, state } from "lit/decorators.js";
 import type { HomeAssistant } from "../types/hass.js";
 import type { CowRoomConfig } from "../config-xl.js";
 import { countOpenContacts, findRoomOpeningsXL } from "../config-xl.js";
 import { buttonReset } from "../styles/button-reset.js";
+import { hassEntitiesChanged, xlRoomEntityIds } from "../utils/hass-watch.js";
 
 import "./drawer-tabs/lights-tab.js";
 import "./drawer-tabs/blinds-tab.js";
@@ -33,6 +34,24 @@ export class CowXLDrawer extends LitElement {
   @property({ type: String }) systemClimate = "";
   @property({ type: Boolean, reflect: true }) open = false;
   @state() private activeTab: DrawerTab = "lights";
+
+  override shouldUpdate(changed: PropertyValues): boolean {
+    if (changed.has("open") || changed.has("room") || changed.has("systemClimate")) {
+      return true;
+    }
+    if (changed.has("hass")) {
+      const ids = [
+        ...xlRoomEntityIds(this.room),
+        ...(this.systemClimate ? [this.systemClimate] : []),
+      ];
+      return hassEntitiesChanged(
+        changed.get("hass") as HomeAssistant | undefined,
+        this.hass,
+        ids,
+      );
+    }
+    return true;
+  }
 
   static override styles = [
     buttonReset,
