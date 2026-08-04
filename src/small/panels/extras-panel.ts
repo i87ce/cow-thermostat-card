@@ -1,4 +1,4 @@
-import { LitElement, html, css, svg } from "lit";
+import { LitElement, html, css, svg, type PropertyValues } from "lit";
 import { customElement, property, state } from "lit/decorators.js";
 import type { HomeAssistant, HassEntity } from "../../types/hass.js";
 import type { DeviceEntry } from "../config.js";
@@ -6,6 +6,8 @@ import { openingIconSvg } from "../../util/ajax-openings.js";
 import { panelStyles } from "../styles/shell.js";
 import { animKeyframes, animTokens, colorTransition } from "../styles/anim.js";
 import { formatTime } from "../../utils/format.js";
+import { hassEntitiesChanged, smallExtrasWatchIds } from "../../utils/hass-watch.js";
+import { subscribeSharedClock } from "../../utils/shared-clock.js";
 
 import "../components/light-tile.js";
 
@@ -99,7 +101,8 @@ export class CowExtrasPanel extends LitElement {
 
   @state() private now = new Date();
   @state() private doorFeedback?: DoorFeedback;
-  private timer?: number;
+  @state() private pendingTv: Record<string, boolean> = {};
+  private unsubClock?: () => void;
   private doorFeedbackTimer?: number;
 
   static override styles = [
@@ -286,12 +289,28 @@ export class CowExtrasPanel extends LitElement {
 
   override connectedCallback(): void {
     super.connectedCallback();
-    this.timer = window.setInterval(() => (this.now = new Date()), 30_000);
+    this.unsubClock = subscribeSharedClock(() => {
+      this.now = new Date();
+    });
   }
   override disconnectedCallback(): void {
     super.disconnectedCallback();
-    if (this.timer) window.clearInterval(this.timer);
+    this.unsubClock?.();
     if (this.doorFeedbackTimer) window.clearTimeout(this.doorFeedbackTimer);
+  }
+
+  override shouldUpdate(changed: PropertyValues): boolean {
+    if (changed.has("devices") || changed.has("roomName") || changed.has("doorEntity")) {
+      return true;
+    }
+    if (changed.has("hass")) {
+      return hassEntitiesChanged(
+        changed.get("hass") as HomeAssistant | undefined,
+        this.hass,
+        smallExtrasWatchIds(this.devices, this.doorEntity),
+      );
+    }
+    return true;
   }
 
   private getEntity(id?: string): HassEntity | undefined {
@@ -299,11 +318,30 @@ export class CowExtrasPanel extends LitElement {
     return this.hass.states[id];
   }
 
+  private tvEntity(id: string): HassEntity | undefined {
+    const ent = this.getEntity(id);
+    const want = this.pendingTv[id];
+    if (want == null || !ent) return ent;
+    const on = tvIsOn(ent);
+    if (on === want) return ent;
+    return { ...ent, state: want ? "on" : "off" };
+  }
+
   private onCount(): number {
-    return this.devices.filter((d) => tvIsOn(this.getEntity(d.entity))).length;
+    return this.devices.filter((d) => tvIsOn(this.tvEntity(d.entity))).length;
   }
 
   override willUpdate(): void {
+    const next = { ...this.pendingTv };
+    let changed = false;
+    for (const [id, want] of Object.entries(this.pendingTv)) {
+      const on = tvIsOn(this.getEntity(id));
+      if (on === want) {
+        delete next[id];
+        changed = true;
+      }
+    }
+    if (changed) this.pendingTv = next;
     const a = ACCENT[this.onCount() > 0 ? "on" : "off"];
     this.style.setProperty("--cow-accent", a.primary);
     this.style.setProperty("--cow-accent-light", a.light);
@@ -320,6 +358,7 @@ export class CowExtrasPanel extends LitElement {
   private async toggleTv(entityId: string): Promise<void> {
     if (!this.hass) return;
     const on = tvIsOn(this.getEntity(entityId));
+    this.pendingTv = { ...this.pendingTv, [entityId]: !on };
     await this.hass.callService(
       "media_player",
       on ? "turn_off" : "turn_on",
@@ -335,6 +374,9 @@ export class CowExtrasPanel extends LitElement {
   private onLeftTap = (): void => {
     if (!this.hass || this.devices.length === 0) return;
     const anyOn = this.onCount() > 0;
+    const pendingTv = { ...this.pendingTv };
+    for (const d of this.devices) pendingTv[d.entity] = !anyOn;
+    this.pendingTv = pendingTv;
     void this.hass.callService(
       "media_player",
       anyOn ? "turn_off" : "turn_on",
@@ -413,7 +455,7 @@ export class CowExtrasPanel extends LitElement {
       <div class="section">Televisioni</div>
       <div class="grid">
         ${this.devices.map((d) => {
-          const ent = this.getEntity(d.entity);
+          const ent = this.tvEntity(d.entity);
           return html`
             <cow-light-tile
               .tileId=${d.entity}

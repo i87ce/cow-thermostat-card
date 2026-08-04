@@ -21,26 +21,17 @@ import "./devices-xl/hero-card.js";
 import "./devices-xl/scene-shortcuts.js";
 import "./devices-xl/clima-casa-bar.js";
 import "./devices-xl/drawer.js";
-import "./devices-xl/music/music-pill.js";
-import "./devices-xl/music/music-ribbon.js";
-import "./devices-xl/music/music-cinema.js";
-import "./devices-xl/music/music-drawer.js";
 
-import { MaClient } from "./devices-xl/music/ma-client.js";
-import type {
-  NowPlaying,
-  MusicMode,
-  MaItem,
-} from "./devices-xl/music/types.js";
+/** Default scene shortcuts when none configured in YAML. */
+const DEFAULT_SCENES: CowSceneConfig[] = [
+  { name: "Tutto OFF", icon: "○", accent: "#8C8C99" },
+  { name: "Apri tutto", icon: "△", accent: "#26A673" },
+  { name: "Notte", icon: "☾", accent: "#1F1F2E" },
+  { name: "Cinema", icon: "■", accent: "#FA6B2E" },
+];
 
 /**
  * Cave of Wonders ROOM DASHBOARD card — for the Shelly Wall Display XL (10.1").
- *
- * Phase 1 (current): Idle state only — chip-row header, weather/clock hero
- * card, scene shortcuts row, drawer peek. Tapping a chip is a no-op for now.
- *
- * Phase 2 (planned): drawer slide-up with per-room Lights / Blinds / Climate
- * tabs + master action row.
  */
 @customElement("cow-room-dashboard-card")
 export class CowRoomDashboardCard
@@ -51,18 +42,6 @@ export class CowRoomDashboardCard
   @state() private config?: CowRoomDashboardConfig;
   @state() private activeRoomIndex = -1;
   @state() private drawerOpen = false;
-
-  /** Music block UI mode. The state machine derives from `media_player.state`
-   * but the cinema-vs-ribbon split is user-controlled (defaults to ribbon). */
-  @state() private cinemaOpen = false;
-  @state() private musicDrawerOpen = false;
-  /** Favorite radios from MA's library — fetched lazily on first need
-   * (when entering cinema mode or opening the drawer). */
-  @state() private favoriteRadios: MaItem[] = [];
-  /** Live "now playing" snapshot, computed every render from hass. */
-  private nowPlaying: NowPlaying = { status: "idle" };
-  /** Guards a single in-flight favorite-radios fetch. */
-  private favoriteRadiosFetched = false;
 
   static override styles = [
     fontFaces,
@@ -88,17 +67,7 @@ export class CowRoomDashboardCard
         left: 1.5rem;
         right: 1.5rem;
         top: 19.25rem;
-        transition: top 280ms ease;
       }
-      /* When the music ribbon is showing we push the hero down by
-         5.75rem and tell the hero to render in compact mode (height
-         17.5rem, smaller clock + celestial body). Scenes and drawer
-         peek stay anchored where they are. */
-      .hero-wrap[data-shrunk] {
-        top: 25rem;
-      }
-      /* Luci/tapparelle + clima/scripts — stacked directly under the hero,
-         not overlapping it. Sits in the “action band” below the clock card. */
       .home-actions {
         position: absolute;
         left: 1.5rem;
@@ -109,9 +78,6 @@ export class CowRoomDashboardCard
         flex-direction: column;
         gap: 0.5rem;
         justify-content: flex-start;
-      }
-      .home-actions[data-shrunk] {
-        top: 43.1rem;
       }
       .drawer-peek {
         position: absolute;
@@ -164,18 +130,16 @@ export class CowRoomDashboardCard
   }
 
   getCardSize(): number {
-    return 14; // ≈ 800/50
+    return 14;
   }
 
   private onRoomTap = (e: CustomEvent<{ index: number }>) => {
     const next = e.detail.index;
-    // Tap on the same chip while the drawer is open → close it.
     if (this.drawerOpen && this.activeRoomIndex === next) {
       this.drawerOpen = false;
       this.activeRoomIndex = -1;
       return;
     }
-    // Otherwise: switch room and open the drawer.
     this.activeRoomIndex = next;
     this.drawerOpen = true;
   };
@@ -191,10 +155,6 @@ export class CowRoomDashboardCard
     if (!this.hass || !e.detail.service) return;
     const [domain, service] = e.detail.service.split(".");
     if (!domain || !service) return;
-    // Auto-aggregate target entity_ids from the rooms config when the
-    // service domain matches a known device class (light/cover/climate),
-    // so a single scene like "light.turn_on" hits every light in the
-    // dashboard. Falls back to a no-target call for script.* / scene.*.
     const target = this.aggregateTargetForDomain(domain);
     try {
       await this.hass.callService(domain, service, {}, target);
@@ -204,7 +164,6 @@ export class CowRoomDashboardCard
     }
   };
 
-  /** Collect every entity_id of the given domain from the rooms config. */
   private aggregateTargetForDomain(
     domain: string,
   ): { entity_id: string[] } | undefined {
@@ -225,123 +184,6 @@ export class CowRoomDashboardCard
     return { entity_id: ids };
   }
 
-  /* ───────────────── Music state machine + event handlers ───────────────── */
-
-  /** Read the speaker entity and project a normalized NowPlaying snapshot. */
-  private computeNowPlaying(): NowPlaying {
-    if (!this.hass || !this.config?.media_player) {
-      return { status: "idle" };
-    }
-    const e = this.hass.states[this.config.media_player];
-    if (!e) return { status: "idle" };
-    const a = e.attributes as Record<string, unknown>;
-    const status: NowPlaying["status"] =
-      e.state === "playing"
-        ? "playing"
-        : e.state === "paused"
-          ? "paused"
-          : e.state === "buffering"
-            ? "buffering"
-            : e.state === "off" || e.state === "unavailable"
-              ? "off"
-              : "idle";
-    const num = (v: unknown) => (typeof v === "number" ? v : undefined);
-    return {
-      status,
-      title: typeof a.media_title === "string" ? a.media_title : undefined,
-      artist: typeof a.media_artist === "string" ? a.media_artist : undefined,
-      album: typeof a.media_album_name === "string" ? a.media_album_name : undefined,
-      artUrl:
-        typeof a.entity_picture_local === "string"
-          ? this.absoluteUrl(a.entity_picture_local)
-          : typeof a.entity_picture === "string"
-            ? this.absoluteUrl(a.entity_picture)
-            : undefined,
-      duration: num(a.media_duration),
-      position: num(a.media_position),
-      volume: num(a.volume_level),
-      muted: a.is_volume_muted === true,
-      positionUpdatedAt:
-        typeof a.media_position_updated_at === "string"
-          ? a.media_position_updated_at
-          : undefined,
-    };
-  }
-
-  /** Make HA-relative `entity_picture` URLs absolute so the kiosk Wall
-   * Display can load them when served via Nabu Casa or local IP. */
-  private absoluteUrl(url: string): string {
-    if (/^https?:\/\//.test(url)) return url;
-    return url.startsWith("/") ? url : `/${url}`;
-  }
-
-  /** Music UI mode derived from speaker state + cinema toggle. */
-  private getMusicMode(np: NowPlaying): MusicMode {
-    if (np.status === "playing" || np.status === "paused" || np.status === "buffering") {
-      return this.cinemaOpen ? "cinema" : "ribbon";
-    }
-    return "idle";
-  }
-
-  private getMaClient(): MaClient | undefined {
-    if (!this.hass || !this.config?.media_player) return undefined;
-    return new MaClient(
-      this.hass,
-      this.config.music_assistant_id,
-      this.config.media_player,
-    );
-  }
-
-  /* Transport — small helpers that delegate to the client */
-  private withClient(fn: (c: MaClient) => Promise<void>): void {
-    const c = this.getMaClient();
-    if (!c) return;
-    fn(c).catch((err) => {
-      // eslint-disable-next-line no-console
-      console.warn("[cow-room-dashboard-card] music call failed", err);
-    });
-  }
-
-  private onMusicToggle = () => this.withClient((c) => c.toggle());
-  private onMusicPrev = () => this.withClient((c) => c.previous());
-  private onMusicNext = () => this.withClient((c) => c.next());
-  private onMusicVolume = (e: CustomEvent<number>) =>
-    this.withClient((c) => c.setVolume(e.detail));
-  private onMusicResume = () => this.withClient((c) => c.play_());
-  private onMusicCinema = () => {
-    this.cinemaOpen = true;
-    this.ensureFavoriteRadios();
-  };
-  private onMusicCloseCinema = () => { this.cinemaOpen = false; };
-  private onMusicBrowse = () => {
-    this.musicDrawerOpen = true;
-    this.ensureFavoriteRadios();
-  };
-  private onMusicCloseDrawer = () => { this.musicDrawerOpen = false; };
-
-  private onMusicPlayItem = (e: CustomEvent<MaItem>) => {
-    this.withClient((c) => c.play(e.detail));
-    this.musicDrawerOpen = false;
-  };
-
-  /**
-   * Fetch the user's favorite radios from MA once per session. Called
-   * lazily on first access (cinema open or drawer open) so we don't
-   * spam MA before the user actually wants the data.
-   */
-  private async ensureFavoriteRadios(): Promise<void> {
-    if (this.favoriteRadiosFetched) return;
-    const c = this.getMaClient();
-    if (!c?.isMaAvailable) return;
-    this.favoriteRadiosFetched = true;
-    try {
-      const limit = this.config?.music?.favorite_radios_limit ?? 6;
-      this.favoriteRadios = await c.getFavoriteRadios(Math.max(limit, 6));
-    } catch {
-      this.favoriteRadiosFetched = false; // allow retry next time
-    }
-  }
-
   override render() {
     if (!this.config) {
       return html`<div class="error">
@@ -349,30 +191,11 @@ export class CowRoomDashboardCard
       </div>`;
     }
     const cfg = this.config;
-    const scenes: CowSceneConfig[] =
-      cfg.scenes ??
-      [
-        { name: "Tutto OFF", icon: "○", accent: "#8C8C99" },
-        { name: "Apri tutto", icon: "△", accent: "#26A673" },
-        { name: "Notte", icon: "☾", accent: "#1F1F2E" },
-        { name: "Cinema", icon: "■", accent: "#FA6B2E" },
-      ];
-
+    const scenes = cfg.scenes ?? DEFAULT_SCENES;
     const activeRoom =
       this.activeRoomIndex >= 0 && this.activeRoomIndex < cfg.rooms.length
         ? cfg.rooms[this.activeRoomIndex]
         : undefined;
-
-    // ── Music state ──────────────────────────────────────────────
-    this.nowPlaying = this.computeNowPlaying();
-    const musicMode = this.getMusicMode(this.nowPlaying);
-    const showRibbon = musicMode === "ribbon";
-    const showCinema = musicMode === "cinema";
-    const showPill = musicMode === "idle" && !!cfg.media_player;
-    const maClient = this.getMaClient();
-    const deviceLabel = cfg.media_player
-      ? this.hass?.states[cfg.media_player]?.attributes?.friendly_name ?? ""
-      : "";
     const heroLocale = cfg.locale ?? this.hass?.locale?.language;
 
     return html`
@@ -382,59 +205,27 @@ export class CowRoomDashboardCard
           .rooms=${cfg.rooms}
           .activeIndex=${this.activeRoomIndex}
           .weatherEntity=${cfg.weather_entity}
-          .musicPillSlot=${showPill ? this.renderMusicPill() : undefined}
           @cow-room-tap=${this.onRoomTap}
-          @cow-music-resume=${this.onMusicResume}
         ></cow-xl-header>
 
-        ${showRibbon
-          ? html`<cow-xl-music-ribbon
-              .nowPlaying=${this.nowPlaying}
-              @cow-music-toggle=${this.onMusicToggle}
-              @cow-music-prev=${this.onMusicPrev}
-              @cow-music-next=${this.onMusicNext}
-              @cow-music-volume=${this.onMusicVolume}
-              @cow-music-cinema=${this.onMusicCinema}
-              @cow-music-browse=${this.onMusicBrowse}
-            ></cow-xl-music-ribbon>`
-          : ""}
+        <div class="hero-wrap">
+          <cow-xl-hero
+            .hass=${this.hass}
+            .weatherEntity=${cfg.weather_entity}
+            .sunEntity=${cfg.sun_entity ?? "sun.sun"}
+            .moonEntity=${cfg.moon_entity ?? "sensor.moon"}
+            .locale=${heroLocale}
+            .pollenOverall=${cfg.pollen?.overall}
+            .pollenAllergens=${cfg.pollen?.allergens ?? []}
+            .pollenMinLevel=${cfg.pollen?.min_level ?? 1}
+            .pollenPinned=${cfg.pollen?.pinned ?? []}
+            .pollenMaxItems=${cfg.pollen?.max_items ?? 3}
+            .aurora=${!!cfg.aurora}
+            ?paused=${this.drawerOpen}
+          ></cow-xl-hero>
+        </div>
 
-        ${showCinema
-          ? html`<cow-xl-music-cinema
-              .nowPlaying=${this.nowPlaying}
-              .favoriteRadios=${this.favoriteRadios.slice(
-                0,
-                cfg.music?.favorite_radios_limit ?? 6,
-              )}
-              .clockText=${this.formatNowTime(heroLocale)}
-              .dateText=${this.formatNowDate(heroLocale)}
-              .deviceLabel=${deviceLabel}
-              @cow-music-close=${this.onMusicCloseCinema}
-              @cow-music-toggle=${this.onMusicToggle}
-              @cow-music-prev=${this.onMusicPrev}
-              @cow-music-next=${this.onMusicNext}
-              @cow-music-volume=${this.onMusicVolume}
-              @cow-music-browse=${this.onMusicBrowse}
-              @cow-music-play-item=${this.onMusicPlayItem}
-            ></cow-xl-music-cinema>`
-          : html`<div class="hero-wrap" ?data-shrunk=${showRibbon}>
-              <cow-xl-hero
-                .hass=${this.hass}
-                .weatherEntity=${cfg.weather_entity}
-                .sunEntity=${cfg.sun_entity ?? "sun.sun"}
-                .moonEntity=${cfg.moon_entity ?? "sensor.moon"}
-                .locale=${heroLocale}
-                .pollenOverall=${cfg.pollen?.overall}
-                .pollenAllergens=${cfg.pollen?.allergens ?? []}
-                .pollenMinLevel=${cfg.pollen?.min_level ?? 1}
-                .pollenPinned=${cfg.pollen?.pinned ?? []}
-                .pollenMaxItems=${cfg.pollen?.max_items ?? 3}
-                .aurora=${!!cfg.aurora}
-                ?compact=${showRibbon}
-              ></cow-xl-hero>
-            </div>`}
-
-        <div class="home-actions" ?data-shrunk=${showRibbon}>
+        <div class="home-actions">
           <cow-xl-scenes
             .scenes=${scenes}
             @cow-scene-tap=${this.onSceneTap}
@@ -457,39 +248,8 @@ export class CowRoomDashboardCard
           ?open=${this.drawerOpen}
           @cow-drawer-close=${this.onDrawerClose}
         ></cow-xl-drawer>
-
-        ${cfg.media_player
-          ? html`<cow-xl-music-drawer
-              ?open=${this.musicDrawerOpen}
-              .ma=${maClient}
-              .deviceLabel=${deviceLabel}
-              @cow-music-drawer-close=${this.onMusicCloseDrawer}
-              @cow-music-play-item=${this.onMusicPlayItem}
-            ></cow-xl-music-drawer>`
-          : ""}
       </div>
     `;
-  }
-
-  private renderMusicPill() {
-    return html`<cow-xl-music-pill
-      .nowPlaying=${this.nowPlaying}
-    ></cow-xl-music-pill>`;
-  }
-
-  private formatNowTime(locale?: string): string {
-    return new Intl.DateTimeFormat(locale || undefined, {
-      hour: "2-digit",
-      minute: "2-digit",
-      hour12: false,
-    }).format(new Date());
-  }
-  private formatNowDate(locale?: string): string {
-    return new Intl.DateTimeFormat(locale || undefined, {
-      weekday: "long",
-      day: "numeric",
-      month: "long",
-    }).format(new Date());
   }
 }
 
@@ -497,9 +257,9 @@ window.customCards = window.customCards ?? [];
 if (!window.customCards.some((c) => c.type === "cow-room-dashboard-card")) {
   window.customCards.push({
     type: "cow-room-dashboard-card",
-    name: "Cave of Wonders Room Dashboard (10.1\")",
+    name: 'Cave of Wonders Room Dashboard (10.1")',
     description:
-      "Multi-room dashboard with weather/music/scenes for landscape Wall Displays (Shelly XL or any 1280×800 tablet kiosk).",
+      "Multi-room dashboard with weather/scenes for landscape Wall Displays (Shelly XL or any 1280×800 tablet kiosk).",
     preview: false,
   });
 }

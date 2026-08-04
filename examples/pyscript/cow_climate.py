@@ -19,7 +19,8 @@ Deploy: /config/pyscript/cow_climate.py  (+ pyscript: in configuration.yaml)
 import json
 
 # ─── Costanti (spec §2.6, §6, §7) ─────────────────────────────────────
-IDLE = 1.0        # ±°C attorno al setpoint = "a comfort"
+IDLE = 1.0        # Heat / solo-pavimento: banda "a comfort" e gap pavimento
+REARM = 0.5       # Cool/Dry: riattiva aria quando T > SP + REARM (serranda chiusa)
 BOOST = 5.0       # in Heat: spinta Mitsubishi solo se T < SP - BOOST
 HEAT_T = 30       # setpoint fisso Mitsubishi in heat
 COOL_T = 16       # setpoint fisso Mitsubishi in cool/dry
@@ -143,7 +144,29 @@ def _serranda_open(cover):
 
 
 def _open_count():
-    return sum(1 for c in ALL_SERRANDE if _serranda_open(c))
+    n = 0
+    for c in ALL_SERRANDE:
+        if _serranda_open(c):
+            n += 1
+    return n
+
+
+def _room_serrande_open(slug):
+    """True se almeno una serranda della stanza è aperta."""
+    for c in ROOMS[slug]["serrande"]:
+        if _serranda_open(c):
+            return True
+    return False
+
+
+def _wants_cool_dry_air(slug, cur, sp):
+    """
+    Cool/Dry latch: raffredda fino a SP esatto, riarma a SP+REARM.
+    Serranda aperta → resta aperta finché T > SP; chiusa → apre se T > SP+REARM.
+    """
+    if _room_serrande_open(slug):
+        return cur > sp
+    return cur > sp + REARM
 
 
 def _publish(topic, payload, retain=True):
@@ -296,7 +319,7 @@ def _log_changes(kwargs, motor_mode, want_open, air_by_slug):
 
 
 # ─── Calcolo stato ricco per stanza (air_state, §5) ───────────────────
-def _room_air_state(slug, sistema):
+def _room_air_state(slug, sistema, wants_air=False):
     r = ROOMS[slug]
     if not _included(slug):
         return "excluded"
@@ -319,9 +342,9 @@ def _room_air_state(slug, sistema):
             return "heating_floor"
         return "comfort"
     if sistema == "cool":
-        return "cooling" if cur > sp + IDLE else "comfort"
+        return "cooling" if wants_air else "comfort"
     if sistema == "dry":
-        return "drying" if cur > sp + IDLE else "comfort"
+        return "drying" if wants_air else "comfort"
     if sistema == "fan_only":
         return "fan"
     return "idle"
@@ -350,7 +373,7 @@ def _wants_air(slug, sistema):
     if sistema == "heat":
         return cur < sp - BOOST          # spinta solo per gap grandi
     if sistema in ("cool", "dry"):
-        return cur > sp + IDLE
+        return _wants_cool_dry_air(slug, cur, sp)
     if sistema == "fan_only":
         return True
     return False
@@ -384,9 +407,12 @@ def cow_climate_orchestrate(**kwargs):
         sistema = "off"
 
     # 1) Serrande desiderate + modo motore ────────────────────────────
+    wants_by_slug = {}
+    for slug in AIR_SLUGS:
+        wants_by_slug[slug] = _wants_air(slug, sistema)
     want_open = []
     for slug in AIR_SLUGS:
-        if _wants_air(slug, sistema):
+        if wants_by_slug[slug]:
             want_open += ROOMS[slug]["serrande"]
     want_open = list(dict.fromkeys(want_open))  # unique, ordine stabile
 
@@ -454,7 +480,8 @@ def cow_climate_orchestrate(**kwargs):
     # 4) Pubblica stato ricco + echo (unico writer) ────────────────────
     air_by_slug = {}
     for slug, r in ROOMS.items():
-        air = _room_air_state(slug, sistema)
+        wants = wants_by_slug.get(slug, False)
+        air = _room_air_state(slug, sistema, wants_air=wants)
         air_by_slug[slug] = air
         base = "cow/casa/%s" % slug
         cur = _num(r["temp"])

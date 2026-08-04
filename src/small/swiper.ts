@@ -1,5 +1,5 @@
 import { LitElement, html, css } from "lit";
-import { customElement, property, state } from "lit/decorators.js";
+import { customElement, property, state, query } from "lit/decorators.js";
 
 /**
  * Horizontal pointer-driven swiper with snap-to-index.
@@ -19,6 +19,7 @@ export class CowSwiper extends LitElement {
   @property({ type: Array }) accents: string[] = [];
 
   @state() private dragX = 0;
+  @query(".track") private trackEl?: HTMLElement;
   private startX = 0;
   private startY = 0;
   private claimed = false;
@@ -79,13 +80,16 @@ export class CowSwiper extends LitElement {
       border-radius: 50%;
       background: rgba(0, 0, 0, 0.18);
       cursor: pointer;
-      transition: width 200ms cubic-bezier(0.22, 1, 0.36, 1),
+      transition:
+        transform 200ms cubic-bezier(0.22, 1, 0.36, 1),
         background-color 200ms cubic-bezier(0.22, 1, 0.36, 1);
     }
     .dot.active {
       width: 18px;
       border-radius: 4px;
       background: var(--dot-active, #1f1f2e);
+      transform: scaleX(2.57);
+      transform-origin: center;
     }
   `;
 
@@ -117,6 +121,16 @@ export class CowSwiper extends LitElement {
     this.dragX = 0;
   };
 
+  private applyTrackTransform(): void {
+    const count = Math.max(1, this.count);
+    const slidePct = 100 / count;
+    const baseTx = -this.index * slidePct;
+    const dragPct = (this.dragX / (this.vw || 1)) * slidePct;
+    const tx = `${baseTx + dragPct}%`;
+    const track = this.trackEl;
+    if (track) track.style.setProperty("--tx", tx);
+  }
+
   private onMove = (e: PointerEvent) => {
     if (this.pointerId == null) return;
     const dx = e.clientX - this.startX;
@@ -134,7 +148,7 @@ export class CowSwiper extends LitElement {
     }
     if (this.claimed) {
       this.dragX = dx;
-      this.requestUpdate();
+      this.applyTrackTransform();
       e.preventDefault();
     }
   };
@@ -157,15 +171,15 @@ export class CowSwiper extends LitElement {
         /* ignore */
       }
     }
-    this.requestUpdate();
+    this.applyTrackTransform();
   };
+
+  override updated(): void {
+    this.applyTrackTransform();
+  }
 
   override render() {
     const count = Math.max(1, this.count);
-    const slidePct = 100 / count;
-    const baseTx = -this.index * slidePct;
-    const dragPct = (this.dragX / (this.vw || 1)) * slidePct;
-    const tx = `${baseTx + dragPct}%`;
     const slides = Array.from({ length: count }, (_, i) => i);
 
     return html`
@@ -177,7 +191,7 @@ export class CowSwiper extends LitElement {
         @pointercancel=${this.onUp}
         style="--count:${count}"
       >
-        <div class="track" style="--tx:${tx}; --count:${count}">
+        <div class="track" style="--tx:0%; --count:${count}">
           ${slides.map(
             (i) => html`
               <div class="slide" style="--count:${count}">

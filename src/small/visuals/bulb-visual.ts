@@ -84,6 +84,8 @@ export class CowBulbVisual extends LitElement {
       transition:
         transform 480ms cubic-bezier(0.22, 1, 0.36, 1),
         opacity 480ms cubic-bezier(0.22, 1, 0.36, 1);
+    }
+    :host(:not([variant="off"])) .glow {
       animation: cow-glow 3.2s ease-in-out infinite;
     }
     .ring {

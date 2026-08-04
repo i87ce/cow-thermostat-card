@@ -1,5 +1,5 @@
-import { LitElement, html, css, nothing } from "lit";
-import { customElement, property } from "lit/decorators.js";
+import { LitElement, html, css, nothing, type PropertyValues } from "lit";
+import { customElement, property, state } from "lit/decorators.js";
 import type { HomeAssistant, HassEntity } from "../../types/hass.js";
 import type { CowRoomConfig } from "../../config-xl.js";
 import { buttonReset } from "../../styles/button-reset.js";
@@ -7,6 +7,7 @@ import {
   deriveLightsView,
   brightnessFromPct,
 } from "../../small/state/lights.js";
+import { hassEntitiesChanged, xlRoomEntityIds } from "../../utils/hass-watch.js";
 import "../../small/visuals/bulb-visual.js";
 
 /**
@@ -27,6 +28,51 @@ import "../../small/visuals/bulb-visual.js";
 export class CowXLLightsTab extends LitElement {
   @property({ attribute: false }) hass?: HomeAssistant;
   @property({ attribute: false }) room?: CowRoomConfig;
+
+  /** Optimistic on/off per entity until HA echoes. */
+  @state() private pendingOn: Record<string, boolean> = {};
+  /** Optimistic brightness % per entity until HA echoes. */
+  @state() private pendingPct: Record<string, number> = {};
+  private watchIds: string[] = [];
+
+  override shouldUpdate(changed: PropertyValues): boolean {
+    if (changed.has("room")) {
+      this.watchIds = xlRoomEntityIds(this.room);
+      return true;
+    }
+    if (changed.has("hass")) {
+      return hassEntitiesChanged(
+        changed.get("hass") as HomeAssistant | undefined,
+        this.hass,
+        this.watchIds.length ? this.watchIds : xlRoomEntityIds(this.room),
+      );
+    }
+    return true;
+  }
+
+  override willUpdate(): void {
+    const nextOn = { ...this.pendingOn };
+    const nextPct = { ...this.pendingPct };
+    let changed = false;
+    for (const [id, wantOn] of Object.entries(this.pendingOn)) {
+      const actual = this.hass?.states?.[id]?.state === "on";
+      if (actual === wantOn) {
+        delete nextOn[id];
+        changed = true;
+      }
+    }
+    for (const [id, wantPct] of Object.entries(this.pendingPct)) {
+      const view = deriveLightsView(this.hass?.states?.[id]);
+      if (Math.abs(view.brightnessPct - wantPct) <= 1) {
+        delete nextPct[id];
+        changed = true;
+      }
+    }
+    if (changed) {
+      this.pendingOn = nextOn;
+      this.pendingPct = nextPct;
+    }
+  }
 
   static override styles = [
     buttonReset,
@@ -243,8 +289,13 @@ export class CowXLLightsTab extends LitElement {
   private async toggleLight(id: string) {
     if (!this.hass) return;
     const s = this.hass.states[id];
-    const isOn = s?.state === "on";
-    await this.hass.callService("light", isOn ? "turn_off" : "turn_on", {
+    const isOn = this.pendingOn[id] ?? s?.state === "on";
+    const next = !isOn;
+    this.pendingOn = { ...this.pendingOn, [id]: next };
+    if (next) {
+      this.pendingPct = { ...this.pendingPct, [id]: this.pendingPct[id] ?? 100 };
+    }
+    await this.hass.callService("light", next ? "turn_on" : "turn_off", {
       entity_id: id,
     });
   }
@@ -252,6 +303,8 @@ export class CowXLLightsTab extends LitElement {
   private async setBrightness(id: string, pct: number) {
     if (!this.hass) return;
     const clamped = Math.max(0, Math.min(100, pct));
+    this.pendingPct = { ...this.pendingPct, [id]: clamped };
+    this.pendingOn = { ...this.pendingOn, [id]: clamped > 0 };
     if (clamped === 0) {
       await this.hass.callService("light", "turn_off", { entity_id: id });
       return;
@@ -279,6 +332,14 @@ export class CowXLLightsTab extends LitElement {
     if (!this.hass) return;
     const ids = this.getLightIds();
     if (ids.length === 0) return;
+    const pendingOn = { ...this.pendingOn };
+    const pendingPct = { ...this.pendingPct };
+    for (const id of ids) {
+      pendingOn[id] = turnOn;
+      if (turnOn) pendingPct[id] = pendingPct[id] ?? 100;
+    }
+    this.pendingOn = pendingOn;
+    this.pendingPct = pendingPct;
     await this.hass.callService(
       "light",
       turnOn ? "turn_on" : "turn_off",
@@ -286,9 +347,31 @@ export class CowXLLightsTab extends LitElement {
     );
   }
 
+  private viewFor(id: string, entity: HassEntity | undefined) {
+    const base = deriveLightsView(entity);
+    if (this.pendingOn[id] != null) {
+      const on = this.pendingOn[id];
+      const pct = this.pendingPct[id] ?? (on ? base.brightnessPct || 100 : 0);
+      return {
+        ...base,
+        variant: on ? (pct >= 80 ? "bright" : pct > 0 ? "dim" : "off") : "off",
+        brightnessPct: on ? pct : 0,
+      } as ReturnType<typeof deriveLightsView>;
+    }
+    if (this.pendingPct[id] != null) {
+      const pct = this.pendingPct[id];
+      return {
+        ...base,
+        variant: pct >= 80 ? "bright" : pct > 0 ? "dim" : "off",
+        brightnessPct: pct,
+      } as ReturnType<typeof deriveLightsView>;
+    }
+    return base;
+  }
+
   private renderLightTile(id: string, label: string) {
     const entity: HassEntity | undefined = this.hass?.states?.[id];
-    const view = deriveLightsView(entity);
+    const view = this.viewFor(id, entity);
     const on = view.variant !== "off";
     // On/off-only bulbs report `dimmable=false` (see `isDimmable` in
     // small/state/lights.ts). For them we must not display a percentage

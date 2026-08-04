@@ -1,0 +1,9 @@
+{
+  "version": "1.11.0",
+  "measuredAt": "2026-08-04T20:22:22.196Z",
+  "bundleKb": 1154,
+  "shouldUpdateGuards": 11,
+  "optimisticPending": 123,
+  "musicModules": 0,
+  "notes": "Browser trace (6× CPU throttle, hass burst + drawer open) should be run on-device; this script captures build-level proxies."
+}

@@ -1,11 +1,16 @@
-import { LitElement, html, css, nothing } from "lit";
+import { LitElement, html, css, nothing, type PropertyValues } from "lit";
 import { customElement, property, state } from "lit/decorators.js";
 import type { HomeAssistant, HassEntity } from "../../types/hass.js";
 import type { CowRoomConfig } from "../../config-xl.js";
 import { buttonReset } from "../../styles/button-reset.js";
 import {
+  hassEntitiesChanged,
+  xlRoomEntityIds,
+} from "../../utils/hass-watch.js";
+import {
   deriveThermostatView,
   bumpTarget,
+  applyTargetOverride,
   THERMOSTAT_ACCENT,
   THERMOSTAT_STATUS_LABEL,
   THERMOSTAT_SUB_LABEL,
@@ -46,6 +51,10 @@ export class CowXLClimateTab extends LitElement {
   @property({ type: String }) systemClimate = "";
   @state() private setpointModalOpen = false;
   @state() private pendingSystemMode?: string;
+  @state() private pendingMode?: string;
+  @state() private pendingFan?: string;
+  @state() private pendingTarget?: number;
+  @state() private pendingRoomMode?: string;
 
   static override styles = [
     buttonReset,
@@ -210,6 +219,11 @@ export class CowXLClimateTab extends LitElement {
         align-items: center;
         justify-content: center;
         cursor: pointer;
+        touch-action: manipulation;
+        transition: transform 120ms ease, background 160ms ease;
+      }
+      .mode-btn:active {
+        transform: scale(0.96);
       }
       /* Selected mode chip uses the same accent as the small wall card:
          heating → orange, cooling → blue, idle → green, off → grey.
@@ -238,6 +252,11 @@ export class CowXLClimateTab extends LitElement {
         align-items: center;
         justify-content: center;
         cursor: pointer;
+        touch-action: manipulation;
+        transition: transform 120ms ease, background 160ms ease;
+      }
+      .fan-btn:active {
+        transform: scale(0.96);
       }
       .fan-btn[data-active] {
         background: rgba(255, 255, 255, 0.95);
@@ -328,6 +347,46 @@ export class CowXLClimateTab extends LitElement {
     `,
   ];
 
+  override shouldUpdate(changed: PropertyValues): boolean {
+    if (changed.has("room") || changed.has("systemClimate")) return true;
+    if (changed.has("hass")) {
+      const ids = [
+        ...xlRoomEntityIds(this.room),
+        ...(this.systemClimate ? [this.systemClimate] : []),
+      ];
+      return hassEntitiesChanged(
+        changed.get("hass") as HomeAssistant | undefined,
+        this.hass,
+        ids,
+      );
+    }
+    return true;
+  }
+
+  override willUpdate(): void {
+    const room = this.room;
+    if (!room) return;
+    const climate = this.hass?.states?.[room.climate ?? ""];
+    const sys = this.hass?.states?.[this.systemClimate];
+    if (this.pendingMode != null && sys?.state === this.pendingMode) {
+      this.pendingMode = undefined;
+    }
+    if (this.pendingFan != null && sys?.attributes?.fan_mode === this.pendingFan) {
+      this.pendingFan = undefined;
+    }
+    if (this.pendingRoomMode != null && climate?.state === this.pendingRoomMode) {
+      this.pendingRoomMode = undefined;
+    }
+    if (this.pendingTarget != null) {
+      const tgt = room.target_entity
+        ? Number(this.hass?.states?.[room.target_entity]?.state)
+        : climate?.attributes?.temperature;
+      if (typeof tgt === "number" && Math.abs(tgt - this.pendingTarget) < 0.01) {
+        this.pendingTarget = undefined;
+      }
+    }
+  }
+
   private onSystemModeChip(mode: string): void {
     const current = this.hass?.states?.[this.systemClimate]?.state;
     const excluded = modeReincludesExcluded(this.hass?.states, this.systemClimate, mode);
@@ -340,6 +399,7 @@ export class CowXLClimateTab extends LitElement {
 
   private applyGlobalMode(mode: string): void {
     if (!this.hass || !this.systemClimate) return;
+    this.pendingMode = mode;
     void applyGlobalMode(this.hass, this.systemClimate, mode);
   }
 
@@ -355,6 +415,7 @@ export class CowXLClimateTab extends LitElement {
 
   private async setSystemFan(fan: string) {
     if (!this.systemClimate || !this.hass) return;
+    this.pendingFan = fan;
     await this.hass.callService("climate", "set_fan_mode", {
       entity_id: this.systemClimate,
       fan_mode: fan,
@@ -363,6 +424,7 @@ export class CowXLClimateTab extends LitElement {
 
   private async setMode(mode: string) {
     if (!this.room?.climate || !this.hass) return;
+    this.pendingRoomMode = mode;
     await this.hass.callService("climate", "set_hvac_mode", {
       entity_id: this.room.climate,
       hvac_mode: mode,
@@ -371,6 +433,7 @@ export class CowXLClimateTab extends LitElement {
 
   private async setFan(fan: string) {
     if (!this.room?.climate || !this.hass) return;
+    this.pendingFan = fan;
     await this.hass.callService("climate", "set_fan_mode", {
       entity_id: this.room.climate,
       fan_mode: fan,
@@ -378,18 +441,47 @@ export class CowXLClimateTab extends LitElement {
   }
 
   private async setTarget(t: number) {
-    if (!this.room?.climate || !this.hass) return;
+    if (!this.room || !this.hass) return;
+    this.pendingTarget = t;
+    if (this.room.target_entity) {
+      await this.hass.callService(
+        "input_number",
+        "set_value",
+        { value: t },
+        { entity_id: this.room.target_entity },
+      );
+      return;
+    }
+    if (!this.room.climate) return;
     await this.hass.callService("climate", "set_temperature", {
       entity_id: this.room.climate,
       temperature: t,
     });
   }
 
+  /** Room climate view with optional target_entity + sensor overrides. */
+  private roomClimateView(room: CowRoomConfig) {
+    const climate = this.hass?.states?.[room.climate ?? ""];
+    let view = applyTargetOverride(
+      deriveThermostatView(climate),
+      room.target_entity ? this.hass?.states?.[room.target_entity] : undefined,
+    );
+    if (room.temperature && this.hass?.states[room.temperature]) {
+      const n = Number(this.hass.states[room.temperature].state);
+      if (Number.isFinite(n)) view = { ...view, current: n };
+    }
+    if (room.humidity && this.hass?.states[room.humidity]) {
+      const n = Number(this.hass.states[room.humidity].state);
+      if (Number.isFinite(n)) view = { ...view, humidity: n };
+    }
+    return view;
+  }
+
   private openSetpointModal = (): void => {
     if (!this.room?.climate) return;
-    const view = deriveThermostatView(this.hass?.states?.[this.room.climate]);
+    const view = this.roomClimateView(this.room);
     const split = usesSplitClimate(this.systemClimate, view);
-    if (!split && view.variant === "off") return;
+    if (!split && !this.room.target_entity && view.variant === "off") return;
     this.setpointModalOpen = true;
     // Imperatively open inside the click handler so iOS Safari keeps
     // the user-gesture chain alive through the input.focus() call —
@@ -448,7 +540,7 @@ export class CowXLClimateTab extends LitElement {
       return this.renderSensorsOnly();
     }
     const climate = this.hass?.states?.[this.room.climate];
-    const roomView = deriveThermostatView(climate);
+    const roomView = this.roomClimateView(this.room);
     const split = usesSplitClimate(this.systemClimate, roomView);
     const sysClimate = this.hass?.states?.[this.systemClimate];
     const sysView = split ? deriveThermostatView(sysClimate) : roomView;
@@ -475,7 +567,6 @@ export class CowXLClimateTab extends LitElement {
     const fmt = (n: number, unit: string) =>
       `${n.toFixed(1).replace(/\.0$/, "")}${unit}`;
     const cur = roomView.current != null ? fmt(roomView.current, "°") : "—";
-    const tgt = roomView.target != null ? fmt(roomView.target, "°C") : "—";
 
     const upTarget = bumpTarget(roomView, 1);
     const downTarget = bumpTarget(roomView, -1);
@@ -483,6 +574,27 @@ export class CowXLClimateTab extends LitElement {
     const fans = (split ? sysView : view).fanModes.length > 0
       ? (split ? sysView : view).fanModes
       : ["auto"];
+
+    const displayRoomView =
+      this.pendingTarget != null
+        ? { ...roomView, target: this.pendingTarget }
+        : roomView;
+    const displaySysView =
+      this.pendingMode != null || this.pendingFan != null
+        ? {
+            ...sysView,
+            mode: (this.pendingMode ?? sysView.mode) as typeof sysView.mode,
+            fan: this.pendingFan ?? sysView.fan,
+          }
+        : sysView;
+    const displayView =
+      this.pendingRoomMode != null && !split
+        ? { ...view, mode: this.pendingRoomMode as typeof view.mode }
+        : view;
+    const displayTgt =
+      displayRoomView.target != null
+        ? fmt(displayRoomView.target, "°C")
+        : "—";
 
     // Push the variant's accent palette onto the host as CSS variables
     // so the body gradient + selected mode chip + everything else that
@@ -495,13 +607,13 @@ export class CowXLClimateTab extends LitElement {
     this.style.setProperty("--cow-accent-surface", accent.surface);
 
     return this.renderClimate(
-      view,
-      roomView,
-      sysView,
+      displayView,
+      displayRoomView,
+      displaySysView,
       split,
       variantLabel,
       cur,
-      tgt,
+      displayTgt,
       upTarget,
       downTarget,
       fans,

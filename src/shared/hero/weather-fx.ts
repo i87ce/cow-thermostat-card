@@ -163,7 +163,7 @@ function rainLayer(intensity: 1 | 2): TemplateResult {
   // pixels and were invisible at viewing distance. v1.1.4 bumps the
   // stroke to 3 px and uses a darker, more saturated color so each
   // drop reads against both daytime blue and sunset orange skies.
-  const count = intensity === 2 ? 180 : 110;
+  const count = intensity === 2 ? 90 : 55;
   const baseOpacity = intensity === 2 ? 1.0 : 0.95;
   const drops: TemplateResult[] = [];
   for (let i = 0; i < count; i++) {
@@ -196,7 +196,7 @@ function rainLayer(intensity: 1 | 2): TemplateResult {
  * ────────────────────────────────────────────────────────────────── */
 
 function snowLayer(intensity: 1 | 2): TemplateResult {
-  const count = intensity === 2 ? 60 : 30;
+  const count = intensity === 2 ? 30 : 15;
   const flakes: TemplateResult[] = [];
   for (let i = 0; i < count; i++) {
     const x = (i * 17.43) % 100;
@@ -294,7 +294,7 @@ function windLayer(): TemplateResult {
  * ────────────────────────────────────────────────────────────────── */
 
 function hailLayer(intensity: 1 | 2): TemplateResult {
-  const count = intensity === 2 ? 90 : 55;
+  const count = intensity === 2 ? 45 : 28;
   const pellets: TemplateResult[] = [];
   for (let i = 0; i < count; i++) {
     const x = (i * 11.213) % 100;

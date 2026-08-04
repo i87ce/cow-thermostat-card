@@ -27,6 +27,12 @@ export interface CowRoomConfig {
   temperature?: string;
   /** Optional ambient humidity sensor */
   humidity?: string;
+  /**
+   * Optional `input_number` for fine setpoint (e.g. Studio Daikin 0.5 °C).
+   * When set, the climate tab reads/writes this helper instead of the
+   * physical `climate.*` entity's coarse setpoint.
+   */
+  target_entity?: string;
   /** Single light entity_id or list */
   light?: string | string[];
   /** Optional friendly labels per light entity (length must match) */
@@ -73,20 +79,6 @@ export interface CowSceneConfig {
   service?: string;
   /** Render as a compact icon-only button (no label), e.g. Buongiorno. */
   icon_only?: boolean;
-}
-
-/**
- * Music block configuration (top-right hero player + drawer).
- *
- * Radios are not hardcoded here on purpose: as of v0.8.1 the drawer
- * does live search against Music Assistant's "Radio Browser" provider
- * (~50k stations) and surfaces user-favorited stations from MA. The
- * only optional knob is `favorite_radios_limit` if you ever want to
- * cap how many favorites show up as quick-chips in cinema mode.
- */
-export interface CowMusicConfig {
-  /** Max favorite radios shown as quick-chips in cinema mode (default 6). */
-  favorite_radios_limit?: number;
 }
 
 /**
@@ -151,17 +143,6 @@ export interface CowRoomDashboardConfig {
    * `moon:` integration to be enabled. If omitted, no moon is drawn.
    */
   moon_entity?: string;
-  /** Optional media_player.* entity for the now-playing pill. */
-  media_player?: string;
-  /**
-   * Optional Music Assistant config entry id (a ULID-ish string like
-   * "01KR70XN8WQ46Y3B20BQKHG27P"). Required only for Spotify/library
-   * search & browse inside the music drawer; basic transport controls
-   * on the configured `media_player` work without it.
-   */
-  music_assistant_id?: string;
-  /** Optional music-block configuration (radio quick-presets, etc.) */
-  music?: CowMusicConfig;
   /** Optional pollen block (hero text + airborne particle FX). */
   pollen?: CowPollenConfig;
   /** Optional scene shortcuts row (max 4 fit nicely). */
@@ -230,6 +211,8 @@ export function validateXLConfig(input: unknown): CowRoomDashboardConfig {
         typeof room.temperature === "string" ? room.temperature : undefined,
       humidity:
         typeof room.humidity === "string" ? room.humidity : undefined,
+      target_entity:
+        typeof room.target_entity === "string" ? room.target_entity : undefined,
       light: room.light as string | string[] | undefined,
       light_labels: Array.isArray(room.light_labels)
         ? (room.light_labels as string[])
@@ -270,18 +253,6 @@ export function validateXLConfig(input: unknown): CowRoomDashboardConfig {
       })
     : undefined;
 
-  // Music block sub-config
-  let music: CowMusicConfig | undefined;
-  if (typeof cfg.music === "object" && cfg.music !== null) {
-    const m = cfg.music as Record<string, unknown>;
-    music = {
-      favorite_radios_limit:
-        typeof m.favorite_radios_limit === "number"
-          ? m.favorite_radios_limit
-          : undefined,
-    };
-  }
-
   // Pollen sub-config
   let pollen: CowPollenConfig | undefined;
   if (typeof cfg.pollen === "object" && cfg.pollen !== null) {
@@ -310,13 +281,6 @@ export function validateXLConfig(input: unknown): CowRoomDashboardConfig {
       typeof cfg.sun_entity === "string" ? cfg.sun_entity : undefined,
     moon_entity:
       typeof cfg.moon_entity === "string" ? cfg.moon_entity : undefined,
-    media_player:
-      typeof cfg.media_player === "string" ? cfg.media_player : undefined,
-    music_assistant_id:
-      typeof cfg.music_assistant_id === "string"
-        ? cfg.music_assistant_id
-        : undefined,
-    music,
     pollen,
     scenes,
     locale: typeof cfg.locale === "string" ? cfg.locale : undefined,
@@ -393,15 +357,16 @@ export function countActiveDevices(
  * type at parse time.
  */
 import type { HomeAssistant } from "./types/hass.js";
-import { findRoomOpenings } from "./small/openings.js";
+import { findRoomOpeningsCached } from "./utils/openings-cache.js";
 import type { AjaxOpening } from "./util/ajax-openings.js";
 
 export function findRoomOpeningsXL(
   hass: HomeAssistant | undefined,
   room: CowRoomConfig,
 ): AjaxOpening[] {
-  return findRoomOpenings(hass, {
-    areas: room.areas && room.areas.length > 0 ? room.areas : [room.name],
+  const areas = room.areas && room.areas.length > 0 ? room.areas : [room.name];
+  return findRoomOpeningsCached(hass, `xl:${room.name}`, {
+    areas,
     defaultKind: room.opening_default_kind,
     doors: room.opening_doors,
     windows: room.opening_windows,

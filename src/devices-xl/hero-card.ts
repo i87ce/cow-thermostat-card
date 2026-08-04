@@ -21,7 +21,7 @@
  * music ribbon is visible underneath. The backdrop is unchanged by
  * compact mode — only foreground typography reflows.
  */
-import { LitElement, html, nothing, css } from "lit";
+import { LitElement, html, nothing, css, type PropertyValues } from "lit";
 import { customElement, property, state } from "lit/decorators.js";
 import type { HomeAssistant } from "../types/hass.js";
 
@@ -33,6 +33,7 @@ import {
   translateCondition,
 } from "../shared/hero/data.js";
 import { nightOpacity } from "../shared/hero/sky.js";
+import { hassEntitiesChanged, xlHeroEntityIds } from "../utils/hass-watch.js";
 import "../shared/hero/cow-hero-engine.js";
 
 @customElement("cow-xl-hero")
@@ -53,16 +54,12 @@ export class CowXLHero extends LitElement {
   /** Opt-in aurora overlay — forwarded to the engine. */
   @property({ type: Boolean }) aurora = false;
 
-  /**
-   * Compact mode: when the music ribbon is visible, the hero is
-   * squeezed from 23 rem tall to ~17.5 rem. The clock + sun/moon
-   * shrink so the sky-and-time aesthetic stays readable in less
-   * vertical space.
-   */
-  @property({ type: Boolean, reflect: true }) compact = false;
+  /** Pause backdrop animations when covered (e.g. room drawer open). */
+  @property({ type: Boolean, reflect: true }) paused = false;
 
   @state() private now = new Date();
   private timer?: number;
+  private watchIds: string[] = [];
 
   static override styles = css`
     :host {
@@ -70,14 +67,8 @@ export class CowXLHero extends LitElement {
       width: 100%;
       height: 23rem;
       position: relative;
-      transition: height 280ms ease;
-    }
-    :host([compact]) {
-      height: 17.5rem;
     }
 
-    /* The engine takes over the entire host — it draws the sky and
-       acts as the sole positioned container for slotted children. */
     cow-hero-engine {
       width: 100%;
       height: 100%;
@@ -109,14 +100,6 @@ export class CowXLHero extends LitElement {
       opacity: 0.78;
       transition: color 4s ease;
     }
-    :host([compact]) .clock {
-      font-size: 7rem;
-      top: 3.5rem;
-    }
-    :host([compact]) .date {
-      top: 12.75rem;
-      font-size: 1.0625rem;
-    }
 
     .meteo {
       position: absolute;
@@ -143,18 +126,6 @@ export class CowXLHero extends LitElement {
       font-weight: 400;
       font-size: 0.875rem;
       opacity: 0.6;
-    }
-    :host([compact]) .meteo {
-      bottom: 2.5rem;
-      right: 3.5rem;
-    }
-    :host([compact]) .meteo .temp-big { font-size: 4.5rem; }
-    :host([compact]) .meteo .meteo-desc { font-size: 0.9375rem; margin-top: 0.375rem; }
-    /* v1.1.3: keep the humidity row visible in compact mode (was
-       hidden); with pollen below it the hero felt too sparse. */
-    :host([compact]) .meteo .meteo-desc-2 {
-      margin-top: 0.25rem;
-      font-size: 0.8125rem;
     }
 
     /* ─── Pollen line (under meteo-desc-2) ───────────────────────── */
@@ -190,14 +161,48 @@ export class CowXLHero extends LitElement {
       0%, 100% { opacity: 1;    }
       50%      { opacity: 0.55; }
     }
-    :host([compact]) .meteo-pollen {
-      font-size: 0.8125rem;
-      margin-top: 0.25rem;
-    }
-    :host([compact]) .meteo-pollen .pollen-names {
-      font-size: 0.75rem;
-    }
   `;
+
+  override shouldUpdate(changed: PropertyValues): boolean {
+    if (
+      changed.has("weatherEntity") ||
+      changed.has("sunEntity") ||
+      changed.has("moonEntity") ||
+      changed.has("pollenOverall") ||
+      changed.has("pollenAllergens") ||
+      changed.has("paused") ||
+      changed.has("aurora")
+    ) {
+      this.watchIds = xlHeroEntityIds(
+        this.weatherEntity,
+        this.sunEntity,
+        this.moonEntity,
+        {
+          overall: this.pollenOverall,
+          allergens: this.pollenAllergens,
+        },
+      );
+      return true;
+    }
+    if (changed.has("hass")) {
+      return hassEntitiesChanged(
+        changed.get("hass") as HomeAssistant | undefined,
+        this.hass,
+        this.watchIds.length
+          ? this.watchIds
+          : xlHeroEntityIds(
+              this.weatherEntity,
+              this.sunEntity,
+              this.moonEntity,
+              {
+                overall: this.pollenOverall,
+                allergens: this.pollenAllergens,
+              },
+            ),
+      );
+    }
+    return true;
+  }
 
   override connectedCallback(): void {
     super.connectedCallback();
@@ -280,6 +285,7 @@ export class CowXLHero extends LitElement {
         .pollenPinned=${this.pollenPinned}
         .pollenMaxItems=${this.pollenMaxItems}
         .aurora=${this.aurora}
+        ?paused=${this.paused}
       >
         <div slot="content" class="clock">${this.fmtTime()}</div>
         <div slot="content" class="date">${this.fmtDate()}</div>
