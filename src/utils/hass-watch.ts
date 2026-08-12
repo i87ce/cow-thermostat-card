@@ -137,8 +137,10 @@ export function smallThermostatWatchIds(opts: {
 export function smallExtrasWatchIds(
   tvs: DeviceEntry[],
   door?: string,
+  switches: DeviceEntry[] = [],
 ): string[] {
   const ids = tvs.map((d) => d.entity);
+  ids.push(...switches.map((d) => d.entity));
   if (door) ids.push(door);
   return ids;
 }

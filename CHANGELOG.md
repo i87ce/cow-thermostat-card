@@ -4,6 +4,22 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and
 this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.12.0] — 2026-08-12
+
+### Added — generic `switches` tiles in the "Comandi" tab (small card)
+- New optional `switches:` list (`switch.*` entities, `{entity, label}`
+  or plain string) rendered as on/off tiles in the same grid as the
+  TVs. First use case: the 3D-printer filter fan
+  (`switch.filtro_stampante`) on the Studio dashboard.
+- Tile taps are domain-aware (`switch.turn_on/off` vs
+  `media_player.turn_on/off`) with the same optimistic pending state
+  as the TV tiles; the door button shifts down to make room for the
+  extra grid rows.
+- The extras tab now also appears (and the swiper accent dot lights
+  up) when only `switches` is configured; left-pane counters and the
+  "tap = tutte on/off" gesture remain TV-only. Section header becomes
+  "Dispositivi" when switches are present.
+
 ## [1.11.0] — 2026-08-04
 
 ### Removed — music surface from the XL dashboard

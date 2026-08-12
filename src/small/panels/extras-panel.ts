@@ -66,7 +66,8 @@ type DoorFeedback = "opening" | "done";
 
 /**
  * `cow-extras-panel` — "Comandi" tab: on/off tiles for the room's TVs
- * plus an optional wide door-open button.
+ * (plus optional generic `switch.*` tiles in the same grid) and an
+ * optional wide door-open button.
  *
  *  +--------------------+--------------------+
  *  |                    | Studio      21:41  |
@@ -94,6 +95,8 @@ type DoorFeedback = "opening" | "done";
 export class CowExtrasPanel extends LitElement {
   @property({ attribute: false }) hass?: HomeAssistant;
   @property({ type: Array }) devices: DeviceEntry[] = [];
+  /** Generic `switch.*` tiles rendered after the TVs in the grid. */
+  @property({ type: Array }) switches: DeviceEntry[] = [];
   @property({ type: String }) roomName = "";
   /** Lock / cover / script / button / switch that opens the door. */
   @property({ type: String }) doorEntity = "";
@@ -300,14 +303,19 @@ export class CowExtrasPanel extends LitElement {
   }
 
   override shouldUpdate(changed: PropertyValues): boolean {
-    if (changed.has("devices") || changed.has("roomName") || changed.has("doorEntity")) {
+    if (
+      changed.has("devices") ||
+      changed.has("switches") ||
+      changed.has("roomName") ||
+      changed.has("doorEntity")
+    ) {
       return true;
     }
     if (changed.has("hass")) {
       return hassEntitiesChanged(
         changed.get("hass") as HomeAssistant | undefined,
         this.hass,
-        smallExtrasWatchIds(this.devices, this.doorEntity),
+        smallExtrasWatchIds(this.devices, this.doorEntity, this.switches),
       );
     }
     return true;
@@ -350,7 +358,8 @@ export class CowExtrasPanel extends LitElement {
     // Door button sits right below the tile grid (origin 166 + tile 96
     // + gap 12 must match the `.grid { ... }` rules above — same
     // convention as lights-panel).
-    const rows = Math.max(1, Math.ceil(this.devices.length / 2));
+    const tiles = this.devices.length + this.switches.length;
+    const rows = Math.max(1, Math.ceil(tiles / 2));
     const gridBottom = 166 + rows * 96 + (rows - 1) * 12;
     this.style.setProperty("--cow-door-top", `${gridBottom + 24}px`);
   }
@@ -359,8 +368,9 @@ export class CowExtrasPanel extends LitElement {
     if (!this.hass) return;
     const on = tvIsOn(this.getEntity(entityId));
     this.pendingTv = { ...this.pendingTv, [entityId]: !on };
+    // Domain-aware: media_player for TVs, switch for the extra tiles.
     await this.hass.callService(
-      "media_player",
+      entityId.split(".")[0],
       on ? "turn_off" : "turn_on",
       {},
       { entity_id: entityId },
@@ -450,11 +460,19 @@ export class CowExtrasPanel extends LitElement {
 
       <div class="room">${this.roomName}</div>
       <div class="time">${formatTime(this.now, this.hass?.locale?.language)}</div>
-      <div class="device-sub">${total} televisioni</div>
+      <div class="device-sub">
+        ${total} televisioni${this.switches.length > 0
+          ? ` · ${this.switches.length} ${
+              this.switches.length === 1 ? "dispositivo" : "dispositivi"
+            }`
+          : ""}
+      </div>
 
-      <div class="section">Televisioni</div>
+      <div class="section">
+        ${this.switches.length > 0 ? "Dispositivi" : "Televisioni"}
+      </div>
       <div class="grid">
-        ${this.devices.map((d) => {
+        ${[...this.devices, ...this.switches].map((d) => {
           const ent = this.tvEntity(d.entity);
           return html`
             <cow-light-tile

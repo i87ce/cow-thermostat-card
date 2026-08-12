@@ -37,9 +37,15 @@ export interface CowConfig {
   covers: DeviceEntry[];
   /**
    * TVs shown as on/off tiles in the "Comandi" (extras) tab. The tab
-   * appears in the swiper only when `tvs` or `door` is configured.
+   * appears in the swiper only when `tvs`, `switches` or `door` is
+   * configured.
    */
   tvs: DeviceEntry[];
+  /**
+   * Generic ``switch.*`` on/off tiles rendered in the same grid as the
+   * TVs (e.g. the 3D-printer filter fan in the Studio).
+   */
+  switches: DeviceEntry[];
   /** Lock / cover / script / button / switch that opens the room door. */
   door?: string;
   /** Label on the door button, default "Apri porta". */
@@ -106,6 +112,7 @@ export class CowConfigError extends Error {
 const DOMAIN_LIGHT = "light.";
 const DOMAIN_COVER = "cover.";
 const DOMAIN_MEDIA_PLAYER = "media_player.";
+const DOMAIN_SWITCH = "switch.";
 const DOMAIN_CLIMATE = "climate.";
 const DOMAIN_SENSOR = "sensor.";
 const DOMAIN_INPUT_NUMBER = "input_number.";
@@ -252,6 +259,17 @@ export function validateConfig(input: unknown): CowConfig {
     );
   })();
 
+  const switches = ((): DeviceEntry[] => {
+    const raw = cfg.switches;
+    if (raw == null) return [];
+    if (!Array.isArray(raw)) {
+      throw new CowConfigError("'switches' must be a list");
+    }
+    return raw.map((v, i) =>
+      normalizeEntry(v, DOMAIN_SWITCH, `switches[${i}]`, room),
+    );
+  })();
+
   const door = ((): string | undefined => {
     const v = cfg.door;
     if (v == null) return undefined;
@@ -268,11 +286,11 @@ export function validateConfig(input: unknown): CowConfig {
       ? cfg.door_label
       : undefined;
 
-  const hasExtras = tvs.length > 0 || door != null;
+  const hasExtras = tvs.length > 0 || switches.length > 0 || door != null;
 
   if (!climate && lights.length === 0 && covers.length === 0 && !hasExtras) {
     throw new CowConfigError(
-      "At least one of 'climate', 'lights', 'covers', 'tvs' or 'door' must be configured",
+      "At least one of 'climate', 'lights', 'covers', 'tvs', 'switches' or 'door' must be configured",
     );
   }
 
@@ -311,7 +329,7 @@ export function validateConfig(input: unknown): CowConfig {
     }
     if (v === "extras" && !hasExtras) {
       throw new CowConfigError(
-        "'initial_view: extras' but no tvs / door configured",
+        "'initial_view: extras' but no tvs / switches / door configured",
       );
     }
     return v;
@@ -376,6 +394,7 @@ export function validateConfig(input: unknown): CowConfig {
     lights,
     covers,
     tvs,
+    switches,
     door,
     door_label: doorLabel,
     outdoor_temp: optionalEntity(cfg, "outdoor_temp", DOMAIN_SENSOR),

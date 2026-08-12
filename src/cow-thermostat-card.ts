@@ -35,7 +35,7 @@ type Kind = "thermostat" | "lights" | "blinds" | "extras";
 /** Mirrors `tvIsOn` in extras-panel — media_player "on-ish" states. */
 const TV_OFF_STATES = new Set(["off", "unavailable", "unknown", "standby"]);
 
-const VERSION = "1.11.0";
+const VERSION = "1.12.0";
 
 const ACCENT_DOT: Record<Kind, (cfg: CowConfig, hass?: HomeAssistant) => string> =
   {
@@ -83,7 +83,7 @@ const ACCENT_DOT: Record<Kind, (cfg: CowConfig, hass?: HomeAssistant) => string>
     },
     extras: (cfg, hass) => {
       if (!hass) return "#8c6be0";
-      const anyOn = cfg.tvs.some(
+      const anyOn = [...cfg.tvs, ...cfg.switches].some(
         (d) => !TV_OFF_STATES.has(hass.states[d.entity]?.state ?? "off"),
       );
       return anyOn ? "#8c6be0" : "#808088";
@@ -207,7 +207,12 @@ export class CowThermostatCard extends LitElement implements LovelaceCard {
     if (this.config?.climate) k.push("thermostat");
     if (this.config && this.config.lights.length > 0) k.push("lights");
     if (this.config && this.config.covers.length > 0) k.push("blinds");
-    if (this.config && (this.config.tvs.length > 0 || this.config.door)) {
+    if (
+      this.config &&
+      (this.config.tvs.length > 0 ||
+        this.config.switches.length > 0 ||
+        this.config.door)
+    ) {
       k.push("extras");
     }
     return k;
@@ -300,6 +305,7 @@ export class CowThermostatCard extends LitElement implements LovelaceCard {
                     slot="slide-${i}"
                     .hass=${this.hass}
                     .devices=${cfg.tvs}
+                    .switches=${cfg.switches}
                     .roomName=${cfg.room}
                     .doorEntity=${cfg.door ?? ""}
                     .doorLabel=${cfg.door_label ?? ""}
