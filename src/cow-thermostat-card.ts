@@ -13,12 +13,17 @@ import { animTokens } from "./small/styles/anim.js";
 import { shellStyles } from "./small/styles/shell.js";
 
 import "./small/swiper.js";
+import "./small/components/tab-jump.js";
 import "./small/panels/thermostat-panel.js";
 import "./small/panels/lights-panel.js";
 import "./small/panels/blinds-panel.js";
 import "./small/panels/extras-panel.js";
 
-import { deriveThermostatView } from "./small/state/thermostat.js";
+import {
+  applyDisplayOverrides,
+  deriveThermostatView,
+  hassNumber,
+} from "./small/state/thermostat.js";
 import {
   deriveSplitRoomDisplayView,
   usesSplitClimate,
@@ -35,14 +40,21 @@ type Kind = "thermostat" | "lights" | "blinds" | "extras";
 /** Mirrors `tvIsOn` in extras-panel — media_player "on-ish" states. */
 const TV_OFF_STATES = new Set(["off", "unavailable", "unknown", "standby"]);
 
-const VERSION = "1.12.0";
+const VERSION = "1.12.1";
 
 const ACCENT_DOT: Record<Kind, (cfg: CowConfig, hass?: HomeAssistant) => string> =
   {
     thermostat: (cfg, hass) => {
       if (!cfg.climate || !hass) return "#fa6b2e";
       const room = hass.states[cfg.climate];
-      const roomView = deriveThermostatView(room);
+      const roomView = applyDisplayOverrides(deriveThermostatView(room), {
+        targetEnt: cfg.target_entity
+          ? hass.states[cfg.target_entity]
+          : undefined,
+        current: hassNumber(
+          cfg.local_temp ? hass.states[cfg.local_temp] : undefined,
+        ),
+      });
       const v =
         cfg.system_climate && usesSplitClimate(cfg.system_climate, roomView)
           ? deriveSplitRoomDisplayView(room, hass.states[cfg.system_climate])
@@ -238,6 +250,7 @@ export class CowThermostatCard extends LitElement implements LovelaceCard {
     }
     const cfg = this.config;
     const kinds = this.kinds();
+    const accents = this.accents();
     if (kinds.length === 0) {
       return html`<div class="error">
         cow-thermostat-card: configura almeno uno tra climate / lights / covers
@@ -250,7 +263,7 @@ export class CowThermostatCard extends LitElement implements LovelaceCard {
           <cow-swiper
             .index=${this.index}
             .count=${kinds.length}
-            .accents=${this.accents()}
+            .accents=${accents}
             @cow-index-change=${(e: CustomEvent<{ index: number }>) =>
               (this.index = e.detail.index)}
           >
@@ -330,6 +343,17 @@ export class CowThermostatCard extends LitElement implements LovelaceCard {
               `;
             })}
           </cow-swiper>
+          ${kinds.length > 1
+            ? html`
+                <cow-tab-jump
+                  .kinds=${kinds}
+                  .index=${this.index}
+                  .accents=${accents}
+                  @cow-tab-jump=${(e: CustomEvent<{ index: number }>) =>
+                    (this.index = e.detail.index)}
+                ></cow-tab-jump>
+              `
+            : ""}
         </div>
       </div>
     `;

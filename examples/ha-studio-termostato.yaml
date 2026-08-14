@@ -1,38 +1,44 @@
 # ============================================================================
-# Studio — termostato "vero" per il Daikin (Onecta) col sensore Zigbee
+# Studio — termostato "vero" per il Daikin (Onecta) col sensore BT
 # ============================================================================
 # Creato via API il 2026-08-02 (helpers via WebSocket, automazioni via
 # POST /api/config/automation/config/cow_studio_*). Questo file è la
 # copia di riferimento: NON viene letto da HA, serve solo come doc.
 #
-# Problema risolto: il Daikin regola con la sua sonda interna (vicino al
-# soffitto, legge più caldo/freddo della stanza reale). La card scrive
-# setpoint e modo direttamente su climate.condizionatore_studio, quindi
-# senza queste automazioni nessuno spegne/riaccende l'unità in base alla
-# temperatura vera della stanza (sensor.termostato_studio_ale_temperature).
+# Problema: il Daikin regola con la sua sonda interna (sull'unità, legge
+# l'aria che spinge). La card mostra setpoint e modo da helper + sensore
+# stanza, quindi senza queste automazioni l'unità si autolimita a idle
+# quando la sua sonda è a target mentre la stanza è ancora calda
+# (es. set 22, sonda Daikin 22 idle, stanza 27, compressore fermo).
+#
+# Sensore stanza (2026-08-14): Bluetooth H&T accoppiato al Wall Display
+# Studio — sensor.shellywalldisplay_000822397b9e_temperature / _humidity.
+# (Lo Zigbee Aqara termostato_studio_ale è fermo, non usarlo.)
 #
 # Comportamento:
 #   * Attivo solo in heat/cool (dry e fan_only non vengono mai ciclati).
-#   * Isteresi ±0.3 °C attorno al setpoint → banda morta 0.6 °C.
+#   * Raffredda fino a SP esatto (`T <= SP`), riarma a `SP + 0,5 °C`.
+#     Riscalda fino a SP esatto (`T >= SP`), riarma a `SP - 0,5 °C`.
+#     Allineato al latch Cool/Dry di cow_climate.py (REARM = 0.5).
+#   * Mentre è acceso, il Daikin viene spinto al suo min/max macchina
+#     (cool 18 °C / heat 32 °C) — è una sorgente, non un termostato.
+#     Lo spegnimento lo decide il sensore BT, non la sonda interna.
 #   * A setpoint raggiunto il Daikin viene SPENTO (pausa termostato ON);
-#     quando la stanza deriva oltre la banda viene riacceso con lo STESSO
-#     modo e setpoint memorizzati dagli helper.
+#     quando la stanza deriva oltre REARM viene riacceso con lo stesso
+#     modo e la stessa spinta.
 #   * Uno spegnimento MANUALE non viene mai annullato: la riaccensione
 #     scatta solo se era stato il termostato a spegnere (flag pausa).
-#   * Anti-cicli: il Daikin deve essere stabile da almeno 4 minuti prima
-#     di qualsiasi comando.
+#   * Anti-cicli: 4 min di stato stabile solo per on/off, NON per la
+#     spinta del setpoint macchina.
+#   * Sensore stantio (> 2 h senza update): non si spegne né si
+#     riaccende da una lettura morta. Se l'unità è già on, resta in
+#     spinta così il compressore gira davvero. Notifica persistente.
 #
-# Mezzi gradi (v1.9.0, 2026-08-04): il target visibile all'utente è
-# input_number.studio_clima_target (step 0.5) — la card lo mostra e lo
-# scrive direttamente (config `target_entity`). Il Daikin Onecta accetta
-# solo gradi interi (23.5 viene rifiutato/arrotondato dal cloud), quindi:
-#   * cow_studio_clima_sync_setpoint riflette helper → Daikin col grado
-#     "aggressivo": floor in cool (23.5 → 23), ceil in heat (23.5 → 24) —
-#     così l'unità non si autolimita prima che l'isteresi la fermi;
-#   * la memoria copia Daikin → helper SOLO se il nuovo setpoint non è
-#     il riflesso del target corrente (guardia anti-clobber: senza,
-#     il sync 23.5→23 farebbe rimbalzare l'helper a 23.0);
-#   * la riaccensione del termostato usa lo stesso floor/ceil.
+# Mezzi gradi: il target visibile è input_number.studio_clima_target
+# (step 0.5). La card mostra/scrive l'helper; il Daikin non riceve
+# quel numero — riceve solo 18/32 di spinta. La memoria copia un
+# cambio setpoint dal telecomando Daikin → helper SOLO se non è la
+# spinta 18/32 (né il vecchio floor/ceil dell'helper).
 #
 # Helpers (creati in HA, elencati qui per riferimento):
 #   input_select.studio_clima_modo        # heat/cool/dry/fan_only/heat_cool
@@ -45,8 +51,9 @@ automation:
     alias: "Studio clima — memoria modo e setpoint"
     description: >-
       Tiene in input_select/input_number l'ultimo modo non-off e l'ultimo
-      setpoint del Daikin studio. Qualsiasi attivazione manuale azzera la
-      pausa del termostato.
+      setpoint scelto dal telecomando Daikin. Qualsiasi attivazione
+      manuale azzera la pausa del termostato. Non copia la spinta macchina
+      (18 cool / 32 heat) né il vecchio floor/ceil dell'helper.
     mode: queued
     max: 10
     trigger:
@@ -58,7 +65,6 @@ automation:
         attribute: temperature
     action:
       - choose:
-          # Cambio modo (trigger senza attribute) → memorizza + azzera pausa
           - conditions:
               - condition: template
                 value_template: >-
@@ -70,13 +76,12 @@ automation:
                 data: { option: "{{ trigger.to_state.state }}" }
               - service: input_boolean.turn_off
                 target: { entity_id: input_boolean.studio_clima_pausa_termostato }
-          # Cambio setpoint → memorizza, MA solo se non è il riflesso
-          # floor/ceil del target helper (= scritto dal nostro sync)
           - conditions:
               - condition: template
                 value_template: >-
                   {{ trigger.attribute is defined and
                      trigger.to_state.attributes.temperature is not none and
+                     (trigger.to_state.attributes.temperature | float) not in [18, 32] and
                      (trigger.to_state.attributes.temperature | float) != (
                        (states('input_number.studio_clima_target') | float(21)) | round(0, 'floor')
                          if states('input_select.studio_clima_modo') == 'cool' else
@@ -90,60 +95,79 @@ automation:
                 data: { value: "{{ trigger.to_state.attributes.temperature }}" }
 
   - id: cow_studio_termostato
-    alias: "Studio termostato — Daikin on/off da sensore Zigbee"
+    alias: "Studio termostato — Daikin on/off da sensore display"
     description: >-
-      Termostato con isteresi ±0.3°C sul sensore termostato_studio_ale:
-      spegne il Daikin a setpoint raggiunto e lo riaccende (stesso modo e
-      setpoint) quando la stanza deriva. Attivo solo in heat/cool; lo
-      spegnimento manuale non viene mai annullato (riaccende solo se era
-      stato lui a spegnere). Anti-cicli: 4 min di stato stabile.
+      Termostato sul sensore BT del Wall Display Studio
+      (shellywalldisplay_000822397b9e): raffredda/riscalda
+      fino a SP esatto, riarma a ±0,5 °C, e mentre è acceso spinge il
+      Daikin a 18 °C (cool) / 32 °C (heat) così il compressore non va
+      in idle sulla sonda interna. Sensore stantio (>2 h): niente on/off
+      automatico, solo spinta se già acceso. Spegnimento manuale non
+      viene mai annullato. Anti-cicli 4 min solo su on/off.
     mode: single
     max_exceeded: silent
     trigger:
       - platform: state
-        entity_id: sensor.termostato_studio_ale_temperature
+        entity_id: sensor.shellywalldisplay_000822397b9e_temperature
       - platform: state
         entity_id:
           - input_number.studio_clima_target
           - input_select.studio_clima_modo
+      - platform: state
+        entity_id: climate.condizionatore_studio
+        to:
+          - heat
+          - cool
+          - off
+          - dry
+          - fan_only
+          - heat_cool
       - platform: time_pattern
         minutes: "/5"
     variables:
-      t: "{{ states('sensor.termostato_studio_ale_temperature') | float(none) }}"
+      t: >-
+        {% set s = states.sensor.shellywalldisplay_000822397b9e_temperature %}
+        {{ s.state | float(none) if s is not none and
+           (now() - s.last_updated).total_seconds() < 7200 else none }}
       target: "{{ states('input_number.studio_clima_target') | float(21) }}"
       modo: "{{ states('input_select.studio_clima_modo') }}"
       ac: "{{ states('climate.condizionatore_studio') }}"
-      iste: 0.3
+      rearm: 0.5
+      drive: "{{ 18 if modo == 'cool' else 32 if modo == 'heat' else none }}"
+      ac_sp: "{{ state_attr('climate.condizionatore_studio','temperature') | float(none) }}"
+      stable: >-
+        {{ states.climate.condizionatore_studio is not none and
+           (now() - states.climate.condizionatore_studio.last_changed).total_seconds() > 240 }}
     condition:
       - condition: template
         value_template: >-
-          {{ t is not none and modo in ['heat','cool'] and
-             ac not in ['unavailable','unknown'] }}
-      - condition: template
-        value_template: >-
-          {{ (now() - states.climate.condizionatore_studio.last_changed).total_seconds() > 240 }}
+          {{ modo in ['heat','cool'] and ac not in ['unavailable','unknown'] }}
     action:
       - choose:
-          # Setpoint raggiunto → pausa + spegni
+          # Setpoint raggiunto su sensore VIVO → pausa + spegni
           - conditions:
               - condition: template
                 value_template: >-
-                  {{ ac != 'off' and ((modo == 'heat' and t >= target + iste) or
-                                      (modo == 'cool' and t <= target - iste)) }}
+                  {{ t is number and stable and ac != 'off' and
+                     ((modo == 'heat' and t >= target) or
+                      (modo == 'cool' and t <= target)) }}
             sequence:
               - service: input_boolean.turn_on
                 target: { entity_id: input_boolean.studio_clima_pausa_termostato }
               - service: climate.turn_off
                 target: { entity_id: climate.condizionatore_studio }
-          # Stanza derivata E l'avevamo spento noi → riaccendi con memoria
+              - service: persistent_notification.dismiss
+                data: { notification_id: cow_studio_sensor_stale }
+          # Stanza derivata E l'avevamo spento noi → riaccendi + spinta
           - conditions:
               - condition: state
                 entity_id: input_boolean.studio_clima_pausa_termostato
                 state: "on"
               - condition: template
                 value_template: >-
-                  {{ ac == 'off' and ((modo == 'heat' and t <= target - iste) or
-                                      (modo == 'cool' and t >= target + iste)) }}
+                  {{ t is number and stable and ac == 'off' and
+                     ((modo == 'heat' and t <= target - rearm) or
+                      (modo == 'cool' and t >= target + rearm)) }}
             sequence:
               - service: climate.set_hvac_mode
                 target: { entity_id: climate.condizionatore_studio }
@@ -151,35 +175,51 @@ automation:
               - delay: { seconds: 3 }
               - service: climate.set_temperature
                 target: { entity_id: climate.condizionatore_studio }
-                data:
-                  temperature: >-
-                    {{ (target | round(0, 'floor')) if modo == 'cool'
-                       else (target | round(0, 'ceil')) if modo == 'heat'
-                       else (target | round) }}
+                data: { temperature: "{{ drive }}" }
               - service: input_boolean.turn_off
                 target: { entity_id: input_boolean.studio_clima_pausa_termostato }
+              - service: persistent_notification.dismiss
+                data: { notification_id: cow_studio_sensor_stale }
+          # Unità già on → spinta macchina (anche con Zigbee stantio)
+          - conditions:
+              - condition: template
+                value_template: >-
+                  {{ ac != 'off' and drive is not none and
+                     (ac_sp is none or (ac_sp | float) != (drive | float)) }}
+            sequence:
+              - service: climate.set_temperature
+                target: { entity_id: climate.condizionatore_studio }
+                data: { temperature: "{{ drive }}" }
+              - if:
+                  - condition: template
+                    value_template: "{{ t is not number }}"
+                then:
+                  - service: persistent_notification.create
+                    data:
+                      notification_id: cow_studio_sensor_stale
+                      title: Termostato studio — sensore fermo
+                      message: >-
+                        Il sensore BT del Display Studio non aggiorna da
+                        più di 2 ore. Il Daikin resta in spinta
+                        ({{ drive }} °C) finché non spegni a mano o il
+                        sensore non torna in vita.
 
   - id: cow_studio_clima_sync_setpoint
-    alias: "Studio clima — sync setpoint Daikin (gradi interi)"
+    alias: "Studio clima — spinta Daikin (setpoint macchina)"
     description: >-
-      Quando l'helper target cambia (dalla card, step 0.5) e il Daikin è
-      acceso, riflette il setpoint arrotondato in modo aggressivo:
-      floor in cool, ceil in heat. A regolare la stanza è
-      cow_studio_termostato sul sensore Zigbee.
+      Quando il target helper cambia e il Daikin è in heat/cool, scrive
+      la spinta macchina (18 cool / 32 heat), non il target utente.
+      A regolare la stanza è cow_studio_termostato sul sensore BT del display.
     mode: restart
     trigger:
       - platform: state
         entity_id: input_number.studio_clima_target
     variables:
-      target: "{{ states('input_number.studio_clima_target') | float(21) }}"
       ac: "{{ states('climate.condizionatore_studio') }}"
-      expected: >-
-        {{ (target | round(0, 'floor')) if ac == 'cool'
-           else (target | round(0, 'ceil')) if ac == 'heat'
-           else (target | round) }}
+      expected: "{{ 18 if ac == 'cool' else 32 if ac == 'heat' else none }}"
     condition:
       - condition: template
-        value_template: "{{ ac in ['heat','cool'] }}"
+        value_template: "{{ ac in ['heat','cool'] and expected is not none }}"
       - condition: template
         value_template: >-
           {{ (state_attr('climate.condizionatore_studio','temperature') | float(-99)) != (expected | float) }}

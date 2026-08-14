@@ -8,6 +8,7 @@ import {
 } from "../config-xl.js";
 import { findRoomOpeningsCached } from "../utils/openings-cache.js";
 import { hassEntitiesChanged, xlHeaderEntityIds } from "../utils/hass-watch.js";
+import { formatTemp } from "../utils/format.js";
 
 import "../small/components/info-badge.js";
 
@@ -300,12 +301,9 @@ export class CowXLHeader extends LitElement {
    *     `current_temperature` + `current_humidity` attributes. For
    *     casa_<room> MQTT proxies these come straight from the
    *     mqtt.publish automations in cow_climate.yaml that mirror
-   *     sensor.display_<room>_* — so we hit the same single source of
-   *     truth the room drawer's Climate tab uses, and the two
-   *     surfaces can never disagree.
-   *  2. Sensor fallback (`room.temperature` / `room.humidity`) for
-   *     rooms with no climate entity at all — e.g. Lavanderia, which
-   *     only has a contact-sensor temperature reading.
+   *     sensor.display_<room>_*.
+   *  2. Dedicated `room.temperature` / `room.humidity` when set —
+   *     wins over the climate probe (Studio Zigbee vs Daikin).
    *  3. Global `weatherEntity` as a last resort so legacy configs
    *     still show something on the pill.
    *
@@ -325,8 +323,8 @@ export class CowXLHeader extends LitElement {
     let label: string | undefined;
 
     if (room) {
-      // 1. Climate proxy first — single source of truth for any heated
-      //    / cooled room.
+      // 1. Climate entity — default source for heated / cooled rooms
+      //    (MQTT proxies already mirror the room display sensor).
       if (room.climate) {
         const c = states[room.climate];
         if (c) {
@@ -335,15 +333,16 @@ export class CowXLHeader extends LitElement {
           if (typeof a.current_humidity === "number") humidity = a.current_humidity;
         }
       }
-      // 2. Sensor fallback for rooms with no climate entity.
-      if (temp == null && room.temperature) {
+      // 2. Dedicated room sensor wins when configured (Studio Zigbee
+      //    vs Daikin soffitto — the climate probe is the wrong number).
+      if (room.temperature) {
         const tEntity = states[room.temperature];
         if (tEntity) {
           const v = Number(tEntity.state);
           if (Number.isFinite(v)) temp = v;
         }
       }
-      if (humidity == null && room.humidity) {
+      if (room.humidity) {
         const hEntity = states[room.humidity];
         if (hEntity) {
           const v = Number(hEntity.state);
@@ -477,7 +476,7 @@ export class CowXLHeader extends LitElement {
           ${info.temp != null
             ? html`<span class="room-pill-metric"
                 ><span class="room-pill-icon">🌡</span
-                >${info.temp.toFixed(1).replace(/\.0$/, "")}°C</span
+                >${formatTemp(info.temp, "°C")}</span
               >`
             : nothing}
           ${info.humidity != null

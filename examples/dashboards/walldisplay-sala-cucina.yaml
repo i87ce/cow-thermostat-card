@@ -174,8 +174,8 @@ views:
             group: Altro
             # Standalone Daikin — non partecipa a climate.casa_sistema
             climate: climate.condizionatore_studio
-            temperature: sensor.termostato_studio_ale_temperature
-            humidity: sensor.termostato_studio_ale_humidity
+            temperature: sensor.shellywalldisplay_000822397b9e_temperature
+            humidity: sensor.shellywalldisplay_000822397b9e_humidity
             target_entity: input_number.studio_clima_target
             light:
               - light.luce_calda_studio

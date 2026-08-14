@@ -10,11 +10,14 @@ import {
 import {
   deriveThermostatView,
   bumpTarget,
-  applyTargetOverride,
+  applyDisplayOverrides,
+  hassNumber,
+  reconcileVariant,
   THERMOSTAT_ACCENT,
   THERMOSTAT_STATUS_LABEL,
   THERMOSTAT_SUB_LABEL,
 } from "../../small/state/thermostat.js";
+import { formatTemp } from "../../utils/format.js";
 import {
   applyGlobalMode,
   climateModeChipLabel,
@@ -462,19 +465,17 @@ export class CowXLClimateTab extends LitElement {
   /** Room climate view with optional target_entity + sensor overrides. */
   private roomClimateView(room: CowRoomConfig) {
     const climate = this.hass?.states?.[room.climate ?? ""];
-    let view = applyTargetOverride(
-      deriveThermostatView(climate),
-      room.target_entity ? this.hass?.states?.[room.target_entity] : undefined,
-    );
-    if (room.temperature && this.hass?.states[room.temperature]) {
-      const n = Number(this.hass.states[room.temperature].state);
-      if (Number.isFinite(n)) view = { ...view, current: n };
-    }
-    if (room.humidity && this.hass?.states[room.humidity]) {
-      const n = Number(this.hass.states[room.humidity].state);
-      if (Number.isFinite(n)) view = { ...view, humidity: n };
-    }
-    return view;
+    return applyDisplayOverrides(deriveThermostatView(climate), {
+      targetEnt: room.target_entity
+        ? this.hass?.states?.[room.target_entity]
+        : undefined,
+      current: hassNumber(
+        room.temperature ? this.hass?.states[room.temperature] : undefined,
+      ),
+      humidity: hassNumber(
+        room.humidity ? this.hass?.states[room.humidity] : undefined,
+      ),
+    });
   }
 
   private openSetpointModal = (): void => {
@@ -564,8 +565,7 @@ export class CowXLClimateTab extends LitElement {
     // would otherwise look like they're reading different sensors.
     // Strip a trailing ".0" so an exact integer setpoint reads "21°"
     // instead of the slightly ugly "21.0°".
-    const fmt = (n: number, unit: string) =>
-      `${n.toFixed(1).replace(/\.0$/, "")}${unit}`;
+    const fmt = (n: number, unit: string) => formatTemp(n, unit);
     const cur = roomView.current != null ? fmt(roomView.current, "°") : "—";
 
     const upTarget = bumpTarget(roomView, 1);
@@ -577,7 +577,7 @@ export class CowXLClimateTab extends LitElement {
 
     const displayRoomView =
       this.pendingTarget != null
-        ? { ...roomView, target: this.pendingTarget }
+        ? reconcileVariant({ ...roomView, target: this.pendingTarget })
         : roomView;
     const displaySysView =
       this.pendingMode != null || this.pendingFan != null
@@ -633,7 +633,7 @@ export class CowXLClimateTab extends LitElement {
     const tempVal = tempEntity ? parseFloat(tempEntity.state) : NaN;
     const humVal = humEntity ? parseFloat(humEntity.state) : NaN;
     const tempStr = Number.isFinite(tempVal)
-      ? `${Math.round(tempVal * 10) / 10}°`
+      ? formatTemp(tempVal)
       : "—";
     const humStr = Number.isFinite(humVal) ? `${Math.round(humVal)}%` : "—";
 

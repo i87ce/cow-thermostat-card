@@ -592,12 +592,6 @@ export class CowLightsPanel extends LitElement {
   private finalizeGesture(e: PointerEvent, cancelled: boolean): void {
     if (this.dragStartY == null) return;
     const target = e.currentTarget as HTMLElement;
-    try {
-      target.releasePointerCapture(e.pointerId);
-    } catch {
-      /* pointer may already have been released by the browser */
-    }
-
     const wasMoved = this.dragMoved;
     const pendingPct = this.dragPct;
     const wasDimmable = this.view().dimmable;
@@ -605,6 +599,12 @@ export class CowLightsPanel extends LitElement {
     this.dragTouchY = null;
     this.dragStartY = null;
     this.dragMoved = false;
+
+    try {
+      target.releasePointerCapture(e.pointerId);
+    } catch {
+      /* pointer may already have been released by the browser */
+    }
 
     if (wasMoved && wasDimmable && pendingPct != null) {
       // Commit the drag — keep `dragPct` set as the optimistic UI
@@ -641,6 +641,15 @@ export class CowLightsPanel extends LitElement {
   // (see `finalizeGesture`).
   private onLeftPointerCancel = (e: PointerEvent): void => {
     this.finalizeGesture(e, true);
+  };
+
+  /** Top-edge tab-jump (or anything else) stole the pointer. */
+  private onLeftLostCapture = (): void => {
+    if (this.dragStartY == null) return;
+    this.dragTouchY = null;
+    this.dragStartY = null;
+    this.dragMoved = false;
+    this.dragPct = null;
   };
 
   private onTileSelect = (e: CustomEvent<{ id: string }>): void => {
@@ -683,6 +692,7 @@ export class CowLightsPanel extends LitElement {
         @pointermove=${this.onLeftPointerMove}
         @pointerup=${this.onLeftPointerUp}
         @pointercancel=${this.onLeftPointerCancel}
+        @lostpointercapture=${this.onLeftLostCapture}
       ></div>
       <div class="right"></div>
 

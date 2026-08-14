@@ -4,6 +4,38 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and
 this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.12.1] — 2026-08-14
+
+### Added — top-edge tab jump on the small wall display
+- Pull down from the top of the 720×720 `cow-thermostat-card` to open a
+  compact jump menu (Termostato / Luci / Tapparelle / Comandi — only
+  tabs that exist for that room). Tap a tab to switch; tap the backdrop
+  or swipe up to dismiss. Does not run on the XL dashboard.
+- Activation starts within ~64 px of the top (not the bezel pixel) so
+  the gesture still works in kiosk if Shelly firmware captures a true
+  top-edge swipe for notifications/Settings.
+
+### Fixed — Studio climate idle at 25 °C while Daikin stays on
+- Hero variant now follows the **displayed** current vs helper target
+  (`local_temp` / `rooms[].temperature` + `target_entity`), not the
+  Daikin's internal probe / missing `hvac_action`. Cool + room 25 °C +
+  set 22 °C paints **cooling**, not green IDLE.
+- Same overlay on the small wall display, XL climate tab / header pill,
+  and mobile room drawer.
+- Current room temperature (and setpoints) now keep **one decimal**
+  everywhere (`26.5°`, integers still `21°`). The small Studio wall
+  display and the mobile room tiles were rounding with `Math.round`,
+  so 26.5 °C showed as **27°**.
+- Studio HA automations (`examples/ha-studio-termostato.yaml`): the
+  Daikin is a cooling/heating **source** (machine setpoint 18 / 32)
+  while the room sensor is fresh; auto-off at exact setpoint, re-arm
+  at ±0.5 °C. A reading older than 2 h no longer keeps the unit fake-on
+  at the user target (compressor idle) — it either drives the machine
+  setpoint or waits for a live sensor. Room sensor (2026-08-14): Shelly
+  Wall Display Bluetooth H&T
+  (`sensor.shellywalldisplay_000822397b9e_temperature`), not the dead
+  Zigbee Aqara.
+
 ## [1.12.0] — 2026-08-12
 
 ### Added — generic `switches` tiles in the "Comandi" tab (small card)

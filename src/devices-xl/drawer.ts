@@ -5,6 +5,7 @@ import type { CowRoomConfig } from "../config-xl.js";
 import { countOpenContacts, findRoomOpeningsXL } from "../config-xl.js";
 import { buttonReset } from "../styles/button-reset.js";
 import { hassEntitiesChanged, xlRoomEntityIds } from "../utils/hass-watch.js";
+import { formatTemp } from "../utils/format.js";
 
 import "./drawer-tabs/lights-tab.js";
 import "./drawer-tabs/blinds-tab.js";
@@ -367,9 +368,7 @@ export class CowXLDrawer extends LitElement {
     const tempVal = tempEl ? parseFloat(tempEl.state) : NaN;
     const humVal = humEl ? parseFloat(humEl.state) : NaN;
     return {
-      temp: Number.isFinite(tempVal)
-        ? `${Math.round(tempVal * 10) / 10}°`
-        : null,
+      temp: Number.isFinite(tempVal) ? formatTemp(tempVal) : null,
       hum: Number.isFinite(humVal) ? `${Math.round(humVal)}%` : null,
     };
   }
@@ -385,7 +384,7 @@ export class CowXLDrawer extends LitElement {
         const setpoint =
           typeof setpointAttr === "number" ? setpointAttr : null;
         const mode = s.state;
-        const t = setpoint != null ? `${Math.round(setpoint)}°` : "";
+        const t = setpoint != null ? formatTemp(setpoint) : "";
         const verb =
           mode === "heat"
             ? "Riscaldando"
@@ -407,7 +406,7 @@ export class CowXLDrawer extends LitElement {
         const tempVal = tempEl ? parseFloat(tempEl.state) : NaN;
         const humVal = humEl ? parseFloat(humEl.state) : NaN;
         const parts: string[] = [];
-        if (Number.isFinite(tempVal)) parts.push(`${Math.round(tempVal)}°`);
+        if (Number.isFinite(tempVal)) parts.push(formatTemp(tempVal));
         if (Number.isFinite(humVal)) parts.push(`${Math.round(humVal)}%`);
         return {
           text: parts.length > 0 ? parts.join(" · ") : "—",

@@ -88,6 +88,44 @@ export interface ThermostatView {
 
 const ROUND = (v: number, step: number) => Math.round(v / step) * step;
 
+/** Parse a sensor / input_number state into a finite number. */
+export function hassNumber(ent: HassEntity | undefined): number | null {
+  if (!ent) return null;
+  const n = Number(ent.state);
+  return Number.isFinite(n) ? n : null;
+}
+
+/**
+ * Variant from the temps the user actually sees (mode + current vs
+ * target). Used both as the action-less fallback inside
+ * `deriveThermostatView` and after overlaying a room sensor /
+ * `target_entity` — the physical unit's `hvac_action` follows its
+ * own probe, which can be idle at 22 while the Zigbee readout is 25.
+ */
+export function variantFromModeAndTemps(
+  mode: ThermostatView["mode"],
+  cur: number | null,
+  tgt: number | null,
+): ThermostatVariant {
+  if (mode === "off") return "off";
+  if (mode === "dry") return "cooling";
+  if (mode === "fan_only") return "idle";
+  if (mode === "heat") {
+    if (cur == null || tgt == null) return "heating";
+    return cur < tgt ? "heating" : "idle";
+  }
+  if (mode === "cool") {
+    if (cur == null || tgt == null) return "cooling";
+    return cur > tgt ? "cooling" : "idle";
+  }
+  // auto / heat_cool — single-target only; dual-setpoint stays idle.
+  if (cur != null && tgt != null) {
+    if (cur > tgt) return "cooling";
+    if (cur < tgt) return "heating";
+  }
+  return "idle";
+}
+
 /**
  * Variant inference for climates that don't report `hvac_action`
  * (Daikin Onecta, several MQTT bridges): fall back to mode +
@@ -99,27 +137,29 @@ function inferVariantFromTemps(
   state: string,
   attrs: HassClimateAttributes,
 ): ThermostatVariant {
-  if (state === "dry") return "cooling";
-  if (state === "fan_only") return "idle";
+  const mode = ((): ThermostatView["mode"] => {
+    if (state === "heat") return "heat";
+    if (state === "cool") return "cool";
+    if (state === "dry") return "dry";
+    if (state === "heat_cool") return "heat_cool";
+    if (state === "fan_only") return "fan_only";
+    if (state === "off") return "off";
+    return "auto";
+  })();
   const cur =
     typeof attrs.current_temperature === "number"
       ? attrs.current_temperature
       : null;
   const tgt = typeof attrs.temperature === "number" ? attrs.temperature : null;
-  if (state === "heat") {
-    if (cur == null || tgt == null) return "heating";
-    return cur < tgt ? "heating" : "idle";
-  }
-  if (state === "cool") {
-    if (cur == null || tgt == null) return "cooling";
-    return cur > tgt ? "cooling" : "idle";
-  }
-  // auto / heat_cool — single-target only; dual-setpoint stays idle.
-  if (cur != null && tgt != null) {
-    if (cur > tgt) return "cooling";
-    if (cur < tgt) return "heating";
-  }
-  return "idle";
+  return variantFromModeAndTemps(mode, cur, tgt);
+}
+
+/** Recompute `variant` from the view's displayed mode / current / target. */
+export function reconcileVariant(view: ThermostatView): ThermostatView {
+  return {
+    ...view,
+    variant: variantFromModeAndTemps(view.mode, view.current, view.target),
+  };
 }
 
 export function deriveThermostatView(
@@ -199,6 +239,10 @@ export function deriveThermostatView(
  * Onecta = whole degrees) but the real regulation runs in HA on a
  * finer scale — the card shows/edits the helper and an automation
  * keeps the unit's own setpoint in sync.
+ *
+ * Does not recompute `variant` — call `applyDisplayOverrides` (or
+ * `reconcileVariant`) after overlaying current/target so the hero
+ * follows the numbers the user sees, not the unit's internal probe.
  */
 export function applyTargetOverride(
   view: ThermostatView,
@@ -219,6 +263,33 @@ export function applyTargetOverride(
     minTemp: typeof a.min === "number" ? a.min : view.minTemp,
     maxTemp: typeof a.max === "number" ? a.max : view.maxTemp,
   };
+}
+
+/**
+ * Apply the user-facing overlays (helper setpoint + room sensor) and
+ * reconcile the variant from those numbers. Needed for the Studio
+ * Daikin: its `hvac_action` / probe can read idle at 22 while the
+ * Zigbee and `input_number.studio_clima_target` still say 25 vs 22.
+ */
+export function applyDisplayOverrides(
+  view: ThermostatView,
+  opts: {
+    targetEnt?: HassEntity;
+    current?: number | null;
+    humidity?: number | null;
+  } = {},
+): ThermostatView {
+  let next = applyTargetOverride(view, opts.targetEnt);
+  if (opts.current != null && Number.isFinite(opts.current)) {
+    next = { ...next, current: opts.current };
+  }
+  if (opts.humidity != null && Number.isFinite(opts.humidity)) {
+    next = { ...next, humidity: opts.humidity };
+  }
+  const overlaid =
+    opts.targetEnt != null ||
+    (opts.current != null && Number.isFinite(opts.current));
+  return overlaid ? reconcileVariant(next) : next;
 }
 
 export function bumpTarget(

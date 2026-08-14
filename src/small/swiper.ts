@@ -8,7 +8,8 @@ import { customElement, property, state, query } from "lit/decorators.js";
  *   - Threshold = 22% of viewport width before commit.
  *   - Vertical pan inside children is preserved: we only "claim" the
  *     pointer once horizontal delta > 8px AND > vertical delta.
- *     This lets the lights brightness slider keep its drag.
+ *     This lets the lights brightness slider keep its drag, and lets
+ *     cow-tab-jump take a top-edge pull-down (we abort when |dy| > 8).
  *   - Track uses translate3d for hardware-accelerated motion.
  *   - Active dot stretches to a "pill" in the panel's accent color.
  */

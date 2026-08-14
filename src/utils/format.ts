@@ -3,10 +3,9 @@
  */
 
 export function formatTemp(t: number | null, unit = "°"): string {
-  if (t == null || Number.isNaN(t)) return "--";
-  // 1 decimal only when needed; Figma display shows "21°" / "24°C" cleanly.
-  if (Number.isInteger(t)) return `${t}${unit}`;
-  return `${t.toFixed(1)}${unit}`;
+  if (t == null || !Number.isFinite(t)) return "—";
+  // One decimal when needed ("26.5°"), strip ".0" so integers stay "21°".
+  return `${t.toFixed(1).replace(/\.0$/, "")}${unit}`;
 }
 
 export function formatTime(d: Date, locale?: string): string {

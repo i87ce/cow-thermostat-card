@@ -2,9 +2,12 @@ import { LitElement, html, css, svg, type PropertyValues } from "lit";
 import { customElement, property, state } from "lit/decorators.js";
 import type { HomeAssistant, HassEntity } from "../../types/hass.js";
 import {
+  applyDisplayOverrides,
   applyTargetOverride,
   bumpTarget,
   deriveThermostatView,
+  hassNumber,
+  reconcileVariant,
   THERMOSTAT_ACCENT,
   THERMOSTAT_STATUS_LABEL,
   THERMOSTAT_SUB_LABEL,
@@ -12,7 +15,7 @@ import {
 } from "../state/thermostat.js";
 import { panelStyles } from "../styles/shell.js";
 import { animKeyframes, animTokens, colorTransition } from "../styles/anim.js";
-import { formatTime } from "../../utils/format.js";
+import { formatTemp, formatTime } from "../../utils/format.js";
 import {
   openingsStripStyles,
   renderOpeningsStrip,
@@ -91,7 +94,8 @@ export class CowThermostatPanel extends LitElement {
    * Ambient temperature sensor that overrides the climate entity's
    * `current_temperature` in the big left-pane readout. Used when the
    * room has a dedicated Zigbee sensor that's more trustworthy than
-   * the AC's internal probe (e.g. Studio: Daikin vs `termostato_studio_ale`).
+   * the AC's internal probe (e.g. Studio: Daikin vs the Wall Display
+   * Bluetooth H&T `shellywalldisplay_000822397b9e_temperature`).
    */
   @property({ type: String }) localTempEntity = "";
   /**
@@ -416,12 +420,17 @@ export class CowThermostatPanel extends LitElement {
   }
 
   private roomView(): ThermostatView {
-    let view = applyTargetOverride(
-      deriveThermostatView(this.climate),
-      this.targetEntity ? this.hass?.states[this.targetEntity] : undefined,
-    );
+    let view = applyDisplayOverrides(deriveThermostatView(this.climate), {
+      targetEnt: this.targetEntity
+        ? this.hass?.states[this.targetEntity]
+        : undefined,
+      current: this.localTempNumber(),
+      humidity: hassNumber(
+        this.humidityEntity ? this.hass?.states[this.humidityEntity] : undefined,
+      ),
+    });
     if (this.pendingTarget != null) {
-      view = { ...view, target: this.pendingTarget };
+      view = reconcileVariant({ ...view, target: this.pendingTarget });
     }
     return view;
   }
@@ -744,8 +753,8 @@ export class CowThermostatPanel extends LitElement {
     if (this.studioDoorFeedback === "unlock") {
       return html`<span class="display-icon">${STUDIO_UNLOCK_ICON}</span>`;
     }
-    return current != null
-      ? html`${current}°`
+    return current != null && Number.isFinite(current)
+      ? html`${formatTemp(current)}`
       : html`<span class="dash">—</span>`;
   }
 
@@ -766,14 +775,9 @@ export class CowThermostatPanel extends LitElement {
     const split = this.isSplitClimate();
     const sys = split ? this.systemView() : roomV;
     const localT = this.localTempNumber();
-    const current =
-      localT != null
-        ? Math.round(localT)
-        : roomV.current != null
-          ? Math.round(roomV.current)
-          : null;
+    const current = localT ?? roomV.current;
     const target =
-      roomV.target != null ? roomV.target.toFixed(1).replace(".0", "") : null;
+      roomV.target != null ? formatTemp(roomV.target, "") : null;
     const hum = this.humidityText(roomV);
     const out = this.outdoorText();
     const setpointDisabled = false;

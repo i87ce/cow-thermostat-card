@@ -11,6 +11,7 @@ import {
   SYSTEM_MODE_CHIP_ORDER,
 } from "../small/state/split-climate.js";
 import { climaBarWatchIds, hassEntitiesChanged } from "../utils/hass-watch.js";
+import { formatTemp } from "../utils/format.js";
 import "../shared/setpoint-modal.js";
 import "../shared/confirm-modal.js";
 
@@ -299,7 +300,7 @@ export class CowXLClimaCasa extends LitElement {
     const fan = this.pendingFan ?? (ent.attributes?.fan_mode as string | undefined);
     const common = this.commonSetpoint();
     const setpointLabel =
-      common != null ? `${common.toFixed(1).replace(/\.0$/, "")}°C` : "—°C";
+      common != null ? formatTemp(common, "°C") : "—°C";
 
     return html`
       <div class="bar" ?data-on=${on}>

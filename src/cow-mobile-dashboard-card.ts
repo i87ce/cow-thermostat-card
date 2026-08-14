@@ -69,13 +69,16 @@ import {
 } from "./util/ajax-openings.js";
 import { findRoomOpenings } from "./small/openings.js";
 import {
-  applyTargetOverride,
+  applyDisplayOverrides,
   bumpTarget,
   deriveThermostatView,
+  hassNumber,
+  reconcileVariant,
   THERMOSTAT_ACCENT,
   THERMOSTAT_STATUS_LABEL,
   THERMOSTAT_SUB_LABEL,
   type ThermostatVariant,
+  type ThermostatView,
 } from "./small/state/thermostat.js";
 import {
   applyGlobalMode,
@@ -94,6 +97,7 @@ import {
 import "./shared/hero/mobile-hero.js";
 import "./shared/confirm-modal.js";
 import "./shared/setpoint-modal.js";
+import { formatTemp } from "./utils/format.js";
 
 // ─────────────────────────────────────────────────────────────────────
 // Config
@@ -484,6 +488,18 @@ export class CowMobileDashboardCard
     return this.hass.states[id];
   }
 
+  /** Standalone climate view with helper setpoint + room sensor overlays. */
+  private standaloneClimateView(
+    ent: HassEntity | undefined,
+    room?: NormalizedRoom,
+  ): ThermostatView {
+    return applyDisplayOverrides(deriveThermostatView(ent), {
+      targetEnt: this.getEnt(room?.targetEntity),
+      current: hassNumber(this.getEnt(room?.temp)),
+      humidity: hassNumber(this.getEnt(room?.humidity)),
+    });
+  }
+
   private roomLightsOn(room: NormalizedRoom): number {
     return room.lights.filter((l) => isOn(this.getEnt(l.entity))).length;
   }
@@ -552,10 +568,7 @@ export class CowMobileDashboardCard
     if (!room.climate || !this.hass) return null;
     const ent = this.hass.states[room.climate];
     if (!ent) return null;
-    const roomView = applyTargetOverride(
-      deriveThermostatView(ent),
-      this.getEnt(room.targetEntity),
-    );
+    const roomView = this.standaloneClimateView(ent, room);
     const split = usesSplitClimate(this.systemClimateEntity(), roomView);
     const view = split
       ? deriveSplitRoomDisplayView(ent, this.getEnt(this.systemClimateEntity()))
@@ -849,10 +862,8 @@ export class CowMobileDashboardCard
   private openSetpointModal = (entity: string): void => {
     if (!this.hass) return;
     const override = this.targetOverrideFor(entity);
-    const view = applyTargetOverride(
-      deriveThermostatView(this.hass.states[entity]),
-      this.getEnt(override),
-    );
+    const room = this.rooms.find((r) => r.climate === entity);
+    const view = this.standaloneClimateView(this.hass.states[entity], room);
     const split = usesSplitClimate(this.systemClimateEntity(), view);
     // With a target_entity the setpoint stays editable even while the
     // unit is off — the thermostat automation re-arms it on demand.
@@ -1872,18 +1883,11 @@ export class CowMobileDashboardCard
   private renderSetpointModal() {
     const entityId = this.setpointModalEntity;
     const ent = entityId ? this.hass?.states?.[entityId] : undefined;
-    const view = applyTargetOverride(
-      deriveThermostatView(ent),
-      entityId ? this.getEnt(this.targetOverrideFor(entityId)) : undefined,
-    );
-    const accent = THERMOSTAT_ACCENT[view.variant];
-    // Room name for the modal heading — find the room that owns this
-    // climate entity, falling back to a generic title when we can't
-    // (shouldn't happen, but the modal must never render NaN/undefined
-    // in the heading).
     const room = entityId
       ? this.rooms.find((r) => r.climate === entityId)
       : undefined;
+    const view = this.standaloneClimateView(ent, room);
+    const accent = THERMOSTAT_ACCENT[view.variant];
     const heading = room ? `Imposta ${room.name}` : "Imposta temperatura";
     return html`
       <cow-setpoint-modal
@@ -2035,7 +2039,7 @@ export class CowMobileDashboardCard
     const humEnt = this.getEnt(room.humidity);
     const temp =
       tempEnt && tempEnt.state !== "unavailable"
-        ? `${Math.round(parseFloat(tempEnt.state))}°`
+        ? formatTemp(parseFloat(tempEnt.state))
         : null;
     const hum =
       humEnt && humEnt.state !== "unavailable"
@@ -2132,7 +2136,7 @@ export class CowMobileDashboardCard
         ? "Off"
         : climate.target == null
           ? "Auto"
-          : `${Math.round(climate.target)}°`
+          : formatTemp(climate.target)
       : null;
     return html`
       <div class="room-badge-row">
@@ -2249,13 +2253,10 @@ export class CowMobileDashboardCard
     const entity = room.climate;
     const ent = this.getEnt(entity);
     if (!ent) return nothing;
-    const roomView = applyTargetOverride(
-      deriveThermostatView(ent),
-      this.getEnt(room.targetEntity),
-    );
+    const roomView = this.standaloneClimateView(ent, room);
     const displayRoomView =
       this.optClimateTarget[entity] != null
-        ? { ...roomView, target: this.optClimateTarget[entity] }
+        ? reconcileVariant({ ...roomView, target: this.optClimateTarget[entity] })
         : roomView;
     const split = usesSplitClimate(this.systemClimateEntity(), roomView);
     const sysId = this.systemClimateEntity();
@@ -2278,10 +2279,8 @@ export class CowMobileDashboardCard
       view = { ...view, fan: this.optClimateFan[entity] };
     }
     const accent = THERMOSTAT_ACCENT[view.variant];
-    const fmt = (n: number, unit: string) =>
-      `${n.toFixed(1).replace(/\.0$/, "")}${unit}`;
-    const cur = displayRoomView.current != null ? fmt(displayRoomView.current, "°") : "—";
-    const tgt = displayRoomView.target != null ? fmt(displayRoomView.target, "°") : "—";
+    const cur = displayRoomView.current != null ? formatTemp(displayRoomView.current) : "—";
+    const tgt = displayRoomView.target != null ? formatTemp(displayRoomView.target) : "—";
     const arrowsDisabled = false;
     const upT = bumpTarget(displayRoomView, 1);
     const downT = bumpTarget(displayRoomView, -1);
