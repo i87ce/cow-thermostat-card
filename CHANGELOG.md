@@ -4,6 +4,19 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and
 this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.12.2] — 2026-08-14
+
+### Changed — tab jump opens from a double-tap on the dots
+- The top-edge pull-down (and the top nub) is gone: Shelly firmware
+  owns that swipe for a hidden system menu, so the gesture was
+  unusable on the wall display.
+- Double-tap the bottom pagination dots to open the same jump menu
+  (Termostato / Luci / Tapparelle / Comandi). A single tap does not
+  change page. The first tap briefly highlights the dots; a second
+  tap within ~380 ms opens the sheet. Tap a tab to switch; tap the
+  backdrop or swipe up to dismiss. Horizontal swipe between panels
+  is unchanged, including when the drag starts on the dots.
+
 ## [1.12.1] — 2026-08-14
 
 ### Added — top-edge tab jump on the small wall display

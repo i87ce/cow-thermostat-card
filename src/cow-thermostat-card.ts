@@ -40,7 +40,7 @@ type Kind = "thermostat" | "lights" | "blinds" | "extras";
 /** Mirrors `tvIsOn` in extras-panel — media_player "on-ish" states. */
 const TV_OFF_STATES = new Set(["off", "unavailable", "unknown", "standby"]);
 
-const VERSION = "1.12.1";
+const VERSION = "1.12.2";
 
 const ACCENT_DOT: Record<Kind, (cfg: CowConfig, hass?: HomeAssistant) => string> =
   {

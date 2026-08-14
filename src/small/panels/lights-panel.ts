@@ -643,7 +643,7 @@ export class CowLightsPanel extends LitElement {
     this.finalizeGesture(e, true);
   };
 
-  /** Top-edge tab-jump (or anything else) stole the pointer. */
+  /** Pointer capture was lost (overlay or system cancel). */
   private onLeftLostCapture = (): void => {
     if (this.dragStartY == null) return;
     this.dragTouchY = null;

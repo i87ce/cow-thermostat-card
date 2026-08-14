@@ -6,16 +6,16 @@ import { buttonReset } from "../../styles/button-reset.js";
 import { animTokens } from "../styles/anim.js";
 
 /**
- * Top-edge pull-down to jump between small-card swiper tabs.
+ * Overlay sheet to jump between small-card swiper tabs.
  *
- * Shelly Wall Display kiosk: firmware can capture a swipe that starts
- * on the very top pixel (notifications / Settings). We therefore treat
- * the activation zone as the top ~64 stage-px — a band below the bezel
- * edge that still leaves most of the panel free. The room name / time
- * row sits in that band but is not tappable. Horizontal swiper, lights
- * brightness, hidden studio-door triple-tap, and setpoint dialogs are
- * left alone: we only claim once the move is clearly downward, and we
- * listen on the 720×720 stage (not XL / mobile).
+ * Opens from a double-tap on the pagination dots (`cow-dots-doubletap`).
+ * We do not listen on the top edge: Shelly Wall Display firmware owns
+ * that swipe for a hidden system menu, and a competing gesture there
+ * is unusable. Dismiss with a tab tap, backdrop tap, swipe up, or
+ * Escape. Horizontal swiper, lights brightness, hidden studio-door
+ * triple-tap, and setpoint dialogs stay untouched — the host is
+ * `pointer-events: none` until the sheet is open, and we only claim
+ * a pointer for the dismiss drag. Small 720×720 stage only (not XL).
  */
 export const TAB_JUMP_LABEL: Record<InitialView, string> = {
   thermostat: "Termostato",
@@ -24,11 +24,8 @@ export const TAB_JUMP_LABEL: Record<InitialView, string> = {
   extras: "Comandi",
 };
 
-/** Top of the 720 stage; 48–72 px as a band below the firmware edge. */
-const EDGE_ZONE = 64;
 /** Screen px — same order of magnitude as the swiper / lights slop. */
 const CLAIM_PX = 10;
-const OPEN_RATIO = 0.32;
 const CLOSE_RATIO = 0.55;
 const FLICK_MS = 220;
 const FLICK_PX = 48;
@@ -50,7 +47,7 @@ export class CowTabJump extends LitElement {
   @query(".sheet") private sheetEl?: HTMLElement;
   @query(".scrim") private scrimEl?: HTMLElement;
 
-  private stageEl: HTMLElement | null = null;
+  private parentEl: HTMLElement | null = null;
   private startX = 0;
   private startY = 0;
   private startT = 0;
@@ -77,26 +74,6 @@ export class CowTabJump extends LitElement {
       :host([pulling]) {
         pointer-events: auto;
         touch-action: none;
-      }
-
-      .nub {
-        position: absolute;
-        top: 10px;
-        left: 50%;
-        width: 48px;
-        height: 5px;
-        margin-left: -24px;
-        border-radius: 3px;
-        background: #fff;
-        opacity: 0.55;
-        box-shadow: 0 1px 2px rgba(31, 31, 46, 0.28);
-        pointer-events: none;
-        z-index: 1;
-        transition: opacity var(--cow-dur-fast, 120ms) var(--cow-ease-out, cubic-bezier(0.22, 1, 0.36, 1));
-      }
-      :host([open]) .nub,
-      :host([pulling]) .nub {
-        opacity: 0;
       }
 
       .scrim {
@@ -190,18 +167,26 @@ export class CowTabJump extends LitElement {
 
   override connectedCallback(): void {
     super.connectedCallback();
-    this.bindStage(this.parentElement);
+    this.bindParent(this.parentElement);
+    this.addEventListener("pointerdown", this.onDown);
+    this.addEventListener("pointermove", this.onMove);
+    this.addEventListener("pointerup", this.onUp);
+    this.addEventListener("pointercancel", this.onUp);
     window.addEventListener("keydown", this.onKey);
   }
 
   override disconnectedCallback(): void {
     super.disconnectedCallback();
-    this.unbindStage();
+    this.unbindParent();
+    this.removeEventListener("pointerdown", this.onDown);
+    this.removeEventListener("pointermove", this.onMove);
+    this.removeEventListener("pointerup", this.onUp);
+    this.removeEventListener("pointercancel", this.onUp);
     window.removeEventListener("keydown", this.onKey);
   }
 
   override firstUpdated(): void {
-    this.bindStage(this.parentElement);
+    this.bindParent(this.parentElement);
     this.measure();
     this.applyPull();
   }
@@ -211,39 +196,35 @@ export class CowTabJump extends LitElement {
     if (!this.claimed) this.applyPull();
   }
 
-  private bindStage(el: HTMLElement | null): void {
-    if (el === this.stageEl) return;
-    this.unbindStage();
-    this.stageEl = el;
-    if (!el) return;
-    el.addEventListener("pointerdown", this.onDown, true);
-    el.addEventListener("pointermove", this.onMove, {
-      capture: true,
-      passive: false,
-    });
-    el.addEventListener("pointerup", this.onUp, true);
-    el.addEventListener("pointercancel", this.onUp, true);
+  private bindParent(el: HTMLElement | null): void {
+    if (el === this.parentEl) return;
+    this.unbindParent();
+    this.parentEl = el;
+    el?.addEventListener("cow-dots-doubletap", this.onDotsDoubletap);
   }
 
-  private unbindStage(): void {
-    const el = this.stageEl;
-    if (!el) return;
-    el.removeEventListener("pointerdown", this.onDown, true);
-    el.removeEventListener("pointermove", this.onMove, true);
-    el.removeEventListener("pointerup", this.onUp, true);
-    el.removeEventListener("pointercancel", this.onUp, true);
-    this.stageEl = null;
+  private unbindParent(): void {
+    this.parentEl?.removeEventListener(
+      "cow-dots-doubletap",
+      this.onDotsDoubletap,
+    );
+    this.parentEl = null;
+  }
+
+  private onDotsDoubletap = (): void => {
+    this.reveal();
+  };
+
+  /** Open the sheet (double-tap on the pagination dots). */
+  reveal(): void {
+    if (this.kinds.length < 2 || this.open) return;
+    this.measure();
+    this.setOpen(true);
   }
 
   private measure(): void {
     const h = this.sheetEl?.offsetHeight;
     if (h && h > 0) this.sheetH = h;
-  }
-
-  private stageY(e: PointerEvent): number {
-    const r = this.stageEl?.getBoundingClientRect();
-    if (!r || r.height <= 0) return 0;
-    return ((e.clientY - r.top) / r.height) * 720;
   }
 
   private applyPull(): void {
@@ -268,27 +249,23 @@ export class CowTabJump extends LitElement {
     this.applyPull();
   }
 
-  private resetPointer(el: HTMLElement | null, pointerId: number): void {
+  private resetPointer(pointerId: number): void {
     this.pointerId = null;
     this.claimed = false;
     this.toggleAttribute("pulling", false);
-    if (el) {
-      try {
-        el.releasePointerCapture(pointerId);
-      } catch {
-        /* ignore */
-      }
+    try {
+      this.releasePointerCapture(pointerId);
+    } catch {
+      /* ignore */
     }
   }
 
   private onDown = (e: PointerEvent): void => {
+    if (!this.open) return;
     if (this.kinds.length < 2) return;
     if (!e.isPrimary) return;
     if (e.pointerType === "mouse" && e.button !== 0) return;
     if (this.pointerId != null) return;
-
-    const y = this.stageY(e);
-    if (!this.open && (y < 0 || y > EDGE_ZONE)) return;
 
     this.pointerId = e.pointerId;
     this.startX = e.clientX;
@@ -296,7 +273,7 @@ export class CowTabJump extends LitElement {
     this.startT = performance.now();
     this.claimed = false;
     this.measure();
-    this.offset = this.open ? this.sheetH : 0;
+    this.offset = this.sheetH;
   };
 
   private onMove = (e: PointerEvent): void => {
@@ -305,15 +282,14 @@ export class CowTabJump extends LitElement {
     const dy = e.clientY - this.startY;
 
     if (!this.claimed) {
-      if (!this.open && Math.abs(dx) > CLAIM_PX && Math.abs(dx) > Math.abs(dy)) {
+      if (Math.abs(dx) > CLAIM_PX && Math.abs(dx) > Math.abs(dy)) {
         this.pointerId = null;
         return;
       }
-      const vertical = this.open ? Math.abs(dy) > CLAIM_PX : dy > CLAIM_PX;
-      if (vertical && Math.abs(dy) >= Math.abs(dx)) {
+      if (Math.abs(dy) > CLAIM_PX && Math.abs(dy) >= Math.abs(dx)) {
         this.claimed = true;
         this.toggleAttribute("pulling", true);
-        this.stageEl?.setPointerCapture(e.pointerId);
+        this.setPointerCapture(e.pointerId);
         e.preventDefault();
         e.stopPropagation();
       } else {
@@ -324,7 +300,7 @@ export class CowTabJump extends LitElement {
     e.preventDefault();
     e.stopPropagation();
     const h = this.sheetH;
-    let raw = (this.open ? h : 0) + dy;
+    let raw = h + dy;
     if (raw < 0) raw *= 0.22;
     if (raw > h) raw = h + (raw - h) * 0.18;
     this.offset = raw;
@@ -337,7 +313,7 @@ export class CowTabJump extends LitElement {
     const dy = e.clientY - this.startY;
     const elapsed = performance.now() - this.startT;
     const flick = elapsed < FLICK_MS && Math.abs(dy) > FLICK_PX;
-    this.resetPointer(this.stageEl, e.pointerId);
+    this.resetPointer(e.pointerId);
 
     if (!claimed) {
       const path = e.composedPath();
@@ -348,14 +324,8 @@ export class CowTabJump extends LitElement {
 
     e.preventDefault();
     e.stopPropagation();
-    const h = this.sheetH;
-    if (this.open) {
-      const dismiss = flick ? dy < 0 : this.offset < h * CLOSE_RATIO;
-      this.setOpen(!dismiss);
-    } else {
-      const reveal = flick ? dy > 0 : this.offset > h * OPEN_RATIO;
-      this.setOpen(reveal);
-    }
+    const dismiss = flick ? dy < 0 : this.offset < this.sheetH * CLOSE_RATIO;
+    this.setOpen(!dismiss);
   };
 
   private onTab = (i: number): void => {
@@ -373,7 +343,6 @@ export class CowTabJump extends LitElement {
 
   override render() {
     return html`
-      <div class="nub" aria-hidden="true"></div>
       <div
         class="scrim"
         @click=${() => {

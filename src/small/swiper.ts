@@ -8,11 +8,21 @@ import { customElement, property, state, query } from "lit/decorators.js";
  *   - Threshold = 22% of viewport width before commit.
  *   - Vertical pan inside children is preserved: we only "claim" the
  *     pointer once horizontal delta > 8px AND > vertical delta.
- *     This lets the lights brightness slider keep its drag, and lets
- *     cow-tab-jump take a top-edge pull-down (we abort when |dy| > 8).
+ *     This lets the lights brightness slider keep its drag. Vertical
+ *     motion aborts the swipe (|dy| > 8) so it never fights those
+ *     sliders. Tab jump is a double-tap on the pagination dots, not
+ *     a top-edge pull — Shelly firmware owns that edge.
+ *   - Dots are indicators: a single tap does not change page (that
+ *     would fight swipe). Double-tap opens the jump sheet. The dots
+ *     live in the swipe viewport so a horizontal drag that starts on
+ *     them still changes slides.
  *   - Track uses translate3d for hardware-accelerated motion.
  *   - Active dot stretches to a "pill" in the panel's accent color.
  */
+const TAP_SLOP = 8;
+/** Window after the first tap; second tap opens the jump sheet. */
+const DOUBLE_TAP_MS = 380;
+
 @customElement("cow-swiper")
 export class CowSwiper extends LitElement {
   @property({ type: Number }) index = 0;
@@ -25,6 +35,7 @@ export class CowSwiper extends LitElement {
   private startY = 0;
   private claimed = false;
   private pointerId: number | null = null;
+  private tapTimer: number | null = null;
 
   static override styles = css`
     :host {
@@ -68,19 +79,32 @@ export class CowSwiper extends LitElement {
     .dots {
       position: absolute;
       left: 50%;
-      bottom: 8px;
+      bottom: 0;
       transform: translateX(-50%);
       display: flex;
+      align-items: center;
+      justify-content: center;
       gap: 6px;
       z-index: 4;
       pointer-events: auto;
+      min-height: 44px;
+      padding: 12px 20px;
+      box-sizing: border-box;
+      touch-action: manipulation;
+      -webkit-user-select: none;
+      user-select: none;
+      cursor: pointer;
+      transition: transform 120ms cubic-bezier(0.22, 1, 0.36, 1);
+    }
+    :host([armed]) .dots {
+      transform: translateX(-50%) scale(1.22);
     }
     .dot {
       width: 7px;
       height: 7px;
       border-radius: 50%;
       background: rgba(0, 0, 0, 0.18);
-      cursor: pointer;
+      pointer-events: none;
       transition:
         transform 200ms cubic-bezier(0.22, 1, 0.36, 1),
         background-color 200ms cubic-bezier(0.22, 1, 0.36, 1);
@@ -92,10 +116,26 @@ export class CowSwiper extends LitElement {
       transform: scaleX(2.57);
       transform-origin: center;
     }
+    :host([armed]) .dot:not(.active) {
+      background: rgba(31, 31, 46, 0.4);
+    }
   `;
 
   private get vw(): number {
     return this.clientWidth || 1;
+  }
+
+  private clearArmed(): void {
+    if (this.tapTimer != null) {
+      clearTimeout(this.tapTimer);
+      this.tapTimer = null;
+    }
+    this.toggleAttribute("armed", false);
+  }
+
+  override disconnectedCallback(): void {
+    super.disconnectedCallback();
+    this.clearArmed();
   }
 
   private setIndex(i: number): void {
@@ -137,13 +177,15 @@ export class CowSwiper extends LitElement {
     const dx = e.clientX - this.startX;
     const dy = e.clientY - this.startY;
     if (!this.claimed) {
-      if (Math.abs(dx) > 8 && Math.abs(dx) > Math.abs(dy)) {
+      if (Math.abs(dx) > TAP_SLOP && Math.abs(dx) > Math.abs(dy)) {
         this.claimed = true;
+        this.clearArmed();
         this.toggleAttribute("dragging", true);
         (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
         e.preventDefault();
-      } else if (Math.abs(dy) > 8) {
+      } else if (Math.abs(dy) > TAP_SLOP) {
         this.pointerId = null;
+        this.clearArmed();
         return;
       }
     }
@@ -175,6 +217,33 @@ export class CowSwiper extends LitElement {
     this.applyTrackTransform();
   };
 
+  private onDotsUp = (e: PointerEvent): void => {
+    if (e.pointerType === "mouse" && e.button !== 0) return;
+    if (this.claimed) {
+      this.clearArmed();
+      return;
+    }
+    if (
+      Math.abs(e.clientX - this.startX) > TAP_SLOP ||
+      Math.abs(e.clientY - this.startY) > TAP_SLOP
+    ) {
+      this.clearArmed();
+      return;
+    }
+    if (this.hasAttribute("armed")) {
+      this.clearArmed();
+      this.dispatchEvent(
+        new CustomEvent("cow-dots-doubletap", {
+          bubbles: true,
+          composed: true,
+        }),
+      );
+      return;
+    }
+    this.toggleAttribute("armed", true);
+    this.tapTimer = window.setTimeout(() => this.clearArmed(), DOUBLE_TAP_MS);
+  };
+
   override updated(): void {
     this.applyTrackTransform();
   }
@@ -201,26 +270,29 @@ export class CowSwiper extends LitElement {
             `,
           )}
         </div>
+        ${count > 1
+          ? html`
+              <div
+                class="dots"
+                role="group"
+                aria-label="Tocca due volte per cambiare vista"
+                @pointerup=${this.onDotsUp}
+              >
+                ${slides.map(
+                  (i) => html`
+                    <div
+                      class=${i === this.index ? "dot active" : "dot"}
+                      style=${i === this.index
+                        ? `--dot-active:${this.accents[i] ?? "#1f1f2e"}`
+                        : ""}
+                      aria-hidden="true"
+                    ></div>
+                  `,
+                )}
+              </div>
+            `
+          : ""}
       </div>
-      ${count > 1
-        ? html`
-            <div class="dots">
-              ${slides.map(
-                (i) => html`
-                  <div
-                    class=${i === this.index ? "dot active" : "dot"}
-                    style=${i === this.index
-                      ? `--dot-active:${this.accents[i] ?? "#1f1f2e"}`
-                      : ""}
-                    role="button"
-                    aria-label="Vai alla vista ${i + 1}"
-                    @click=${() => this.setIndex(i)}
-                  ></div>
-                `,
-              )}
-            </div>
-          `
-        : ""}
     `;
   }
 }
