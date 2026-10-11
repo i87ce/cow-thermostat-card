@@ -4,6 +4,25 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and
 this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.13.0] — 2026-10-11
+
+### Added — "Rapidi" quick tab on the small wall display
+- New optional `quick:` block on `cow-thermostat-card`. When set, a
+  "Rapidi" panel becomes the first tab (and the default view, unless
+  `initial_view` says otherwise) with only the essential controls.
+- Left pane: climate in "auto". One big button turns it on or off.
+  On picks heat or cool from the room temperature vs the setpoint
+  (above → cool, below → heat, tie → last mode). Off clears the
+  thermostat pause helper first, so HA does not re-arm the unit.
+  − / + move the setpoint. If the new setpoint sits ≥ 0.5° on the
+  other side of the room temperature, the mode flips after 3 s.
+- Right pane: up to 3 light/switch tiles and up to 3 TV tiles, tap to
+  toggle (optimistic, with N.D. for unavailable entities).
+- Options: `lights` (light.* or switch.*), `tvs` (media_player.*),
+  optional `mode_entity` (input_select holding heat/cool) and
+  `pause_entity` (input_boolean, on while the thermostat holds the
+  unit off at the setpoint).
+
 ## [1.12.2] — 2026-08-14
 
 ### Changed — tab jump opens from a double-tap on the dots

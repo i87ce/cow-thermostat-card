@@ -144,3 +144,27 @@ export function smallExtrasWatchIds(
   if (door) ids.push(door);
   return ids;
 }
+
+/** Entity ids for a small quick ("Rapidi") panel. */
+export function smallQuickWatchIds(opts: {
+  climate?: string;
+  targetEntity?: string;
+  localTempEntity?: string;
+  humidityEntity?: string;
+  modeEntity?: string;
+  pauseEntity?: string;
+  lights: DeviceEntry[];
+  tvs: DeviceEntry[];
+}): string[] {
+  const ids = [
+    opts.climate,
+    opts.targetEntity,
+    opts.localTempEntity,
+    opts.humidityEntity,
+    opts.modeEntity,
+    opts.pauseEntity,
+  ].filter((id): id is string => !!id);
+  ids.push(...opts.lights.map((d) => d.entity));
+  ids.push(...opts.tvs.map((d) => d.entity));
+  return ids;
+}

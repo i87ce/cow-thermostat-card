@@ -19,12 +19,34 @@
  * Either shape normalizes to the same internal `CowConfig`.
  */
 
-export type InitialView = "thermostat" | "lights" | "blinds" | "extras";
+export type InitialView =
+  | "quick"
+  | "thermostat"
+  | "lights"
+  | "blinds"
+  | "extras";
 export type OpeningKind = "door" | "window" | "garage";
 
 export interface DeviceEntry {
   entity: string;
   label: string;
+}
+
+/**
+ * "Rapidi" tab: one-tap climate on/off in auto + setpoint, and up to
+ * three light and three TV tiles. Climate entities come from the card
+ * (``climate``, ``target_entity``, ``local_temp``, ``local_humidity``).
+ */
+export interface QuickConfig {
+  /** ``light.*`` or ``switch.*`` tiles (max 3). */
+  lights: DeviceEntry[];
+  /** ``media_player.*`` tiles (max 3). */
+  tvs: DeviceEntry[];
+  /** ``input_select.*`` holding the HA thermostat's heat/cool mode. */
+  mode_entity?: string;
+  /** ``input_boolean.*`` the HA thermostat turns on while paused at
+   *  setpoint — counts as "on", and is cleared on "off". */
+  pause_entity?: string;
 }
 
 export interface CowConfig {
@@ -48,6 +70,8 @@ export interface CowConfig {
   switches: DeviceEntry[];
   /** Lock / cover / script / button / switch that opens the room door. */
   door?: string;
+  /** Optional "Rapidi" tab, rendered first in the swiper. */
+  quick?: QuickConfig;
   /** Label on the door button, default "Apri porta". */
   door_label?: string;
   outdoor_temp?: string;
@@ -116,6 +140,8 @@ const DOMAIN_SWITCH = "switch.";
 const DOMAIN_CLIMATE = "climate.";
 const DOMAIN_SENSOR = "sensor.";
 const DOMAIN_INPUT_NUMBER = "input_number.";
+const DOMAIN_INPUT_SELECT = "input_select.";
+const DOMAIN_INPUT_BOOLEAN = "input_boolean.";
 
 /**
  * Strip common entity-id noise (`led_`, `luce_`, room slug) and
@@ -185,21 +211,24 @@ function readDevices(
 
 function normalizeEntry(
   v: unknown,
-  domain: string,
+  domain: string | readonly string[],
   loc: string,
   room: string,
 ): DeviceEntry {
+  const domains = typeof domain === "string" ? [domain] : domain;
+  const ok = (id: string): boolean => domains.some((d) => id.startsWith(d));
+  const want = domains.map((d) => `${d}*`).join(" or ");
   if (typeof v === "string") {
-    if (!v.startsWith(domain)) {
-      throw new CowConfigError(`'${loc}' must be a ${domain}* entity`);
+    if (!ok(v)) {
+      throw new CowConfigError(`'${loc}' must be a ${want} entity`);
     }
     return { entity: v, label: autoLabel(v, room) };
   }
   if (typeof v === "object" && v !== null) {
     const o = v as Record<string, unknown>;
     const entity = o.entity;
-    if (typeof entity !== "string" || !entity.startsWith(domain)) {
-      throw new CowConfigError(`'${loc}.entity' must be a ${domain}* entity`);
+    if (typeof entity !== "string" || !ok(entity)) {
+      throw new CowConfigError(`'${loc}.entity' must be a ${want} entity`);
     }
     const label =
       typeof o.label === "string" && o.label.length > 0
@@ -288,9 +317,52 @@ export function validateConfig(input: unknown): CowConfig {
 
   const hasExtras = tvs.length > 0 || switches.length > 0 || door != null;
 
-  if (!climate && lights.length === 0 && covers.length === 0 && !hasExtras) {
+  const quick = ((): QuickConfig | undefined => {
+    const raw = cfg.quick;
+    if (raw == null) return undefined;
+    if (typeof raw !== "object" || Array.isArray(raw)) {
+      throw new CowConfigError("'quick' must be an object");
+    }
+    const q = raw as Record<string, unknown>;
+    const list = (
+      key: "lights" | "tvs",
+      domains: readonly string[],
+    ): DeviceEntry[] => {
+      const v = q[key];
+      if (v == null) return [];
+      if (!Array.isArray(v)) {
+        throw new CowConfigError(`'quick.${key}' must be a list`);
+      }
+      if (v.length > 3) {
+        throw new CowConfigError(`'quick.${key}' takes at most 3 entries`);
+      }
+      return v.map((e, i) =>
+        normalizeEntry(e, domains, `quick.${key}[${i}]`, room),
+      );
+    };
+    const out: QuickConfig = {
+      lights: list("lights", [DOMAIN_LIGHT, DOMAIN_SWITCH]),
+      tvs: list("tvs", [DOMAIN_MEDIA_PLAYER]),
+      mode_entity: optionalEntity(q, "mode_entity", DOMAIN_INPUT_SELECT),
+      pause_entity: optionalEntity(q, "pause_entity", DOMAIN_INPUT_BOOLEAN),
+    };
+    if (!climate && out.lights.length === 0 && out.tvs.length === 0) {
+      throw new CowConfigError(
+        "'quick' needs 'climate' on the card or at least one of 'quick.lights' / 'quick.tvs'",
+      );
+    }
+    return out;
+  })();
+
+  if (
+    !climate &&
+    lights.length === 0 &&
+    covers.length === 0 &&
+    !hasExtras &&
+    !quick
+  ) {
     throw new CowConfigError(
-      "At least one of 'climate', 'lights', 'covers', 'tvs', 'switches' or 'door' must be configured",
+      "At least one of 'climate', 'lights', 'covers', 'tvs', 'switches', 'door' or 'quick' must be configured",
     );
   }
 
@@ -300,17 +372,21 @@ export function validateConfig(input: unknown): CowConfig {
       if (climate) return "thermostat";
       if (lights.length > 0) return "lights";
       if (covers.length > 0) return "blinds";
-      return "extras";
+      return hasExtras ? "extras" : "quick";
     }
     if (
+      v !== "quick" &&
       v !== "thermostat" &&
       v !== "lights" &&
       v !== "blinds" &&
       v !== "extras"
     ) {
       throw new CowConfigError(
-        `'initial_view' must be one of thermostat | lights | blinds | extras`,
+        `'initial_view' must be one of quick | thermostat | lights | blinds | extras`,
       );
+    }
+    if (v === "quick" && !quick) {
+      throw new CowConfigError("'initial_view: quick' but no 'quick' configured");
     }
     if (v === "thermostat" && !climate) {
       throw new CowConfigError(
@@ -397,6 +473,7 @@ export function validateConfig(input: unknown): CowConfig {
     switches,
     door,
     door_label: doorLabel,
+    quick,
     outdoor_temp: optionalEntity(cfg, "outdoor_temp", DOMAIN_SENSOR),
     local_temp: optionalEntity(cfg, "local_temp", DOMAIN_SENSOR),
     local_humidity: optionalEntity(cfg, "local_humidity", DOMAIN_SENSOR),

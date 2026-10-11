@@ -18,6 +18,7 @@ import "./small/panels/thermostat-panel.js";
 import "./small/panels/lights-panel.js";
 import "./small/panels/blinds-panel.js";
 import "./small/panels/extras-panel.js";
+import "./small/panels/quick-panel.js";
 
 import {
   applyDisplayOverrides,
@@ -35,15 +36,29 @@ import "./cow-room-dashboard-card.js";
 import "./cow-redirect-card.js";
 import "./cow-mobile-dashboard-card.js";
 
-type Kind = "thermostat" | "lights" | "blinds" | "extras";
+type Kind = "quick" | "thermostat" | "lights" | "blinds" | "extras";
 
 /** Mirrors `tvIsOn` in extras-panel — media_player "on-ish" states. */
 const TV_OFF_STATES = new Set(["off", "unavailable", "unknown", "standby"]);
 
-const VERSION = "1.12.2";
+const VERSION = "1.13.0";
 
 const ACCENT_DOT: Record<Kind, (cfg: CowConfig, hass?: HomeAssistant) => string> =
   {
+    quick: (cfg, hass) => {
+      if (!hass) return "#26a673";
+      const ac = cfg.climate ? hass.states[cfg.climate]?.state : undefined;
+      const paused =
+        cfg.quick?.pause_entity != null &&
+        hass.states[cfg.quick.pause_entity]?.state === "on";
+      return ac === "heat"
+        ? "#fa6b2e"
+        : ac === "cool" || ac === "dry"
+          ? "#2673eb"
+          : (ac != null && !TV_OFF_STATES.has(ac)) || paused
+            ? "#26a673"
+            : "#808088";
+    },
     thermostat: (cfg, hass) => {
       if (!cfg.climate || !hass) return "#fa6b2e";
       const room = hass.states[cfg.climate];
@@ -108,7 +123,8 @@ const ACCENT_DOT: Record<Kind, (cfg: CowConfig, hass?: HomeAssistant) => string>
  *   - Authored at a 720x720 design grid (Figma 1:1) and scaled with
  *     CSS transform so it fits any container without bumping the
  *     document font-size (the v1 hack).
- *   - Three slide-able panels: Thermostat / Lights / Blinds.
+ *   - Slide-able panels: optional Rapidi (quick) / Thermostat / Lights /
+ *     Blinds / Comandi.
  *   - Multi-entity support per kind via a Tutte/[device]+ chip-row.
  *   - Schema v2 (lights:[{entity,label}]) + back-compat with v1 YAML.
  *
@@ -216,6 +232,7 @@ export class CowThermostatCard extends LitElement implements LovelaceCard {
 
   private kinds(): Kind[] {
     const k: Kind[] = [];
+    if (this.config?.quick) k.push("quick");
     if (this.config?.climate) k.push("thermostat");
     if (this.config && this.config.lights.length > 0) k.push("lights");
     if (this.config && this.config.covers.length > 0) k.push("blinds");
@@ -268,6 +285,24 @@ export class CowThermostatCard extends LitElement implements LovelaceCard {
               (this.index = e.detail.index)}
           >
             ${kinds.map((kind, i) => {
+              if (kind === "quick") {
+                const q = cfg.quick!;
+                return html`
+                  <cow-quick-panel
+                    slot="slide-${i}"
+                    .hass=${this.hass}
+                    .roomName=${cfg.room}
+                    .climate=${cfg.climate ?? ""}
+                    .targetEntity=${cfg.target_entity ?? ""}
+                    .localTempEntity=${cfg.local_temp ?? ""}
+                    .humidityEntity=${cfg.local_humidity ?? ""}
+                    .modeEntity=${q.mode_entity ?? ""}
+                    .pauseEntity=${q.pause_entity ?? ""}
+                    .lights=${q.lights}
+                    .tvs=${q.tvs}
+                  ></cow-quick-panel>
+                `;
+              }
               if (kind === "thermostat") {
                 return html`
                   <cow-thermostat-panel

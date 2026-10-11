@@ -18,6 +18,7 @@ import { animTokens } from "../styles/anim.js";
  * a pointer for the dismiss drag. Small 720×720 stage only (not XL).
  */
 export const TAB_JUMP_LABEL: Record<InitialView, string> = {
+  quick: "Rapidi",
   thermostat: "Termostato",
   lights: "Luci",
   blinds: "Tapparelle",
@@ -31,6 +32,7 @@ const FLICK_MS = 220;
 const FLICK_PX = 48;
 
 const ICON: Record<InitialView, SVGTemplateResult> = {
+  quick: svg`<svg viewBox="0 0 24 24" width="52" height="52" fill="currentColor" aria-hidden="true"><path d="M11 15H6L13 1V9H18L11 23V15Z"/></svg>`,
   thermostat: svg`<svg viewBox="0 0 24 24" width="52" height="52" fill="currentColor" aria-hidden="true"><path d="M15 13V5A3 3 0 0 0 9 5V13A5 5 0 1 0 15 13M12 4A1 1 0 0 1 13 5V8H11V5A1 1 0 0 1 12 4Z"/></svg>`,
   lights: svg`<svg viewBox="0 0 24 24" width="52" height="52" fill="currentColor" aria-hidden="true"><path d="M12,2A7,7 0 0,0 5,9C5,11.38 6.19,13.47 8,14.74V17A1,1 0 0,0 9,18H15A1,1 0 0,0 16,17V14.74C17.81,13.47 19,11.38 19,9A7,7 0 0,0 12,2M9,21A1,1 0 0,0 10,22H14A1,1 0 0,0 15,21V20H9V21Z"/></svg>`,
   blinds: svg`<svg viewBox="0 0 24 24" width="52" height="52" fill="currentColor" aria-hidden="true"><path d="M3,4H21V8H19V20H17V8H7V20H5V8H3V4M8,9H16V11H8V9M8,12H16V14H8V12M8,15H16V17H8V15Z"/></svg>`,

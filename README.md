@@ -153,7 +153,7 @@ covers:
 outdoor_temp:   sensor.weather_temperature
 local_temp:     sensor.shelly_walldisplay_living_temperature
 local_humidity: sensor.shelly_walldisplay_living_humidity
-initial_view: thermostat   # thermostat | lights | blinds
+initial_view: thermostat   # quick | thermostat | lights | blinds | extras
 ```
 
 **Rules**
@@ -162,6 +162,21 @@ initial_view: thermostat   # thermostat | lights | blinds
 - The swiper renders only the panels you configured — drop `climate` and you get a 2-panel card, drop two of them and the card becomes a single-panel view without swipe
 - `lights` and `covers` accept any number of entities — the panels switch from a single big visual to a tile-grid scope picker as soon as you configure 2 or more
 - `initial_view` defaults to the first available panel (`thermostat` → `lights` → `blinds`)
+
+**Quick tab** (small card only) — a simplified first page with climate on/off in "auto", setpoint ± and up to 3 lights + 3 TVs:
+
+```yaml
+target_entity: input_number.studio_clima_target   # optional setpoint helper
+initial_view: quick
+quick:
+  mode_entity: input_select.studio_clima_modo               # optional, heat/cool memory
+  pause_entity: input_boolean.studio_clima_pausa_termostato # optional, thermostat pause
+  lights:
+    - { entity: light.luce_calda_studio, label: "Calda" }
+    - { entity: switch.studio_led_scritte_outlet, label: "Display" }
+  tvs:
+    - { entity: media_player.studio_game_3, label: "Game 3" }
+```
 
 **Legacy v1 schema** (still supported for back-compat):
 

@@ -1,0 +1,108 @@
+<!doctype html>
+<html lang="it">
+  <head>
+    <meta charset="utf-8" />
+    <title>cow-thermostat-card — Rapidi (Studio) preview</title>
+    <style>
+      html, body { margin: 0; background: #2a2a35; font-family: -apple-system, sans-serif; color: #e9e9f0; }
+      .stage { display: grid; place-items: center; padding: 1.5rem; }
+      .frame { width: 720px; height: 720px; background: #fff; border-radius: 16px; overflow: hidden; position: relative; }
+      #log { font: 12px/1.4 ui-monospace, monospace; padding: 0 1.5rem 1.5rem; white-space: pre-wrap; }
+    </style>
+    <script type="module" src="../dist/cow-thermostat-card.js"></script>
+  </head>
+  <body>
+    <div class="stage"><div class="frame" id="frame"></div></div>
+    <div id="log"></div>
+    <script type="module">
+      await customElements.whenDefined("cow-thermostat-card");
+      const st = (state, attributes = {}) => ({ state, attributes, last_changed: new Date().toISOString() });
+      // Scenario via ?s=off|cool|paused|heat
+      const s = new URLSearchParams(location.search).get("s") ?? "off";
+      const states = {
+        "climate.condizionatore_studio": st(s === "cool" ? "cool" : s === "heat" ? "heat" : "off", {
+          hvac_modes: ["off", "fan_only", "heat", "cool", "heat_cool", "dry"],
+          min_temp: 18, max_temp: 32, target_temp_step: 1, temperature: 18, current_temperature: 22,
+          fan_modes: ["auto"], fan_mode: "auto",
+        }),
+        "input_number.studio_clima_target": st("23.5", { min: 16, max: 30, step: 0.5 }),
+        "input_select.studio_clima_modo": st(s === "heat" ? "heat" : "cool"),
+        "input_boolean.studio_clima_pausa_termostato": st(s === "paused" ? "on" : "off"),
+        "sensor.shellywalldisplay_000822397b9e_temperature": st(s === "heat" ? "21.2" : "24.7"),
+        "sensor.shellywalldisplay_000822397b9e_humidity": st("42"),
+        "light.luce_calda_studio": st("on"),
+        "light.luce_fredda_studio": st("off"),
+        "switch.studio_led_scritte_outlet": st("unavailable"),
+        "media_player.studio_lg_webos_tv_e42d_game1": st("on"),
+        "media_player.lg_webos_tv_2c8b": st("off"),
+        "media_player.studio_game_3": st("off"),
+        "light.luce_esterna_studio": st("off"),
+        "light.insegne_studio": st("on"),
+        "cover.tapparella_studio": st("open", { current_position: 100 }),
+        "switch.filtro_stampante": st("off"),
+        "button.studio_unlock": st("unknown"),
+      };
+      const log = document.getElementById("log");
+      const card = document.createElement("cow-thermostat-card");
+      const push = () => { card.hass = { states: { ...states }, locale: { language: "it" }, callService }; };
+      async function callService(domain, service, data, target) {
+        log.textContent = `${domain}.${service} ${JSON.stringify(data)} → ${JSON.stringify(target)}\n` + log.textContent;
+        const ids = [].concat(target?.entity_id ?? []);
+        setTimeout(() => {
+          for (const id of ids) {
+            const e = states[id]; if (!e) continue;
+            let v = e.state;
+            if (service === "turn_on") v = "on";
+            if (service === "turn_off") v = "off";
+            if (service === "set_hvac_mode") v = data.hvac_mode;
+            if (service === "set_value") v = String(data.value);
+            if (service === "select_option") v = data.option;
+            states[id] = { ...e, state: v, last_changed: new Date().toISOString() };
+          }
+          push();
+        }, 600);
+      }
+      card.setConfig({
+        type: "custom:cow-thermostat-card",
+        room: "Studio",
+        climate: "climate.condizionatore_studio",
+        local_temp: "sensor.shellywalldisplay_000822397b9e_temperature",
+        local_humidity: "sensor.shellywalldisplay_000822397b9e_humidity",
+        target_entity: "input_number.studio_clima_target",
+        lights: [
+          { entity: "light.luce_calda_studio", label: "Calda" },
+          { entity: "light.luce_fredda_studio", label: "Fredda" },
+          { entity: "light.luce_esterna_studio", label: "Esterna" },
+          { entity: "light.insegne_studio", label: "Insegne" },
+        ],
+        cover: "cover.tapparella_studio",
+        tvs: [
+          { entity: "media_player.studio_lg_webos_tv_e42d_game1", label: "TV Game 1" },
+          { entity: "media_player.lg_webos_tv_2c8b", label: "TV Game 2" },
+          { entity: "media_player.studio_game_3", label: "TV Game 3" },
+        ],
+        switches: [{ entity: "switch.filtro_stampante", label: "Ventola" }],
+        door: "button.studio_unlock",
+        quick: {
+          mode_entity: "input_select.studio_clima_modo",
+          pause_entity: "input_boolean.studio_clima_pausa_termostato",
+          lights: [
+            { entity: "light.luce_calda_studio", label: "Calda" },
+            { entity: "light.luce_fredda_studio", label: "Fredda" },
+            { entity: "switch.studio_led_scritte_outlet", label: "Display" },
+          ],
+          tvs: [
+            { entity: "media_player.studio_lg_webos_tv_e42d_game1", label: "Game 1" },
+            { entity: "media_player.lg_webos_tv_2c8b", label: "Game 2" },
+            { entity: "media_player.studio_game_3", label: "Game 3" },
+          ],
+        },
+        initial_view: "quick",
+      });
+      push();
+      card.style.width = "720px";
+      card.style.height = "720px";
+      document.getElementById("frame").appendChild(card);
+    </script>
+  </body>
+</html>
