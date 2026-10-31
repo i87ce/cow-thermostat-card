@@ -4,6 +4,23 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and
 this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.14.0] — 2026-10-31
+
+### Added — gate / garage buttons on the mobile dashboard
+- New optional `access_controls:` list on `cow-mobile-dashboard-card`
+  (`{ entity: cover.*, label? }`). When set, a panel under the alarm
+  panel shows one big button per cover, mirroring the CarPlay Quick
+  Access tiles so phone and car look and behave the same.
+- Icon comes from the cover's own `icon` attribute (the template
+  covers already switch it per state), with a gate/garage fallback.
+- Colour by state, same palette as the alarm buttons: green closed,
+  amber pulsing while opening/closing, solid red when open, dimmed
+  when unavailable. Dark mode lifts the green/amber text so it stays
+  readable on the tinted background.
+- Tap opens when closed/closing and closes when open/opening, no
+  confirm step (like CarPlay): the covers themselves guard against
+  wrong-direction pulses.
+
 ## [1.13.0] — 2026-10-11
 
 ### Added — "Rapidi" quick tab on the small wall display

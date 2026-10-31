@@ -35,6 +35,9 @@
  *         entity: alarm_control_panel.locale_tecnico_casa_giorno }
  *     - { label: Notte, action: arm_night }
  *     - { label: Arma, action: arm_away }
+ *   access_controls:           # opt-in gate/garage buttons (CarPlay-like)
+ *     - { entity: cover.cancello_carraio, label: Cancello }
+ *     - { entity: cover.garage, label: Garage }
  *   persons:
  *     - person.alessio_vigilante
  *     - { entity: person.koma, label: "Koma" }
@@ -174,6 +177,16 @@ export interface CowMobileAlarmControl {
   entity?: string;
 }
 
+export interface CowMobileAccessControl {
+  /**
+   * `cover.*` entity driving a gate or garage door — typically the same
+   * template cover exposed to CarPlay, so state + icon match the car.
+   */
+  entity: string;
+  /** Button text; defaults to the entity's friendly_name. */
+  label?: string;
+}
+
 export interface CowMobileDashboardConfig extends LovelaceCardConfig {
   type: "custom:cow-mobile-dashboard-card";
   title?: string;
@@ -189,6 +202,13 @@ export interface CowMobileDashboardConfig extends LovelaceCardConfig {
    * Every tap asks for confirmation before calling the service.
    */
   alarm_controls?: CowMobileAlarmControl[];
+  /**
+   * Gate / garage buttons rendered in a panel under the alarm panel.
+   * Opt-in: the panel only shows when this list is non-empty. Icon and
+   * state come from the cover itself; a tap opens when closed/closing
+   * and closes when open/opening — same semantics as the CarPlay tile.
+   */
+  access_controls?: CowMobileAccessControl[];
   /**
    * `person.*` entities shown as presence chips in the hero. Strings
    * are accepted as a shorthand; pass `{ entity, label }` to override
@@ -1738,14 +1758,89 @@ export class CowMobileDashboardCard
         color: #fff;
       }
 
+      /* ── Access panel (gate / garage) ────────────────────────── */
+      .access-panel {
+        margin: 0 8px;
+        padding: 12px;
+        background: var(--card-background-color, #fff);
+        border-radius: 18px;
+        box-shadow: 0 1px 4px rgba(31, 31, 46, 0.06);
+        display: flex;
+        gap: 8px;
+      }
+      .access-btn {
+        flex: 1;
+        appearance: none;
+        border: 0;
+        font: inherit;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 4px;
+        padding: 12px 6px;
+        border-radius: 14px;
+        cursor: pointer;
+        --mdc-icon-size: 32px;
+        transition: background 200ms ease, color 200ms ease,
+          transform 160ms ease;
+      }
+      .access-btn:active:not(:disabled) {
+        transform: scale(0.97);
+      }
+      .access-btn:disabled {
+        opacity: 0.35;
+        cursor: not-allowed;
+      }
+      .access-label {
+        font-size: 14px;
+        font-weight: 600;
+      }
+      .access-sub {
+        font-size: 12px;
+        font-weight: 500;
+        opacity: 0.85;
+      }
+      /* Same palette as the alarm buttons: green = secured, amber =
+         in motion, solid red = open. */
+      .access-btn[data-tone="closed"] {
+        background: rgba(46, 184, 92, 0.14);
+        color: #1e7a44;
+      }
+      .access-btn[data-tone="moving"] {
+        background: rgba(240, 169, 46, 0.2);
+        color: #b87b0a;
+        animation: alarmPulse 1.4s ease-in-out infinite;
+      }
+      .access-btn[data-tone="open"] {
+        background: #e74c3c;
+        color: #fff;
+      }
+      .access-btn[data-tone="unknown"] {
+        background: rgba(31, 31, 46, 0.08);
+        color: inherit;
+      }
+
       /* ── Dark mode tweaks ────────────────────────────────────── */
       @media (prefers-color-scheme: dark) {
         .room-tile,
         .qc,
         .summary,
-        .alarm-panel {
+        .alarm-panel,
+        .access-panel {
           background: var(--card-background-color, #1c1c24);
           box-shadow: 0 1px 4px rgba(0, 0, 0, 0.3);
+        }
+        /* Deep green / amber text sinks into the dark tint: lift it. */
+        .access-btn[data-tone="closed"] {
+          background: rgba(46, 184, 92, 0.2);
+          color: #5fd98a;
+        }
+        .access-btn[data-tone="moving"] {
+          background: rgba(240, 169, 46, 0.24);
+          color: #f5c15c;
+        }
+        .access-btn[data-tone="unknown"] {
+          background: rgba(255, 255, 255, 0.08);
         }
       }
     `,
@@ -1760,7 +1855,8 @@ export class CowMobileDashboardCard
     // the room grid.
     return html`
       <div class="card">
-        ${this.renderHero()} ${this.renderAlarmPanel()} ${this.renderSummary()}
+        ${this.renderHero()} ${this.renderAlarmPanel()}
+        ${this.renderAccessPanel()} ${this.renderSummary()}
         ${this.renderRooms()}
       </div>
       ${this.renderDrawer()}
@@ -1833,6 +1929,57 @@ export class CowMobileDashboardCard
         ${c.label}
       </button>
     `;
+  }
+
+  /**
+   * Gate / garage panel — opt-in via `access_controls`. One big button
+   * per cover, coloured by state: green closed, amber pulsing while
+   * moving, solid red when open. No confirm step, matching the CarPlay
+   * tile: the covers themselves guard against wrong-direction pulses.
+   */
+  private renderAccessPanel() {
+    const controls = this.config?.access_controls;
+    if (!Array.isArray(controls) || controls.length === 0) return nothing;
+    return html`
+      <div class="access-panel">
+        ${controls.map((c) => this.renderAccessButton(c))}
+      </div>
+    `;
+  }
+
+  private renderAccessButton(c: CowMobileAccessControl) {
+    const ent = this.getEnt(c.entity);
+    const state = ent?.state ?? "unavailable";
+    const label = c.label ?? ent?.attributes?.friendly_name ?? c.entity;
+    const icon =
+      (ent?.attributes?.icon as string | undefined) ??
+      (ent?.attributes?.device_class === "gate" ? "mdi:gate" : "mdi:garage");
+    const tone =
+      state === "closed"
+        ? "closed"
+        : state === "open"
+          ? "open"
+          : state === "opening" || state === "closing"
+            ? "moving"
+            : "unknown";
+    return html`
+      <button
+        class="access-btn"
+        data-tone=${tone}
+        ?disabled=${!ent || state === "unavailable"}
+        @click=${() => this.toggleAccess(c.entity, state)}
+      >
+        <ha-icon .icon=${icon}></ha-icon>
+        <span class="access-label">${label}</span>
+        <span class="access-sub">${ACCESS_STATE_LABEL[state] ?? "Non disponibile"}</span>
+      </button>
+    `;
+  }
+
+  private toggleAccess(entity: string, state: string): void {
+    const svc =
+      state === "open" || state === "opening" ? "close_cover" : "open_cover";
+    void this.hass?.callService("cover", svc, {}, { entity_id: entity });
   }
 
   private renderAlarmConfirm() {
@@ -2746,6 +2893,14 @@ export class CowMobileDashboardCard
   }
 
 }
+
+/** cover state → access button sub-label. */
+const ACCESS_STATE_LABEL: Record<string, string> = {
+  closed: "Chiuso",
+  opening: "In apertura",
+  open: "Aperto",
+  closing: "In chiusura",
+};
 
 /** alarm service suffix → the panel state it lands on when done. */
 const ALARM_ACTION_TARGET: Record<CowMobileAlarmAction, string> = {
