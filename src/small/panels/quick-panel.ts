@@ -1,7 +1,7 @@
 import { LitElement, html, css, svg, type PropertyValues } from "lit";
 import { customElement, property, state } from "lit/decorators.js";
 import type { HomeAssistant, HassEntity } from "../../types/hass.js";
-import type { DeviceEntry } from "../config.js";
+import type { DeviceEntry, QuickAction } from "../config.js";
 import {
   applyTargetOverride,
   bumpTarget,
@@ -99,11 +99,16 @@ export class CowQuickPanel extends LitElement {
   @property({ type: Array }) lights: DeviceEntry[] = [];
   /** `media_player.*` tiles. */
   @property({ type: Array }) tvs: DeviceEntry[] = [];
+  /** Optional wide button under the TV row (script/switch/button/scene). */
+  @property({ attribute: false }) action?: QuickAction;
 
   @state() private now = new Date();
   @state() private pendingClimate?: boolean;
   @state() private pendingTarget?: number;
   @state() private pendingTile: Record<string, boolean> = {};
+  /** "Avvio…" between the tap and the entity reporting it is running. */
+  @state() private actionStarting = false;
+  private actionStartTimer?: number;
   private unsubClock?: () => void;
   private pendingClimateTimer?: number;
   private autoFlipTimer?: number;
@@ -368,6 +373,40 @@ export class CowQuickPanel extends LitElement {
         --tile-accent: #8c6be0;
         --tile-on-bg: #ece5fb;
       }
+
+      /* Wide action button under the TV row (row bottom 416 + 150 = 566,
+         + 20 gap). Same family as the Comandi door button. */
+      .action {
+        position: absolute;
+        left: 383px;
+        top: 586px;
+        width: 320px;
+        height: 72px;
+        border-radius: 20px;
+        background: var(--cow-master-active-bg, #2e2e38);
+        color: #fff;
+        font-weight: 700;
+        font-size: 22px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 10px;
+        ${colorTransition}
+      }
+      .action ha-icon {
+        --mdc-icon-size: 28px;
+      }
+      .action:active {
+        transform: scale(0.985);
+      }
+      .action[data-on] {
+        background: linear-gradient(180deg, #9a7af0 0%, #6b4fc0 100%);
+      }
+      .action[disabled] {
+        opacity: 0.5;
+        cursor: default;
+        transform: none;
+      }
     `,
   ];
 
@@ -383,6 +422,7 @@ export class CowQuickPanel extends LitElement {
     this.unsubClock?.();
     if (this.pendingClimateTimer) window.clearTimeout(this.pendingClimateTimer);
     if (this.autoFlipTimer) window.clearTimeout(this.autoFlipTimer);
+    if (this.actionStartTimer) window.clearTimeout(this.actionStartTimer);
   }
 
   override shouldUpdate(changed: PropertyValues): boolean {
@@ -399,6 +439,7 @@ export class CowQuickPanel extends LitElement {
           pauseEntity: this.pauseEntity,
           lights: this.lights,
           tvs: this.tvs,
+          action: this.action,
         }),
       );
     }
@@ -581,6 +622,66 @@ export class CowQuickPanel extends LitElement {
     await this.runMode(flip);
   }
 
+  /* ─── Action button ───────────────────────────────────────────── */
+
+  /** Running = script/switch reporting "on" (a script is "on" while its
+   *  sequence runs). Buttons and scenes are momentary. */
+  private actionRunning(): boolean {
+    return this.action ? this.ent(this.action.entity)?.state === "on" : false;
+  }
+
+  private onActionTap = async (): Promise<void> => {
+    const a = this.action;
+    if (!this.hass || !a) return;
+    const domain = a.entity.split(".")[0];
+    const running = this.actionRunning();
+    // A second tap while a script/switch runs stops it.
+    const service =
+      domain === "button"
+        ? "press"
+        : running && (domain === "script" || domain === "switch")
+          ? "turn_off"
+          : "turn_on";
+    if (service === "turn_on" && domain !== "scene") {
+      this.actionStarting = true;
+      if (this.actionStartTimer) window.clearTimeout(this.actionStartTimer);
+      this.actionStartTimer = window.setTimeout(() => {
+        this.actionStarting = false;
+        this.actionStartTimer = undefined;
+      }, 4000);
+    }
+    try {
+      await this.hass.callService(domain, service, {}, { entity_id: a.entity });
+    } catch {
+      this.actionStarting = false;
+    }
+  };
+
+  private renderAction() {
+    const a = this.action;
+    if (!a) return "";
+    const ent = this.ent(a.entity);
+    const na = !ent || ent.state === "unavailable";
+    const running = this.actionRunning();
+    const icon = a.icon ?? (ent?.attributes?.icon as string | undefined);
+    const text = running
+      ? `${a.label} · in corso`
+      : this.actionStarting
+        ? "Avvio…"
+        : a.label;
+    return html`
+      <button
+        class="action"
+        type="button"
+        ?data-on=${running || this.actionStarting}
+        ?disabled=${na}
+        @click=${this.onActionTap}
+      >
+        ${icon ? html`<ha-icon .icon=${icon}></ha-icon>` : ""}<span>${text}</span>
+      </button>
+    `;
+  }
+
   /* ─── Tiles ───────────────────────────────────────────────────── */
 
   private tileOn(id: string): boolean {
@@ -600,6 +701,11 @@ export class CowQuickPanel extends LitElement {
   }
 
   override willUpdate(): void {
+    if (this.actionStarting && this.actionRunning()) {
+      this.actionStarting = false;
+      if (this.actionStartTimer) window.clearTimeout(this.actionStartTimer);
+      this.actionStartTimer = undefined;
+    }
     if (
       this.pendingClimate != null &&
       this.pendingClimate === this.climateActuallyOn()
@@ -753,6 +859,7 @@ export class CowQuickPanel extends LitElement {
             </div>
           `
         : ""}
+      ${this.renderAction()}
     `;
   }
 }

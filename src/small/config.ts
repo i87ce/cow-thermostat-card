@@ -37,11 +37,20 @@ export interface DeviceEntry {
  * three light and three TV tiles. Climate entities come from the card
  * (``climate``, ``target_entity``, ``local_temp``, ``local_humidity``).
  */
+/** Wide action button under the TV row of the "Rapidi" tab. */
+export interface QuickAction extends DeviceEntry {
+  /** Optional ``mdi:*`` icon; defaults to the entity's own icon. */
+  icon?: string;
+}
+
 export interface QuickConfig {
   /** ``light.*`` or ``switch.*`` tiles (max 3). */
   lights: DeviceEntry[];
   /** ``media_player.*`` tiles (max 3). */
   tvs: DeviceEntry[];
+  /** ``script.*`` / ``switch.*`` / ``button.*`` / ``scene.*`` wide
+   *  button rendered horizontally under the TV row. */
+  action?: QuickAction;
   /** ``input_select.*`` holding the HA thermostat's heat/cool mode. */
   mode_entity?: string;
   /** ``input_boolean.*`` the HA thermostat turns on while paused at
@@ -340,9 +349,26 @@ export function validateConfig(input: unknown): CowConfig {
         normalizeEntry(e, domains, `quick.${key}[${i}]`, room),
       );
     };
+    const action = ((): QuickAction | undefined => {
+      const v = q.action;
+      if (v == null) return undefined;
+      const entry = normalizeEntry(
+        v,
+        ["script.", "switch.", "button.", "scene."],
+        "quick.action",
+        room,
+      );
+      const icon =
+        typeof v === "object" &&
+        typeof (v as Record<string, unknown>).icon === "string"
+          ? ((v as Record<string, unknown>).icon as string)
+          : undefined;
+      return icon ? { ...entry, icon } : entry;
+    })();
     const out: QuickConfig = {
       lights: list("lights", [DOMAIN_LIGHT, DOMAIN_SWITCH]),
       tvs: list("tvs", [DOMAIN_MEDIA_PLAYER]),
+      action,
       mode_entity: optionalEntity(q, "mode_entity", DOMAIN_INPUT_SELECT),
       pause_entity: optionalEntity(q, "pause_entity", DOMAIN_INPUT_BOOLEAN),
     };

@@ -155,8 +155,10 @@ export function smallQuickWatchIds(opts: {
   pauseEntity?: string;
   lights: DeviceEntry[];
   tvs: DeviceEntry[];
+  action?: DeviceEntry;
 }): string[] {
   const ids = [
+    opts.action?.entity,
     opts.climate,
     opts.targetEntity,
     opts.localTempEntity,

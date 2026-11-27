@@ -176,7 +176,10 @@ quick:
     - { entity: switch.studio_led_scritte_outlet, label: "Display" }
   tvs:
     - { entity: media_player.studio_game_3, label: "Game 3" }
+  action: { entity: script.aereo, label: "Aereo" }   # optional wide button under the TVs
 ```
+
+`quick.action` accepts `script.*`, `switch.*`, `button.*` or `scene.*` (optional `icon: mdi:…`, otherwise the entity's icon). A script/switch shows "in corso" while it is on; a second tap stops it.
 
 **Legacy v1 schema** (still supported for back-compat):
 

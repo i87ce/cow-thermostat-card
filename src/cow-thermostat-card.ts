@@ -41,7 +41,7 @@ type Kind = "quick" | "thermostat" | "lights" | "blinds" | "extras";
 /** Mirrors `tvIsOn` in extras-panel — media_player "on-ish" states. */
 const TV_OFF_STATES = new Set(["off", "unavailable", "unknown", "standby"]);
 
-const VERSION = "1.14.0";
+const VERSION = "1.15.0";
 
 const ACCENT_DOT: Record<Kind, (cfg: CowConfig, hass?: HomeAssistant) => string> =
   {
@@ -300,6 +300,7 @@ export class CowThermostatCard extends LitElement implements LovelaceCard {
                     .pauseEntity=${q.pause_entity ?? ""}
                     .lights=${q.lights}
                     .tvs=${q.tvs}
+                    .action=${q.action}
                   ></cow-quick-panel>
                 `;
               }

@@ -4,6 +4,23 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and
 this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.15.0] — 2026-11-27
+
+### Added — wide action button on the "Rapidi" tab
+- New optional `quick.action` on `cow-thermostat-card`
+  (`{ entity: script.*|switch.*|button.*|scene.*, label?, icon? }`).
+  It renders as a wide horizontal button under the TV row, in the
+  same family as the Comandi door button.
+- Tap runs it domain-aware: `script`/`switch` → `turn_on`
+  (a second tap while it is "on" stops it with `turn_off`),
+  `button` → `press`, `scene` → `turn_on`.
+- While a script/switch reports "on" the button turns violet and
+  reads "<label> · in corso"; between tap and the first state change
+  it shows "Avvio…" (max 4 s). Unavailable entity → dimmed.
+- Icon from `icon:` or from the entity's own `icon` attribute.
+- First use: Studio display, `script.aereo` (PC + TV Game 3 for the
+  flight simulator, studio lights off, blind down).
+
 ## [1.14.0] — 2026-10-31
 
 ### Added — gate / garage buttons on the mobile dashboard
