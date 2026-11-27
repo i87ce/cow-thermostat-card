@@ -163,7 +163,7 @@ initial_view: thermostat   # quick | thermostat | lights | blinds | extras
 - `lights` and `covers` accept any number of entities — the panels switch from a single big visual to a tile-grid scope picker as soon as you configure 2 or more
 - `initial_view` defaults to the first available panel (`thermostat` → `lights` → `blinds`)
 
-**Quick tab** (small card only) — a simplified first page with climate on/off in "auto", setpoint ± and up to 3 lights + 3 TVs:
+**Quick tab** (small card only) — a simplified first page with climate on/off in "auto", setpoint ± and up to 4 lights + 4 TVs as compact pills (two per row):
 
 ```yaml
 target_entity: input_number.studio_clima_target   # optional setpoint helper

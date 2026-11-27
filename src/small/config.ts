@@ -34,7 +34,7 @@ export interface DeviceEntry {
 
 /**
  * "Rapidi" tab: one-tap climate on/off in auto + setpoint, and up to
- * three light and three TV tiles. Climate entities come from the card
+ * four light and four TV pills. Climate entities come from the card
  * (``climate``, ``target_entity``, ``local_temp``, ``local_humidity``).
  */
 /** Wide action button under the TV row of the "Rapidi" tab. */
@@ -44,9 +44,9 @@ export interface QuickAction extends DeviceEntry {
 }
 
 export interface QuickConfig {
-  /** ``light.*`` or ``switch.*`` tiles (max 3). */
+  /** ``light.*`` or ``switch.*`` pills (max 4). */
   lights: DeviceEntry[];
-  /** ``media_player.*`` tiles (max 3). */
+  /** ``media_player.*`` pills (max 4). */
   tvs: DeviceEntry[];
   /** ``script.*`` / ``switch.*`` / ``button.*`` / ``scene.*`` wide
    *  button rendered horizontally under the TV row. */
@@ -342,8 +342,8 @@ export function validateConfig(input: unknown): CowConfig {
       if (!Array.isArray(v)) {
         throw new CowConfigError(`'quick.${key}' must be a list`);
       }
-      if (v.length > 3) {
-        throw new CowConfigError(`'quick.${key}' takes at most 3 entries`);
+      if (v.length > 4) {
+        throw new CowConfigError(`'quick.${key}' takes at most 4 entries`);
       }
       return v.map((e, i) =>
         normalizeEntry(e, domains, `quick.${key}[${i}]`, room),

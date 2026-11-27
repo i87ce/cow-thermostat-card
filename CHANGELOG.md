@@ -4,6 +4,24 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and
 this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.16.0] — 2026-11-27
+
+### Changed — "Rapidi" tab: lights and TVs as compact pills
+- Lights and TVs are now horizontal pills (dot · name · ON/OFF on one
+  line), two per row, 64 px tall, instead of three tall tiles per row.
+- `quick.lights` and `quick.tvs` accept up to **4** entries each
+  (was 3). The vertical positions of the two sections and of the
+  `quick.action` button are computed from the counts, so 4 lights +
+  3 TVs + the action button fit above the pagination dots.
+- Tap behaviour is unchanged (toggle, optimistic, N.D. when
+  unavailable).
+
+### Docs
+- `docs/07-deploy-and-release.md`: HACS is no longer installed on the
+  HA instance; the card is served from `/local/community/…` and is
+  deployed by copying `dist/` to the host and bumping `?v=` on the
+  Lovelace resource.
+
 ## [1.15.0] — 2026-11-27
 
 ### Added — wide action button on the "Rapidi" tab

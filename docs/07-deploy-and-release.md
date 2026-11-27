@@ -10,6 +10,26 @@ the next agent will thank you.
 
 ---
 
+> **27/11/2026 — HACS is gone.** The HA instance no longer has HACS
+> (`custom_components/hacs` missing, `hacs/*` WS commands answer
+> `unknown_command`), so step 5 below and every HACS reference in this
+> file are obsolete. The card is served as the Lovelace resource
+> `/local/community/cow-thermostat-card/cow-thermostat-card.js?v=<n>`
+> from `/config/www/community/cow-thermostat-card/`. Deploy after the
+> Release workflow:
+>
+> ```bash
+> npm run build && gzip -9 -k -f dist/cow-thermostat-card.js
+> D=/mnt/data/supervisor/homeassistant/www/community/cow-thermostat-card
+> ssh -p 22222 root@homeassistant "cd $D && cp cow-thermostat-card.js cow-thermostat-card-vOLD.js"
+> ssh -p 22222 root@homeassistant "cat > $D/cow-thermostat-card.js"    < dist/cow-thermostat-card.js
+> ssh -p 22222 root@homeassistant "cat > $D/cow-thermostat-card.js.gz" < dist/cow-thermostat-card.js.gz
+> ```
+>
+> then bump `?v=` on the resource with the WS command
+> `lovelace/resources/update` (`resource_id`, `url`, `res_type: module`)
+> so the displays reload it.
+
 ## TL;DR — the happy path
 
 ```bash

@@ -286,33 +286,29 @@ export class CowQuickPanel extends LitElement {
         letter-spacing: 3px;
         color: var(--cow-text-secondary, #737380);
       }
-      .section.lights {
-        top: 150px;
-      }
-      .section.tvs {
-        top: 384px;
-      }
-      .row {
+      /* v1.16: lights and TVs are compact pills, two per row; the
+         vertical positions are computed in render() from the counts
+         (see layout()), so 4 lights + 3 TVs + the action button fit. */
+      .pills {
         position: absolute;
         left: 383px;
         width: 320px;
-        height: 150px;
         display: grid;
-        grid-template-columns: 1fr 1fr 1fr;
-        grid-column-gap: 10px;
-      }
-      .row.lights {
-        top: 182px;
-      }
-      .row.tvs {
-        top: 416px;
+        grid-template-columns: 1fr 1fr;
+        grid-auto-rows: 64px;
+        gap: 10px;
       }
 
       .tile {
         position: relative;
+        display: flex;
+        align-items: center;
+        gap: 7px;
         width: 100%;
         height: 100%;
-        border-radius: 20px;
+        padding: 0 12px;
+        box-sizing: border-box;
+        border-radius: 18px;
         background: var(--cow-surface-button-bg, #f0f0f2);
         box-shadow: inset 0 0 0 2px transparent;
         ${colorTransition}
@@ -325,12 +321,9 @@ export class CowQuickPanel extends LitElement {
         box-shadow: inset 0 0 0 2px var(--tile-accent);
       }
       .tile .dot {
-        position: absolute;
-        left: 50%;
-        top: 26px;
-        width: 20px;
-        height: 20px;
-        margin-left: -10px;
+        flex: 0 0 auto;
+        width: 10px;
+        height: 10px;
         border-radius: 50%;
         background: var(--cow-tile-dot-off, #c7c7d1);
         ${colorTransition}
@@ -339,13 +332,11 @@ export class CowQuickPanel extends LitElement {
         background: var(--tile-accent);
       }
       .tile .label {
-        position: absolute;
-        left: 6px;
-        right: 6px;
-        top: 66px;
-        text-align: center;
+        flex: 1 1 auto;
+        min-width: 0;
+        text-align: left;
         font-weight: 600;
-        font-size: 21px;
+        font-size: 18px;
         line-height: 1.1;
         color: var(--cow-tile-label, #2e2e38);
         overflow: hidden;
@@ -353,33 +344,29 @@ export class CowQuickPanel extends LitElement {
         white-space: nowrap;
       }
       .tile .state {
-        position: absolute;
-        left: 6px;
-        right: 6px;
-        top: 100px;
-        text-align: center;
-        font-weight: 500;
-        font-size: 17px;
+        flex: 0 0 auto;
+        font-weight: 600;
+        font-size: 14px;
+        letter-spacing: 0.5px;
         color: var(--cow-tile-state-off, #9999a6);
       }
       .tile[data-on] .state {
         color: var(--cow-tile-state, #595966);
       }
-      .row.lights .tile {
+      .pills.lights .tile {
         --tile-accent: #ffc72e;
         --tile-on-bg: #fff2c7;
       }
-      .row.tvs .tile {
+      .pills.tvs .tile {
         --tile-accent: #8c6be0;
         --tile-on-bg: #ece5fb;
       }
 
-      /* Wide action button under the TV row (row bottom 416 + 150 = 566,
-         + 20 gap). Same family as the Comandi door button. */
+      /* Wide action button under the TV pills (top from layout()).
+         Same family as the Comandi door button. */
       .action {
         position: absolute;
         left: 383px;
-        top: 586px;
         width: 320px;
         height: 72px;
         border-radius: 20px;
@@ -657,7 +644,7 @@ export class CowQuickPanel extends LitElement {
     }
   };
 
-  private renderAction() {
+  private renderAction(top: number) {
     const a = this.action;
     if (!a) return "";
     const ent = this.ent(a.entity);
@@ -672,6 +659,7 @@ export class CowQuickPanel extends LitElement {
     return html`
       <button
         class="action"
+        style="top:${top}px"
         type="button"
         ?data-on=${running || this.actionStarting}
         ?disabled=${na}
@@ -755,6 +743,37 @@ export class CowQuickPanel extends LitElement {
     }
   }
 
+  /** Vertical positions (stage px) of the right-pane blocks, from the
+   *  number of pills: section label, then the pill grid 32 px below it;
+   *  22 px between blocks, 18 px above the action button. */
+  private layout(): {
+    lightsLabel: number;
+    lightsGrid: number;
+    tvsLabel: number;
+    tvsGrid: number;
+    action: number;
+  } {
+    const PILL = 64;
+    const GAP = 10;
+    const gridH = (n: number): number => {
+      const rows = Math.ceil(n / 2);
+      return rows === 0 ? 0 : rows * PILL + (rows - 1) * GAP;
+    };
+    let y = 150;
+    const lightsLabel = y;
+    const lightsGrid = y + 32;
+    if (this.lights.length > 0) y = lightsGrid + gridH(this.lights.length) + 22;
+    const tvsLabel = y;
+    const tvsGrid = y + 32;
+    const end =
+      this.tvs.length > 0
+        ? tvsGrid + gridH(this.tvs.length)
+        : this.lights.length > 0
+          ? lightsGrid + gridH(this.lights.length)
+          : 150;
+    return { lightsLabel, lightsGrid, tvsLabel, tvsGrid, action: end + 18 };
+  }
+
   private renderTile(d: DeviceEntry) {
     const ent = this.ent(d.entity);
     const on = this.tileOn(d.entity);
@@ -783,6 +802,7 @@ export class CowQuickPanel extends LitElement {
     const ac = this.ent(this.climate);
     const acDown = !ac || ac.state === "unavailable";
 
+    const pos = this.layout();
     const lightsOn = this.lights.filter((d) => this.tileOn(d.entity)).length;
     const tvsOn = this.tvs.filter((d) => this.tileOn(d.entity)).length;
     const summary: string[] = [];
@@ -845,21 +865,21 @@ export class CowQuickPanel extends LitElement {
 
       ${this.lights.length > 0
         ? html`
-            <div class="section lights">LUCI</div>
-            <div class="row lights">
+            <div class="section" style="top:${pos.lightsLabel}px">LUCI</div>
+            <div class="pills lights" style="top:${pos.lightsGrid}px">
               ${this.lights.map((d) => this.renderTile(d))}
             </div>
           `
         : ""}
       ${this.tvs.length > 0
         ? html`
-            <div class="section tvs">TELEVISIONI</div>
-            <div class="row tvs">
+            <div class="section" style="top:${pos.tvsLabel}px">TELEVISIONI</div>
+            <div class="pills tvs" style="top:${pos.tvsGrid}px">
               ${this.tvs.map((d) => this.renderTile(d))}
             </div>
           `
         : ""}
-      ${this.renderAction()}
+      ${this.renderAction(pos.action)}
     `;
   }
 }
