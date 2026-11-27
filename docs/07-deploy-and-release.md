@@ -10,25 +10,19 @@ the next agent will thank you.
 
 ---
 
-> **27/11/2026 — HACS is gone.** The HA instance no longer has HACS
-> (`custom_components/hacs` missing, `hacs/*` WS commands answer
-> `unknown_command`), so step 5 below and every HACS reference in this
-> file are obsolete. The card is served as the Lovelace resource
-> `/local/community/cow-thermostat-card/cow-thermostat-card.js?v=<n>`
-> from `/config/www/community/cow-thermostat-card/`. Deploy after the
-> Release workflow:
->
-> ```bash
-> npm run build && gzip -9 -k -f dist/cow-thermostat-card.js
-> D=/mnt/data/supervisor/homeassistant/www/community/cow-thermostat-card
-> ssh -p 22222 root@homeassistant "cd $D && cp cow-thermostat-card.js cow-thermostat-card-vOLD.js"
-> ssh -p 22222 root@homeassistant "cat > $D/cow-thermostat-card.js"    < dist/cow-thermostat-card.js
-> ssh -p 22222 root@homeassistant "cat > $D/cow-thermostat-card.js.gz" < dist/cow-thermostat-card.js.gz
-> ```
->
-> then bump `?v=` on the resource with the WS command
-> `lovelace/resources/update` (`resource_id`, `url`, `res_type: module`)
-> so the displays reload it.
+> **27/11/2026 — HACS is now the core `marketplace` integration.**
+> On HA 2026.11 HACS was renamed: there is no `custom_components/hacs`
+> any more and the WebSocket commands are `marketplace/*` instead of
+> `hacs/*` (verified: `marketplace/info`, `marketplace/repositories/list`,
+> `marketplace/repository/refresh`). The card is repository id
+> `1232593939`, update entity `update.cave_of_wonders_room_card_update`,
+> served as `/local/community/cow-thermostat-card/cow-thermostat-card.js?v=<n>`
+> from `/config/www/community/cow-thermostat-card/`. `scripts/ha-hacs-update.mjs`
+> still sends `hacs/*` and must be switched to `marketplace/*` before use.
+> Fallback used for v1.15.0/v1.16.0: copy `dist/cow-thermostat-card.js`
+> (and `.gz`) into that folder over `ssh -p 22222 root@homeassistant`
+> (keep a `-vOLD.js` copy) and bump `?v=` with the WS command
+> `lovelace/resources/update`.
 
 ## TL;DR — the happy path
 

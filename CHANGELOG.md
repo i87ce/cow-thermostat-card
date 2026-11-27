@@ -17,10 +17,8 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   unavailable).
 
 ### Docs
-- `docs/07-deploy-and-release.md`: HACS is no longer installed on the
-  HA instance; the card is served from `/local/community/…` and is
-  deployed by copying `dist/` to the host and bumping `?v=` on the
-  Lovelace resource.
+- `docs/07-deploy-and-release.md`: HACS is now the core `marketplace`
+  integration (WS `marketplace/*`); manual fallback documented.
 
 ## [1.15.0] — 2026-11-27
 
